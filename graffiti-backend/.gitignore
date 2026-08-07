@@ -1,0 +1,18 @@
+# Secret Exclusions
+application.properties
+*.env
+
+# Maven Target Artifacts
+target/
+*.class
+*.jar
+*.war
+
+# IDE & Editor Files
+.idea/
+*.iml
+.vscode/
+
+# OS Files
+.DS_Store
+Thumbs.db

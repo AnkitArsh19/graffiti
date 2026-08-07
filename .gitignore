@@ -1,0 +1,30 @@
+# Directives & Secret Exclusions
+docs_archive/
+.env
+docker/.env
+*.env
+application.properties
+
+# Maven Target Artifacts
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# IDE & Editor Files
+.idea/
+*.iml
+.vscode/
+.settings/
+.project/
+.classpath
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Docker Persistence Volumes
+docker/postgres_data/
+docker/redis_data/
