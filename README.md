@@ -1,167 +1,142 @@
-# Graffiti - Real-Time Collaborative Whiteboard Backend
+# Graffiti — Real-Time Collaborative Whiteboard with AI Assist
 
-A high-performance, horizontally scalable real-time collaborative whiteboard backend built with Java 25 and Spring Boot 4.1.0, inspired by Excalidraw's distributed architecture.
+[![Java](https://img.shields.io/badge/Java-25-orange.svg)](https://openjdk.org/projects/jdk/25/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.0-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![React](https://img.shields.io/badge/React-19-blue.svg)](https://react.dev/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.12-teal.svg)](https://fastapi.tiangolo.com/)
+[![Redis](https://img.shields.io/badge/Redis-7-red.svg)](https://redis.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
 
-Features a CRDT LWW (Last-Writer-Wins) shape merge engine, STOMP WebSockets, Redis Pub/Sub for multi-node event broadcasting, PostgreSQL JSONB storage, Redis distributed-lock snapshot compaction, and JWT / Google OAuth2 Authentication.
+Graffiti is a high-performance, horizontally scalable real-time collaborative whiteboard web application. Multiple distributed users can draw, write, manipulate shapes, and organize complex diagrams concurrently on a shared infinite canvas with deterministic CRDT synchronization, ephemeral presence streaming, periodic snapshot compaction, and multimodal AI assistance.
+
+> 📖 **Master Blueprint & Architecture Contract:** For low-level JSON schemas, CRDT mathematical merge rules, keyboard shortcut maps, and REST/STOMP protocol specifications, see [**`PROJECT_SPECIFICATION.md`**](file:///e:/graffiti/PROJECT_SPECIFICATION.md).
 
 ---
 
-## Architectural Overview
+## System Architecture
 
 ```
-                               ┌───────────────────────────┐
-                               │   WebSocket / STOMP Client│
-                               └─────────────┬─────────────┘
-                                             │
-                       ┌─────────────────────┴─────────────────────┐
-                       │  Spring Boot Node (WebSocket Controller)  │
-                       └──────────┬─────────────────────┬──────────┘
-                                  │                     │
-                     Ephemeral    │                     │ Structural
-                     Presence     │                     │ Ops
-                                  │                     ▼
-                                  │             ┌──────────────┐
-                                  │             │ PostgreSQL 16│
-                                  │             │ (Op / JSONB) │
-                                  │             └──────────────┘
-                                  ▼
-                   ┌──────────────────────────────┐
-                   │    Redis 7 Pub/Sub & Lock    │
-                   │ (room:{slug}:op / presence)  │
-                   └──────────────┬───────────────┘
-                                  │
-                       ┌──────────┴──────────┐
-                       │  Subscribed Nodes   │
-                       └─────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                                Frontend Clients                                  │
+│                 (React + Canvas Rendering Engine + STOMP Client)                 │
+└──────────────┬────────────────────────────────────────────────────┬──────────────┘
+               │                                                    │
+      REST (Rooms/Auth/Search)                             STOMP WebSocket (Ops/Presence)
+               │                                                    │
+               ▼                                                    ▼
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                         Spring Boot 4.1.0 Node Cluster                           │
+│                          (Java 25 Runtime / Port 8080)                           │
+│  ┌───────────────────────┐ ┌─────────────────────────┐ ┌──────────────────────┐  │
+│  │ Room & Auth REST API  │ │ STOMP MessageController │ │ Compaction Worker    │  │
+│  │ (JWT / Google OAuth2) │ │ (/app/rooms/{slug}/*)   │ │ (Redis Distributed)  │  │
+│  └───────────────────────┘ └─────────────────────────┘ └──────────────────────┘  │
+│  ┌────────────────────────────────────────────────────────────────────────────┐  │
+│  │             CRDT Merge Engine (LWW-Element-Set Reducer)                    │  │
+│  └────────────────────────────────────────────────────────────────────────────┘  │
+└──────────────┬───────────────────────────┬────────────────────────┬──────────────┘
+               │                           │                        │
+        Database Ops                 Pub/Sub & Locks          Internal Callback
+               │                           │                        │
+               ▼                           ▼                        ▼
+┌─────────────────────────────┐ ┌──────────────────────┐ ┌─────────────────────────┐
+│        PostgreSQL 16        │ │       Redis 7        │ │      AI/ML Service      │
+│  - ops (Append-only JSONB)  │ │ - room:{slug}:op     │ │    (FastAPI / Python)   │
+│  - snapshots (State JSONB)  │ │ - room:{slug}:pres.. │ │ - Handwriting OCR Search│
+│  - rooms, users, members    │ │ - lock:compact:{id}  │ │ - Stroke Beautification │
+│                             │ │                      │ │ - Circle-to-Edit Engine │
+│                             │ │                      │ │ - Text-to-Diagram (LLM) │
+└─────────────────────────────┘ └──────────────────────┘ └─────────────────────────┘
 ```
 
-### Key Highlights
-1. **LWW-Element-Set CRDT Engine**:
-   - Pure, deterministic, commutative, and idempotent state merge reducer.
-   - Each shape carries a unique `shape_id`. Edits and tombstones (deletes) are ordered by `(lamport_ts, author_id)`.
-2. **Ephemeral Presence vs. Persistent Ops**:
-   - High-frequency ephemeral presence (mouse cursors, selection bounds, laser trails) streams directly over Redis Pub/Sub without causing database disk I/O bloat.
-   - Structural canvas shape operations (`CREATE_OR_UPDATE`, `DELETE`) are persisted to PostgreSQL and broadcast via Redis.
-3. **Snapshot Compaction**:
-   - Background worker scans active rooms. When an operation log exceeds N ops since the last snapshot, a Redis distributed lock (`SET NX PX`) ensures a single node compacts the state into a PostgreSQL `JSONB` snapshot.
-4. **Flexible Authentication & Role Enforcement**:
-   - Supports anonymous room creation, email/password registration & login, and Google OAuth2 Login.
-   - Per-room membership roles (`OWNER`, `EDITOR`, `VIEWER`).
+---
+
+## Subsystem Overview
+
+| Subsystem | Tech Stack | Directory | Documentation |
+| :--- | :--- | :--- | :--- |
+| **Backend & Sync Engine** | Java 25, Spring Boot 4.1.0, STOMP, Redis 7, PostgreSQL 16 | [`graffiti-backend/`](file:///e:/graffiti/graffiti-backend/) | [Backend README](file:///e:/graffiti/graffiti-backend/README.md) |
+| **Frontend Canvas UI** | React 19, TypeScript, Vite, Rough vector renderer | [`graffiti-frontend/`](file:///e:/graffiti/graffiti-frontend/) | [Frontend README](file:///e:/graffiti/graffiti-frontend/README.md) |
+| **AI/ML Assistance Service** | Python 3.12, FastAPI, TrOCR / Vision, Shapely | [`graffiti-aiml/`](file:///e:/graffiti/graffiti-aiml/) | [AI/ML README](file:///e:/graffiti/graffiti-aiml/README.md) |
+| **Infrastructure** | Docker, Docker Compose, PostgreSQL 16, Redis 7 | [`docker/`](file:///e:/graffiti/docker/) | [Docker Compose](file:///e:/graffiti/docker/docker-compose.yml) |
 
 ---
 
-## Tech Stack
+## Key Highlights
 
-| Component | Technology | Description |
-| --- | --- | --- |
-| **Language & Runtime** | Java 25 (JDK 25) | Modern Java runtime |
-| **Framework** | Spring Boot 4.1.0 | Core backend framework |
-| **Real-time Transport** | Spring WebSocket + STOMP + SockJS | WebSockets for multi-user canvas syncing |
-| **Pub/Sub & Locking** | Redis 7 | Distributed message relay and lock management |
-| **Database** | PostgreSQL 16 | Relational store with native `JSONB` document columns |
-| **Security** | Spring Security + JJWT + OAuth2 Client | JWT tokens and Google OAuth2 social login |
-| **Containerization** | Docker & Docker Compose | Container orchestration for PostgreSQL & Redis |
+1. **Deterministic CRDT Engine**: Last-Writer-Wins Element-Set reducer ensuring commutative and idempotent multi-user convergence without central locks.
+2. **Ephemeral Presence vs. Persistent Ops**: High-frequency cursor coordinates, laser trails, and selection bounds stream over Redis Pub/Sub without database disk I/O.
+3. **Snapshot Compaction**: Background worker compacts PostgreSQL operation logs into JSONB snapshots using Redis distributed locks (`SET NX PX`).
+4. **Multimodal AI Whiteboard Assistance**:
+   - **Handwriting OCR & Search (`Ctrl+F`)**: Unified spatial canvas search across typed text and handwritten notes.
+   - **Stroke Beautification**: Douglas-Peucker point decimation and geometric primitive snapping (Auto-Snap on Hold).
+   - **"Circle to Ask / Modify / Change" Gesture AI**: Drawing a closed loop around any region extracts spatial context for AI queries, restyling, or transformation.
+   - **Non-Destructive Ghost Previews**: AI suggestions render as interactive preview overlays with **Accept (Enter)** and **Dismiss (Esc)** actions.
 
 ---
 
-## Directory & Package Structure
-
-The codebase is organized by Domain Feature Packages under `com.graffiti`:
+## Project Structure
 
 ```
 graffiti/
-├── docker/
-│   └── docker-compose.yml         # Container configuration for PostgreSQL 16 & Redis 7
-├── docs_archive/                  # Reference architecture documentation (Excalidraw)
-└── graffiti-backend/
-    ├── pom.xml                    # Maven configuration (Java 25, Spring Boot 4.1.0)
-    └── src/
-        ├── main/
-        │   ├── java/com/graffiti/
-        │   │   ├── security/      # SecurityConfig, JwtTokenProvider, OAuth2SuccessHandler
-        │   │   ├── redis/         # RedisConfig, RedisMessagePublisher, RedisMessageSubscriber
-        │   │   ├── websocket/     # WebSocketConfig, WebSocketSecurityInterceptor, WebSocketEventListener
-        │   │   ├── room/          # Room entity, RoomRepository, RoomService, RoomController, RoomMessageController
-        │   │   ├── user/          # User entity, UserRepository, UserService, AuthController
-        │   │   ├── roommember/    # RoomMember entity, RoomMemberRepository, RoomMemberService, Role
-        │   │   ├── op/            # Op entity (JSONB), OpRepository, OpService, OpType
-        │   │   ├── snapshot/      # Snapshot entity (JSONB), SnapshotRepository, CompactionService, CompactionScheduler
-        │   │   ├── crdt/          # ShapeState, CrdtMergeService (LWW CRDT Engine)
-        │   │   ├── presence/      # PresenceMessageDTO (ephemeral events)
-        │   │   └── ai/            # AiStubController (stubbed AI endpoint)
-        │   └── resources/
-        │       └── application.properties # Environment & datasource properties
-        └── test/                  # JUnit 5 & Mockito test suite
+├── docker/                         # PostgreSQL 16 & Redis 7 container orchestration
+│   ├── docker-compose.yml
+│   └── .env
+├── docs_archive/                   # Reference canvas engine implementation & schemas
+├── graffiti-backend/               # Java 25 + Spring Boot 4.1.0 backend service
+│   ├── pom.xml
+│   ├── README.md
+│   └── src/main/java/com/graffiti/
+├── graffiti-frontend/              # React 19 + TypeScript + Vite canvas application
+│   ├── README.md
+│   └── src/
+├── graffiti-aiml/                  # Python 3.12 + FastAPI AI assistance service
+│   ├── README.md
+│   └── app/
+├── README.md                       # Master project overview & quickstart guide
+└── PROJECT_SPECIFICATION.md        # Authoritative engineering specification & contracts
 ```
 
 ---
 
-## Getting Started
+## Quick Start
 
-### Prerequisites
-- JDK 25 installed
-- Docker Desktop / Docker daemon running
-
-### 1. Start Infrastructure (PostgreSQL & Redis)
-Navigate to the `docker/` folder and launch the container stack:
-
+### 1. Launch Infrastructure (PostgreSQL 16 & Redis 7)
 ```bash
 cd docker
 docker compose up -d
 ```
+- **PostgreSQL 16**: Port `5432` (`graffiti` / `Ankit@1907`)
+- **Redis 7**: Port `6379` (`Ankit@1907`)
 
-This starts:
-- **PostgreSQL 16**: Port 5432 (User: `graffiti`, Password: `Ankit@1907`, Database: `graffiti`)
-- **Redis 7**: Port 6379 (Password: `Ankit@1907`)
-
-### 2. Build and Run Backend
-Navigate to `graffiti-backend/` and start the Spring Boot application:
-
+### 2. Run Backend Sync Engine
 ```bash
 cd graffiti-backend
 ./mvnw spring-boot:run
 ```
+Backend runs on `http://localhost:8080` (STOMP WebSocket endpoint: `ws://localhost:8080/ws`).  
+Run automated tests: `./mvnw test`
 
-The server will start on `http://localhost:8080`.
-
----
-
-## API Specification
-
-### REST Endpoints
-
-| Method | Endpoint | Auth | Description |
-| --- | --- | --- | --- |
-| `POST` | `/auth/register` | Public | Register user with email and password |
-| `POST` | `/auth/login` | Public | Login user and receive JWT bearer token |
-| `GET` | `/oauth2/authorization/google` | Public | Initiate Google OAuth2 login flow |
-| `POST` | `/rooms` | Public / Auth | Create a new room (returns 8-character unique slug) |
-| `GET` | `/rooms/{slug}` | Public | Get room metadata + latest snapshot + ops since snapshot |
-| `POST` | `/rooms/{slug}/claim` | Authenticated | Claim ownership of an anonymous room |
-| `POST` | `/internal/rooms/{slug}/ai-suggestion` | Public | Stubbed AI suggestion endpoint |
-
----
-
-### WebSocket / STOMP Transport
-
-- **STOMP Endpoint**: `ws://localhost:8080/ws` (supports SockJS fallback)
-- **Subscribe Destination**: `/topic/rooms/{slug}`
-- **Message Mapping Endpoints**:
-  - `SEND /app/rooms/{slug}/op`: Send a shape create/update/delete operation.
-  - `SEND /app/rooms/{slug}/presence`: Send an ephemeral cursor position or user presence event.
-
----
-
-## Testing
-
-Run the full automated JUnit 5 test suite (using H2 in-memory DB and mock Redis beans):
-
+### 3. Run Frontend Web Client
 ```bash
-cd graffiti-backend
-./mvnw test
+cd graffiti-frontend
+npm install
+npm run dev
 ```
+Frontend runs on `http://localhost:5173`.
 
-### Verified Tests
-- `CrdtMergeServiceTest`: Verifies commutative order invariance, idempotency, and Lamport timestamp tie-breaking.
-- `CompactionServiceTest`: Verifies snapshot generation when op count exceeds threshold (N=50).
-- `RoomControllerTest`: Verifies anonymous room creation, metadata retrieval, user registration, and room claiming.
+### 4. Run AI/ML Microservice
+```bash
+cd graffiti-aiml
+python -m venv venv
+# Windows: venv\Scripts\activate | Linux/Mac: source venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+AI microservice runs on `http://localhost:8000`.
+
+---
+
+## License
+
+This project is open-source software licensed under the MIT License.
