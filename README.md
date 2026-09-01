@@ -44,6 +44,7 @@ Graffiti is a high-performance, horizontally scalable real-time collaborative wh
 │  - ops (Append-only JSONB)  │ │ - room:{slug}:op     │ │    (FastAPI / Python)   │
 │  - snapshots (State JSONB)  │ │ - room:{slug}:pres.. │ │ - Handwriting OCR Search│
 │  - rooms, users, members    │ │ - lock:compact:{id}  │ │ - Stroke Beautification │
+│                             │ │                      │ │ - Live Math Solver      │
 │                             │ │                      │ │ - Circle-to-Edit Engine │
 │                             │ │                      │ │ - Text-to-Diagram (LLM) │
 └─────────────────────────────┘ └──────────────────────┘ └─────────────────────────┘
@@ -57,7 +58,7 @@ Graffiti is a high-performance, horizontally scalable real-time collaborative wh
 | :--- | :--- | :--- | :--- |
 | **Backend & Sync Engine** | Java 25, Spring Boot 4.1.0, STOMP, Redis 7, PostgreSQL 16 | [`graffiti-backend/`](file:///e:/graffiti/graffiti-backend/) | [Backend README](file:///e:/graffiti/graffiti-backend/README.md) |
 | **Frontend Canvas UI** | React 19, TypeScript, Vite, Rough vector renderer | [`graffiti-frontend/`](file:///e:/graffiti/graffiti-frontend/) | [Frontend README](file:///e:/graffiti/graffiti-frontend/README.md) |
-| **AI/ML Assistance Service** | Python 3.12, FastAPI, TrOCR / Vision, Shapely | [`graffiti-aiml/`](file:///e:/graffiti/graffiti-aiml/) | [AI/ML README](file:///e:/graffiti/graffiti-aiml/README.md) |
+| **AI/ML Assistance Service** | Python 3.12, FastAPI, SymPy, TrOCR / Vision, Shapely | [`graffiti-aiml/`](file:///e:/graffiti/graffiti-aiml/) | [AI/ML README](file:///e:/graffiti/graffiti-aiml/README.md) |
 | **Infrastructure** | Docker, Docker Compose, PostgreSQL 16, Redis 7 | [`docker/`](file:///e:/graffiti/docker/) | [Docker Compose](file:///e:/graffiti/docker/docker-compose.yml) |
 
 ---
@@ -67,7 +68,13 @@ Graffiti is a high-performance, horizontally scalable real-time collaborative wh
 1. **Deterministic CRDT Engine**: Last-Writer-Wins Element-Set reducer ensuring commutative and idempotent multi-user convergence without central locks.
 2. **Ephemeral Presence vs. Persistent Ops**: High-frequency cursor coordinates, laser trails, and selection bounds stream over Redis Pub/Sub without database disk I/O.
 3. **Snapshot Compaction**: Background worker compacts PostgreSQL operation logs into JSONB snapshots using Redis distributed locks (`SET NX PX`).
-4. **Multimodal AI Whiteboard Assistance**:
+4. **Productivity & Layout Superpowers**:
+   - **Sticky Note Presets (`N`)**: Instant pastel brainstorm notes (`#fff3bf`, `#d0ebff`, `#d3f9d8`, `#ffdeeb`, `#f3d9fa`, `#ffe8cc`) with auto-focused centered text.
+   - **Navigation Minimap (`Alt+M`)**: Scaled overview thumbnail with draggable viewport frame and click-to-pan.
+   - **"Tidy Up" Auto-Alignment (`Ctrl+Alt+T`)**: Multi-shape geometry engine organizing scattered selections into clean grids, columns, or rows with 24px spacing.
+5. **Multimodal AI Whiteboard Assistance**:
+   - **Live Handwritten Math & Equation Solver**: Automatically detects math expressions ending in `=`, evaluates via symbolic Python (`sympy`), and places the result digitally on canvas.
+   - **Voice-Driven Canvas Commands**: Browser-native Web Speech API enabling hands-free tool switching, color selection, and export actions.
    - **Handwriting OCR & Search (`Ctrl+F`)**: Unified spatial canvas search across typed text and handwritten notes.
    - **Stroke Beautification**: Douglas-Peucker point decimation and geometric primitive snapping (Auto-Snap on Hold).
    - **"Circle to Ask / Modify / Change" Gesture AI**: Drawing a closed loop around any region extracts spatial context for AI queries, restyling, or transformation.

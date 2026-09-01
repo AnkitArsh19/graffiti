@@ -11,12 +11,14 @@ Graffiti is a high-performance, horizontally scalable real-time collaborative wh
 
 ### 1.1 Progressive Architecture Philosophy
 The system is architected to be built **progressively across distinct, verifiable layers**:
-1. **Layer 1 (Core Canvas & Single-Room State)**: Standalone 2D vector canvas with hand-drawn rough styling, discrete element schemas, complete keyboard shortcuts, and optimistic local manipulation.
+1. **Layer 1 (Core Canvas, Layout Tools & Single-Room State)**: Standalone 2D vector canvas with hand-drawn rough styling, discrete element schemas, complete keyboard shortcuts, sticky note presets, canvas navigation minimap, multi-shape "Tidy Up" alignment engine, and optimistic local manipulation.
 2. **Layer 2 (Real-Time Synchronization & CRDT)**: Monotonically ordered Last-Writer-Wins (LWW) CRDT engine, STOMP WebSockets, and append-only database persistence for deterministic multi-user convergence.
 3. **Layer 3 (Distributed Scale & Compaction)**: Multi-instance Redis Pub/Sub event broadcasting, distributed lock snapshot compaction, and role-based authentication (JWT + Google OAuth2).
-4. **Layer 4 (Intelligent Canvas & AI/ML Assist)**: Asynchronous microservice integration powering multimodal interactions:
+4. **Layer 4 (Intelligent Canvas & Multimodal AI Assist)**: Asynchronous microservice & client-side intelligent interactions:
    - **Handwriting & Canvas Text Search (`Ctrl+F`)**: Unified canvas search indexing both typed text and hand-drawn strokes via OCR/embeddings with auto-pan/zoom.
    - **Stroke Beautification & Shape Smoothing**: Snapping irregular hand-drawn loops, strokes, and polygons into smooth geometric primitives or splines upon hold.
+   - **Live Handwritten Math & Equation Solver**: Automatic OCR extraction of handwritten arithmetic and algebra ending in `=`, evaluated via symbolic math engine (`sympy`) and placed adjacent as digital text.
+   - **Voice-Driven Canvas Commands**: Browser-native Web Speech recognition translating spoken phrases into instant canvas tool actions, color changes, and export commands with zero backend audio streaming.
    - **"Circle to Ask / Modify / Change" Gesture AI**: Drawing a closed loop around any canvas area to contextually query, restyle, or transform enclosed elements using multimodal LLMs.
    - **Natural Language Diagram Synthesis**: Generating complete structured flowcharts and system diagrams from text prompts.
 
@@ -41,10 +43,13 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Hand-Drawn Aesthetic** | Procedural rough stroke generation with customizable roughness, bowing, and jitter. |
 | **Dark / Light Mode** | Dynamic theme switching (`Alt+Shift+D`), CSS custom property tokens, and canvas color palette adaptation. |
 | **Customizable Styles** | Stroke colors, background colors, fill styles (`hachure`, `solid`, `cross-hatch`, `zigzag`), stroke widths, opacity. |
+| **Sticky Note Presets** | Dedicated Sticky Note tool (`N`) creating square notes with curated pastel palette presets (`#fff3bf`, `#d0ebff`, `#d3f9d8`, `#ffdeeb`, `#f3d9fa`, `#ffe8cc`) and auto-focused centered text. |
+| **Canvas Navigation Minimap** | Interactive 160×100px overview thumbnail (`Alt+M`) rendering scaled scene bounds with click-to-pan and draggable viewport rectangle. |
+| **"Tidy Up" & Auto-Alignment** | Multi-selection layout engine (`Ctrl+Alt+T`) calculating bounding boxes and evenly distributing elements into clean rows, columns, or uniform grids with 24px gaps. |
 | **Image Support** | Image elements (`type: "image"`), drag-and-drop file upload, cropping/resizing, bounding box persistence. |
 | **Export to PNG, SVG, Clipboard** | Off-screen canvas serialization to PNG blob, SVG vector string, and direct OS clipboard copy (`Shift+Alt+C`). |
 | **Open Format JSON Export/Import** | Standardized `.graffiti` JSON scene export and full rehydration import. |
-| **Tool Palette** | Rectangle (`R`), Diamond (`D`), Ellipse (`O`), Arrow (`A`), Line (`L`), Free-draw (`P`), Text (`T`), Eraser (`E`), Frame (`F`), Laser (`K`), Bucket Fill (`B`). |
+| **Tool Palette** | Rectangle (`R`), Diamond (`D`), Ellipse (`O`), Arrow (`A`), Line (`L`), Free-draw (`P`), Text (`T`), Sticky Note (`N`), Eraser (`E`), Frame (`F`), Laser (`K`), Bucket Fill (`B`). |
 | **Arrow-Binding & Labeled Arrows** | Dynamic anchor binding to target shape IDs via `boundElements` array with auto-recalculating tangents and text labels. |
 | **Undo / Redo Stack** | Multi-user aware local op stack (`Ctrl+Z`, `Ctrl+Y` / `Ctrl+Shift+Z`). |
 | **Zoom and Panning** | Smooth trackpad pinch, mouse wheel drag, Spacebar pan, Zoom to fit (`Shift+1`), Zoom to selection (`Shift+2`). |
@@ -67,6 +72,8 @@ The system is architected to be built **progressively across distinct, verifiabl
 | :--- | :--- |
 | **Handwriting OCR & Canvas Search (`Ctrl+F`)** | Asynchronous stroke OCR extraction indexing `freedraw` notes with smooth auto-pan/zoom to matching bounding boxes. |
 | **Stroke Beautification & Shape Smoothing** | Douglas-Peucker point decimation, geometric classification, and Catmull-Rom/Bezier curve smoothing (Auto-Snap on Hold). |
+| **Live Handwritten Math & Equation Solver** | OCR extraction of handwritten arithmetic and algebra ending in `=`, evaluated via symbolic Python engine (`sympy`) and rendered adjacent as digital text. |
+| **Voice-Driven Canvas Commands** | Browser-native Web Speech recognition translating spoken commands into tool changes, color selections, and canvas actions with zero backend audio load. |
 | **"Circle to Ask / Modify / Change" Gesture AI** | Drawing a closed loop around any canvas area extracts spatial context and triggers interactive AI queries, restyling, or transformations. |
 | **Text-to-Diagram Synthesis** | Synthesizing structured flowcharts and architecture diagrams from natural language prompts via Mermaid/Sugiyama layout. |
 | **Non-Destructive Ghost Overlays** | All AI operations render as preview overlays with **Accept (Enter)** and **Dismiss (Esc)** actions. |
@@ -86,12 +93,14 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Arrow** | `A` or `5` |
 | **Line** | `L` or `6` |
 | **Draw (Freedraw pen)** | `P` or `7` |
+| **Sticky Note** | `N` |
 | **Text tool** | `T` or `8` |
 | **Insert image** | `9` |
 | **Eraser** | `E` or `0` |
 | **Frame tool** | `F` |
 | **Laser pointer** | `K` |
 | **Bucket fill** | `B` |
+| **Voice Command Listening (Push to Talk)** | `M` or Mic Toolbar Button |
 | **Pick color from canvas** | `I` / `Shift+S` / `Shift+G` |
 | **Edit line/arrow points** | `Ctrl + Enter` |
 | **Edit text / add label** | `Enter` |
@@ -114,6 +123,7 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Reset zoom (100%)** | `Ctrl + 0` |
 | **Zoom to fit all elements** | `Shift + 1` |
 | **Zoom to selection** | `Shift + 2` |
+| **Toggle Navigation Minimap** | `Alt + M` |
 | **Move page up / down** | `PgUp` / `PgDn` |
 | **Move page left / right** | `Shift + PgUp` / `Shift + PgDn` |
 | **Zen mode (hide toolbars)** | `Alt + Z` |
@@ -128,6 +138,8 @@ The system is architected to be built **progressively across distinct, verifiabl
 ### 3.3 Editor & Manipulation Shortcuts
 | Action | Keybinding |
 | :--- | :--- |
+| **Tidy Up / Auto-Distribute Selection** | `Ctrl + Alt + T` |
+| **Solve Handwritten Equation on Selection** | `Ctrl + Shift + M` (or automatic on `=`) |
 | **Create connected flowchart element** | `Ctrl + Arrow Key` |
 | **Navigate flowchart** | `Alt + Arrow Key` |
 | **Move canvas** | `Space + drag` or `Wheel + drag` |
@@ -195,6 +207,7 @@ The system is architected to be built **progressively across distinct, verifiabl
 │  - ops (Append-only JSONB)  │ │ - room:{slug}:op     │ │    (FastAPI / Python)   │
 │  - snapshots (State JSONB)  │ │ - room:{slug}:pres.. │ │ - Handwriting OCR Search│
 │  - rooms, users, members    │ │ - lock:compact:{id}  │ │ - Stroke Beautification │
+│                             │ │                      │ │ - Live Math Solver      │
 │                             │ │                      │ │ - Circle-to-Edit Engine │
 │                             │ │                      │ │ - Text-to-Diagram (LLM) │
 └─────────────────────────────┘ └──────────────────────┘ └─────────────────────────┘
@@ -202,8 +215,8 @@ The system is architected to be built **progressively across distinct, verifiabl
 
 ### Subsystem Responsibilities
 1. **Backend / Sync Engine (`graffiti-backend/`)**: Java 25 & Spring Boot. Owns room management, JWT/OAuth2 authentication, STOMP WebSocket broker, PostgreSQL persistence, Redis Pub/Sub relay, snapshot compaction with distributed locks, and CRDT merge reduction.
-2. **Frontend Canvas (`graffiti-frontend/`)**: React + TypeScript. Implements the 2D vector canvas (referencing `docs_archive/`), Rough-style procedural rendering, optimistic local mutations, fractional-index z-ordering, multi-user presence, and the AI ghost preview overlay.
-3. **AI/ML Service (`graffiti-aiml/`)**: Python (FastAPI). Asynchronously processes stroke beautification, handwriting recognition, canvas search indexing, and circle-to-edit multimodal workflows, returning proposed operations to the backend callback API.
+2. **Frontend Canvas (`graffiti-frontend/`)**: React + TypeScript. Implements the 2D vector canvas (referencing `docs_archive/`), Rough-style procedural rendering, sticky note presets, canvas minimap, tidy-up layout algorithms, Web Speech command recognition, optimistic local mutations, fractional-index z-ordering, multi-user presence, and the AI ghost preview overlay.
+3. **AI/ML Service (`graffiti-aiml/`)**: Python (FastAPI). Asynchronously processes stroke beautification, handwriting recognition, live equation solving via `sympy`, canvas search indexing, and circle-to-edit multimodal workflows, returning proposed operations to the backend callback API.
 
 ---
 
@@ -245,7 +258,9 @@ Every visual object on the whiteboard conforms to a standardized, discrete JSON 
   "customData": {
     "ocrText": "Authentication Service",
     "aiGenerated": false,
-    "smoothedFromStroke": true
+    "smoothedFromStroke": true,
+    "isStickyNote": false,
+    "mathSolved": false
   }
 }
 ```
@@ -260,7 +275,7 @@ Every visual object on the whiteboard conforms to a standardized, discrete JSON 
 - `embeddable` / `iframe` (interactive web content embeds)
 
 #### Type-Specific Required Fields
-All shape types share the common base fields shown in the schema above (`id`, `x`, `y`, `angle`, `strokeColor`, `opacity`, `version`, `versionNonce`, `index`, `isDeleted`, `groupIds`, `boundElements`, `updated`). The table below lists the **additional fields required per type** so backend validation and frontend/AI code generation agree on a single contract:
+All shape types share the common base fields shown in the schema above (`id`, `x`, `y`, `angle`, `strokeColor`, `opacity`, `version`, `versionNonce`, `index`, `isDeleted`, `groupIds`, `boundElements`, `updated`). The table below lists the **additional fields required per type**:
 
 | Type | Required Additional Fields |
 | :--- | :--- |
@@ -271,8 +286,6 @@ All shape types share the common base fields shown in the schema above (`id`, `x
 | `image` | `fileId`, `status` (`pending` \| `saved` \| `error`), `scale: [scaleX, scaleY]`, `mimeType` |
 | `frame` | `name`, `childrenIds` (array of contained element IDs) |
 | `embeddable` / `iframe` | `link`, `width`, `height` |
-
-Fields not listed for a given type are ignored by the backend on write and must not be relied upon by consuming code.
 
 ---
 
@@ -427,7 +440,7 @@ Mouse cursor movements, laser trails, and active selections are high-frequency e
 | `POST` | `/internal/rooms/{slug}/ai-suggestion` | Internal | Ingest AI-proposed shape operations | `{"shapeId": "...", "opType": "CREATE_OR_UPDATE", "payload": {...}}` | `{"status": "STUBBED_ACCEPTED"}` |
 
 #### 6.1.1 Standard Error Envelope
-Every REST endpoint above returns errors in a single shared shape, so client and AI-generated integration code only need one parser:
+Every REST endpoint returns errors in a single shared shape:
 
 ```json
 {
@@ -444,9 +457,9 @@ Every REST endpoint above returns errors in a single shared shape, so client and
 | :--- | :--- | :--- |
 | `400` | Malformed request body / validation failure | `VALIDATION_ERROR` |
 | `401` | Missing or invalid JWT | `UNAUTHENTICATED` |
-| `403` | Authenticated but role forbids the action (e.g., `VIEWER` attempting an edit) | `FORBIDDEN_ROLE` |
+| `403` | Authenticated but role forbids action | `FORBIDDEN_ROLE` |
 | `404` | Resource does not exist | `ROOM_NOT_FOUND`, `USER_NOT_FOUND` |
-| `409` | Conflicting state (e.g., claiming an already-owned room) | `ROOM_ALREADY_CLAIMED` |
+| `409` | Conflicting state | `ROOM_ALREADY_CLAIMED` |
 | `500` | Unhandled server error | `INTERNAL_ERROR` |
 
 ---
@@ -484,15 +497,6 @@ Every REST endpoint above returns errors in a single shared shape, so client and
     "authorId": "usr_991823ab",
     "presenceType": "cursor",
     "payload": { "x": 450.5, "y": 320.0, "username": "Ankit", "color": "#ff4d4f" }
-  }
-  ```
-- **Server Broadcast Payload (User Lifecycle)**:
-  ```json
-  {
-    "type": "PRESENCE",
-    "presenceType": "USER_JOINED",
-    "sessionId": "stomp-sess-92a81f",
-    "timestamp": 1725184800000
   }
   ```
 
@@ -535,12 +539,10 @@ Every REST endpoint above returns errors in a single shared shape, so client and
 ```
 
 #### 6.2.1 Reconnection Protocol
-This is the concrete procedure behind the "Network Reconnect" scenario in §10:
-1. Client detects STOMP disconnect (heartbeat timeout or socket close) and enters a **reconnecting** UI state (does not clear local canvas state).
-2. Client retries with exponential backoff: `1s, 2s, 4s, 8s, capped at 30s`, jittered by ±20%.
-3. On successful reconnect, client calls `GET /rooms/{slug}` to fetch the latest `snapshotState` + `opsSinceSnapshot`, replaces its authoritative local state with the fetched state, then re-applies any of its own **unacknowledged** local ops on top (re-sent with fresh Lamport timestamps).
-4. Client re-subscribes to `/topic/rooms/{slug}` and resumes presence broadcasting.
-5. If reconnection fails after a configurable max attempt count, the UI surfaces a persistent "Reconnecting…" banner rather than silently discarding edits; local optimistic edits are retained in memory until either sync succeeds or the user reloads.
+1. Client detects STOMP disconnect and enters a **reconnecting** state (retaining local state).
+2. Retries with exponential backoff: `1s, 2s, 4s, 8s, capped at 30s` (±20% jitter).
+3. On reconnect, calls `GET /rooms/{slug}` to rehydrate authoritative snapshot + delta ops, then re-applies unacknowledged local ops with fresh Lamport timestamps.
+4. Resubscribes to `/topic/rooms/{slug}` and resumes presence broadcast.
 
 ---
 
@@ -592,11 +594,49 @@ The frontend client implements a high-performance 2D vector canvas referencing t
 - **SVG Vector**: Generates standards-compliant SVG paths for vector editing.
 - **`.graffiti` JSON**: Standardized scene document for full canvas state backups and imports.
 
+### 7.6 Canvas Navigation Minimap Architecture
+- **Overview Sub-Canvas**: An interactive 160×100px overview widget positioned in the bottom corner of the viewport (toggleable via `Alt+M`).
+- **Real-Time Scene Representation**: Renders simplified bounding box miniatures of all non-deleted canvas shapes, scaled proportionately to the total scene bounding envelope.
+- **Draggable Viewport Bounding Box**: An illuminated translucent rectangle indicates the current viewport position and zoom level.
+- **Interactive Navigation**:
+  - Clicking anywhere inside the minimap instantly centers the canvas viewport on that coordinate.
+  - Dragging the viewport rectangle smoothly pans the main canvas in real time.
+
+### 7.7 "Tidy Up" & Auto-Alignment Grid Algorithm
+When multiple elements ($N \ge 2$) are selected, clicking "Tidy Up" (`Ctrl+Alt+T`) organizes them into a clean, equidistant layout:
+1. **Bounding Box Calculation**: Determines the total bounding rectangle of all selected items and identifies their natural reading order (sorted by top-to-bottom, left-to-right).
+2. **Grid / Column / Row Layout Strategy**:
+   - If aspect ratio is predominantly horizontal: Arranges in an equidistant horizontal row with uniform gap ($24\text{px}$).
+   - If aspect ratio is predominantly vertical: Arranges in an equidistant vertical column with uniform gap ($24\text{px}$).
+   - If multi-row cluster: Calculates optimal $M \times K$ grid with standardized cell widths and uniform $24\text{px}$ horizontal and vertical spacing.
+3. **Smooth Interpolation & Batch Ops**: Animates shapes smoothly to target coordinates and emits standard `CREATE_OR_UPDATE` CRDT ops for each repositioned element.
+
+### 7.8 Voice-Driven Canvas Commands (Web Speech API)
+- **Zero Backend Audio Streaming**: Uses the browser's native `SpeechRecognition` / `webkitSpeechRecognition` API (free client-side speech-to-text built into Chromium, Edge, and Safari).
+- **Activation**: Toggle via microphone button in the toolbar or Push-to-Talk shortcut (`M`).
+- **Intent Mapping Engine**:
+  - **Tool Switching**: *"Select pen"* $\rightarrow$ Tool: `freedraw`, *"Rectangle"* $\rightarrow$ Tool: `rectangle`, *"Sticky note"* $\rightarrow$ Tool: `sticky_note`, *"Eraser"* $\rightarrow$ Tool: `eraser`.
+  - **Color Control**: *"Color red"*, *"Background blue"*, *"Fill green"*.
+  - **View & Navigation**: *"Zoom to fit"*, *"Reset zoom"*, *"Toggle dark mode"*, *"Show minimap"*.
+  - **Canvas Actions**: *"Tidy up"*, *"Clear board"*, *"Export PNG"*, *"Undo"*, *"Redo"*.
+- **Visual HUD Toast**: Displays non-intrusive bottom HUD pill showing transcribed phrase and confirmation toast upon execution.
+
+### 7.9 Sticky Note System & Pastel Palette Engine
+- **Dedicated Tool (`N`)**: Instantly creates a 200×200px square `rectangle` with `customData: { isStickyNote: true }` and auto-bound centered text.
+- **Curated Pastel Palette**:
+  - Pastel Yellow: `#fff3bf` (stroke: `#fab005`)
+  - Pastel Blue: `#d0ebff` (stroke: `#339af0`)
+  - Pastel Green: `#d3f9d8` (stroke: `#51cf66`)
+  - Pastel Pink: `#ffdeeb` (stroke: `#f06595`)
+  - Pastel Purple: `#f3d9fa` (stroke: `#cc5de8`)
+  - Pastel Orange: `#ffe8cc` (stroke: `#ff922b`)
+- **Instant Text Focus**: Placing a sticky note immediately opens an inline centered text editor with auto-scaling font size based on text volume.
+
 ---
 
 ## 8. AI/ML Microservice & Multimodal Intelligence
 
-The AI/ML service runs independently in Python (FastAPI). It interacts asynchronously with the canvas and sync engine, providing four intelligent whiteboard capabilities:
+The AI/ML service runs independently in Python (FastAPI). It interacts asynchronously with the canvas and sync engine, providing intelligent whiteboard capabilities:
 
 ```
 [User Canvas] ───(Trigger Action / Gesture)───> [AI Microservice] ───(Inference)───┐
@@ -620,7 +660,7 @@ Enables users to search (`Ctrl+F` / `Cmd+F`) across the infinite canvas, matchin
    - When a user finishes drawing a series of `freedraw` strokes, the client bundles the stroke image/vectors and sends them to the OCR worker.
    - The worker runs lightweight handwriting recognition (e.g., TrOCR, PaddleOCR, or Vision API) and populates `element.customData.ocrText` with the recognized string and confidence score.
 2. **Unified Search Index**:
-   - The frontend maintains an in-memory spatial search index covering typed `text` shapes, frame labels, and OCR-annotated `freedraw` elements.
+   - The frontend maintains an in-memory spatial search index covering typed `text` shapes, sticky notes, frame labels, and OCR-annotated `freedraw` elements.
 3. **Interactive Search UI**:
    - Typing a query highlights all matching element bounding boxes on the canvas with an animated glow.
    - Pressing Enter smoothly pans and zooms the viewport to focus on the next matching handwritten note or shape.
@@ -635,7 +675,7 @@ Automatically cleans up irregular, shaky hand-drawn shapes into crisp, mathemati
 ```
 
 1. **Algorithm Pipeline**:
-   - **Point Decimation**: Runs Douglas-Peucker reduction on raw stroke coordinates to remove jitter.
+   - **Point Decimation**: Runs Douglas-Peucker reduction on raw stroke coordinates (`cv2.approxPolyDP` / RDP) to remove jitter.
    - **Geometric Primitive Fitting**: Evaluates convex hull, aspect ratio, circularity, and corner angle variance to detect whether the user intended to draw a:
      - `rectangle` (4 distinct ~90° corners, parallel opposing sides)
      - `ellipse` / `circle` (high circularity, low corner variance)
@@ -649,7 +689,27 @@ Automatically cleans up irregular, shaky hand-drawn shapes into crisp, mathemati
 
 ---
 
-### 8.3 Feature 3: "Circle to Ask / Modify / Change" Gesture AI
+### 8.3 Feature 3: Live Handwritten Math & Equation Solver
+Evaluates handwritten mathematical equations and arithmetic directly on the canvas (similar to Apple Math Notes) without disrupting manual drawing:
+
+```
+[User writes "45 * 2 + 10 ="] ──> [OCR Math Parser] ──> [SymPy Evaluator] ──> [Place "100" text adjacent]
+```
+
+1. **Trigger & Detection**:
+   - **Automatic Trigger**: OCR detects a stroke sequence terminating in an equals sign (`=`).
+   - **Manual Action**: User selects any handwritten or typed formula and presses `Ctrl+Shift+M` or clicks "Solve Math".
+2. **Evaluation Pipeline**:
+   - OCR extracts equation string with mathematical symbols (`+`, `-`, `*`, `/`, `^`, `sqrt`, `pi`, `sin`, `cos`, parentheses).
+   - Python `sympy` parses and solves the expression in a secure, sandboxed environment (rejecting unsafe expressions).
+   - Supports: basic arithmetic (`45 * 12 + 8 =`), percentage calculations, algebra solving (`2x + 10 = 30`), and units.
+3. **Canvas Result Placement**:
+   - The backend/frontend instantiates a styled `text` element containing the result string (e.g., `"100"`), positioned immediately to the right of the `=` sign at matching font baseline and scale.
+   - Tagged with `customData: { mathSolved: true }` and broadcast via standard CRDT ops.
+
+---
+
+### 8.4 Feature 4: "Circle to Ask / Modify / Change" Gesture AI
 A gesture-driven multimodal interaction allowing users to circle any region on the canvas to inspect, query, restyle, or transform the enclosed content using an LLM.
 
 ```
@@ -666,7 +726,7 @@ A gesture-driven multimodal interaction allowing users to circle any region on t
    - Detects when a `freedraw` stroke begins and ends near the same point (distance between start and end point < 15% of perimeter) forming a closed bounding loop.
 2. **Spatial Context Extraction**:
    - Computes polygon intersection between the drawn circle and all canvas elements.
-   - Gathers all enclosed shapes, connectors, typed text, and OCR-extracted handwriting within the circle into a structured scene context payload:
+   - Gathers all enclosed shapes, sticky notes, connectors, typed text, and OCR-extracted handwriting within the circle into a structured scene context payload:
      ```json
      {
        "circleBounds": { "x": 100, "y": 100, "w": 400, "h": 300 },
@@ -688,7 +748,7 @@ A gesture-driven multimodal interaction allowing users to circle any region on t
 
 ---
 
-### 8.4 Feature 4: Natural Language Diagram Synthesis (Text-to-Diagram)
+### 8.5 Feature 5: Natural Language Diagram Synthesis (Text-to-Diagram)
 Synthesizes full diagrams from textual descriptions (e.g., *"Kubernetes deployment pipeline with CI/CD stages and staging/prod clusters"*):
 
 1. LLM generates structured Mermaid.js or declarative graph syntax.
@@ -697,22 +757,22 @@ Synthesizes full diagrams from textual descriptions (e.g., *"Kubernetes deployme
 
 ---
 
-### 8.5 AI Microservice REST API Contract
-Section 8.1–8.4 describe AI behavior; this subsection defines the concrete endpoints the backend calls on `graffiti-aiml`, so the AI/ML subteam and backend subteam can build against the same interface independently.
+### 8.6 AI Microservice REST API Contract
 
 | Method | Path | Purpose | Request Body | Response Body |
 | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/ocr/extract` | Recognize text from a `freedraw` stroke | `{"roomId": "...", "shapeId": "...", "points": [...], "pressures": [...]}` | `{"shapeId": "...", "ocrText": "...", "confidence": 0.91}` |
 | `POST` | `/beautify` | Snap a rough stroke to a clean primitive/spline | `{"roomId": "...", "shapeId": "...", "points": [...]}` | `{"shapeId": "...", "detectedType": "rectangle", "payload": {...cleaned element fields...}}` |
+| `POST` | `/math/solve` | Evaluate a mathematical expression | `{"roomId": "...", "equation": "45 * 2 + 10", "anchorPosition": {"x": 200, "y": 150}}` | `{"equation": "45 * 2 + 10", "result": "100", "proposedElement": {...}}` |
 | `POST` | `/circle-query` | Handle a "Circle to Ask/Modify/Change" request | `{"roomId": "...", "circleBounds": {...}, "enclosedElements": [...], "userPrompt": "..."}` | `{"action": "restyle" \| "explain" \| "transform", "proposedElements": [...], "explanationText": "..."}` |
 | `POST` | `/diagram/synthesize` | Generate a diagram from a text prompt | `{"roomId": "...", "prompt": "...", "anchorPosition": {"x": 0, "y": 0}}` | `{"proposedElements": [...]}` |
 
-All four endpoints are called **by the backend only** (not directly by the frontend). On success, the backend takes `proposedElements` / `payload`, tags each with `customData.aiGenerated: true`, and forwards them to `POST /internal/rooms/{slug}/ai-suggestion` (§6.1) to be merged and broadcast as ghost-preview ops (§8.6).
+All AI endpoints are called **by the backend only**. On success, the backend takes `proposedElements` / `payload`, tags each with `customData.aiGenerated: true`, and forwards them to `POST /internal/rooms/{slug}/ai-suggestion` (§6.1) to be broadcast as ghost-preview ops (§8.7).
 
-### 8.6 Ghost Overlay Accept/Dismiss Wire Format & AI Failure Handling
-- **Accept (`Enter`)**: the frontend re-sends the ghost-preview element(s) as a normal `CREATE_OR_UPDATE` op over `/app/rooms/{slug}/op` (§6.2, item 2), with `customData.aiGenerated` preserved on the payload. It is merged through the identical CRDT path as any human edit — an AI suggestion holds no special authority and can be superseded by a concurrent human edit with a higher Lamport timestamp (already covered by the "AI Suggestion Race" case in §10).
-- **Dismiss (`Esc`)**: the frontend discards the ghost-preview element(s) locally. No op is sent, and nothing is persisted to the `ops` table.
-- **AI Service Unavailable / Timeout**: the backend applies a request timeout (configurable, default 8s) per call to `graffiti-aiml`. On timeout or non-2xx response, the backend does not broadcast any suggestion and the relevant UI affordance (search results, beautify icon, circle-query action bar, diagram synthesis) shows a non-blocking "AI unavailable" state. This failure path must never affect the core sync engine, REST API, or any in-progress human edit — consistent with the "Non-Destructive AI UX" and "AI operations never silently overwrite human edits" goals in §1.2.
+### 8.7 Ghost Overlay Accept/Dismiss Wire Format & AI Failure Handling
+- **Accept (`Enter`)**: Frontend sends ghost element(s) as a normal `CREATE_OR_UPDATE` op over `/app/rooms/{slug}/op`, merged through the standard CRDT reducer path.
+- **Dismiss (`Esc`)**: Frontend discards ghost element(s) locally. No op is sent, nothing is persisted.
+- **AI Service Unavailable / Timeout**: 8-second request timeout per call to `graffiti-aiml`. On timeout or error, backend returns graceful non-blocking "AI unavailable" status; core sync engine and user drawings are completely unaffected.
 
 ---
 
@@ -763,11 +823,14 @@ All four endpoints are called **by the backend only** (not directly by the front
 ## 11. Progressive Engineering Roadmap
 
 ```
-Phase 1: Canvas Core & Single-Node State Sync
+Phase 1: Canvas Core, Layout Tools & Single-Node State Sync
 ├── [✓] Java 25 & Spring Boot 4.1.0 backend setup with PostgreSQL 16 JSONB schema
 ├── [✓] STOMP WebSocket message broker (/app/rooms/{slug}/op, /app/rooms/{slug}/presence)
 ├── [✓] LWW-Element-Set CRDT Merge Service & JUnit 5 test suite
 ├── [ ] React 19 + TypeScript canvas application (referencing docs_archive/)
+├── [ ] Sticky note preset engine (pastel color palette & auto-text binding)
+├── [ ] Canvas navigation minimap (sub-canvas rendering & draggable viewport box)
+├── [ ] "Tidy Up" auto-alignment grid layout algorithm
 ├── [ ] Complete keyboard shortcuts engine (Tools, View, Editor actions)
 └── [ ] Local-first optimistic reconciliation loop & fractional indexing
 
@@ -778,21 +841,23 @@ Phase 2: Distributed Scalability & Presence
 ├── [ ] Multi-user presence overlay (cursors, selection bounding boxes, avatars)
 └── [ ] Local undo/redo stack integrated with remote op streams
 
-Phase 3: Handwriting OCR & Canvas Search
+Phase 3: Handwriting OCR, Search & Live Math Solver
 ├── [ ] Python FastAPI microservice setup for asynchronous vision tasks
 ├── [ ] Background OCR extraction worker for freedraw strokes (populating customData.ocrText)
 ├── [ ] Unified Canvas Search modal (Ctrl+F) covering text shapes and handwritten strokes
+├── [ ] Live Handwritten Math & Equation Solver via SymPy (/math/solve)
 └── [ ] Viewport auto-pan and smooth zoom to search results
 
-Phase 4: Stroke Beautification & Shape Smoothing
+Phase 4: Stroke Beautification & Voice Commands
 ├── [ ] Douglas-Peucker point decimation & geometric primitive fitting (rect, ellipse, diamond, arrow)
 ├── [ ] Catmull-Rom & cubic Bezier curve smoothing for irregular hand-drawn strokes
 ├── [ ] "Auto-Snap on Hold" stylus/mouse interaction
+├── [ ] Browser Web Speech API command parser (tool selection, colors, actions)
 └── [ ] One-tap stroke beautification tool in canvas toolbar
 
 Phase 5: Gesture AI & Multimodal Diagram Synthesis
 ├── [ ] "Circle to Ask / Modify / Change" closed-loop gesture detection
-├── [ ] Spatial context extraction (enclosed shapes, text, connectors)
+├── [ ] Spatial context extraction (enclosed shapes, sticky notes, text, connectors)
 ├── [ ] Multimodal LLM integration (Ask, Restyle, Transform, Wireframe-to-Diagram)
 ├── [ ] Non-destructive Ghost Preview overlay with Accept/Dismiss actions
 └── [ ] Stress testing with 100+ concurrent simulated clients per room
@@ -815,6 +880,8 @@ Phase 5: Gesture AI & Multimodal Diagram Synthesis
 | `AIML_SERVICE_URL` | Backend | Base URL for `graffiti-aiml` | `http://localhost:8000` |
 | `AIML_REQUEST_TIMEOUT_MS` | Backend | Timeout per AI service call (§8.6) | `8000` |
 | `PRESENCE_THROTTLE_MS` | Frontend | Cursor emission throttle (§7.3) | `30` |
+| `ENABLE_VOICE_COMMANDS` | Frontend | Toggle browser Web Speech recognition | `true` |
+| `ENABLE_LIVE_MATH_SOLVER` | AI/ML, Frontend | Toggle automatic math evaluation on `=` | `true` |
 
 ---
 

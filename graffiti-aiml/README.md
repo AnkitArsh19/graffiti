@@ -1,14 +1,14 @@
 # Graffiti AI/ML Service — Intelligent Canvas Microservice
 
-The asynchronous AI/ML assistance service for Graffiti, built with **Python 3.12** and **FastAPI**. It processes heavy vision, OCR, vector geometry, and multimodal LLM inference workloads decoupled from the core real-time sync engine.
+The asynchronous AI/ML assistance service for Graffiti, built with **Python 3.12** and **FastAPI**. It processes heavy vision, OCR, vector geometry, symbolic math evaluation, and multimodal LLM inference workloads decoupled from the core real-time sync engine.
 
 ---
 
 ## Architecture & Module Structure
 
 ```
-graffiti-ai/
-├── requirements.txt                # Dependencies (FastAPI, uvicorn, numpy, shapely, opencv, pillow)
+graffiti-aiml/
+├── requirements.txt                # Dependencies (FastAPI, uvicorn, numpy, shapely, opencv, pillow, sympy)
 ├── Dockerfile                      # Container definition for AI microservice
 └── app/
     ├── main.py                     # FastAPI application entrypoint & CORS middleware
@@ -16,15 +16,19 @@ graffiti-ai/
     ├── api/                        # REST endpoint routers
     │   ├── ocr_router.py           # Handwriting OCR extraction & stroke indexing
     │   ├── beautify_router.py      # Stroke smoothing & geometric shape fitting
+    │   ├── math_router.py          # Live handwritten equation & math solver
     │   ├── gesture_router.py       # "Circle to Ask/Modify" context extraction & prompt execution
     │   └── diagram_router.py       # Natural language text-to-diagram generation
     ├── ocr/                        # Handwriting recognition engine
     │   ├── preprocessor.py         # Stroke-to-raster image rasterization & binarization
     │   └── ocr_engine.py           # TrOCR / PaddleOCR / Vision API extraction pipeline
     ├── beautify/                   # Geometric fitting & spline smoothing
-    │   ├── douglas_peucker.py      # Polyline simplification algorithm
+    │   ├── douglas_peucker.py      # Polyline simplification algorithm (cv2.approxPolyDP / RDP)
     │   ├── shape_classifier.py     # Rectangle, ellipse, diamond, triangle, arrow classifier
     │   └── bezier_fitter.py        # Catmull-Rom & cubic Bezier curve fitting
+    ├── math/                       # Symbolic math & equation solver
+    │   ├── equation_parser.py      # Arithmetic, algebra, and LaTeX expression extraction
+    │   └── sympy_solver.py         # Sandboxed SymPy evaluation & result string formatting
     ├── gesture/                    # Multimodal gesture-driven interaction
     │   ├── loop_detector.py        # Closed-loop / lasso stroke geometry verification
     │   ├── spatial_indexer.py      # Ray casting / bounding box intersection for enclosed shapes
@@ -36,6 +40,7 @@ graffiti-ai/
     └── schemas/                    # Pydantic request & response models
         ├── ocr_schema.py           # StrokeBatchRequest, OCRResultResponse
         ├── beautify_schema.py      # StrokePointsRequest, BeautifiedShapeResponse
+        ├── math_schema.py          # MathSolveRequest, MathSolveResponse
         ├── gesture_schema.py       # CircleContextRequest, SuggestedModificationsResponse
         └── diagram_schema.py       # DiagramPromptRequest, CanvasElementsResponse
 ```
@@ -53,62 +58,35 @@ graffiti-ai/
 - **Geometric Primitive Fitting**: Analyzes convex hulls, aspect ratios, circularity, and corner variance to classify whether an irregular stroke represents a rectangle, ellipse, diamond, triangle, or arrow.
 - **Curved Spline Fitting**: Fits smooth cubic Bezier and Catmull-Rom splines to freeform irregular contours.
 
-### 3. "Circle to Ask / Modify / Change" Gesture AI
+### 3. Live Handwritten Math & Equation Solver
+- **Equation Extraction**: Detects when a handwritten stroke sequence ends with an `=` symbol, extracting arithmetic and algebra formulas.
+- **SymPy Symbolic Evaluation**: Solves expressions in a secure sandbox (arithmetic `45 * 2 + 10 =`, percentages, algebraic equations `2x + 5 = 15`).
+- **Canvas Result Generation**: Formats and returns the solution text element positioned adjacent to the `=` sign.
+
+### 4. "Circle to Ask / Modify / Change" Gesture AI
 - **Closed-Loop Gesture Recognition**: Detects when a user draws a circle around an arbitrary region of the whiteboard.
-- **Spatial Context Extraction**: Collects all enclosed shapes, arrows, typed text, and handwritten notes into a structured scene context.
+- **Spatial Context Extraction**: Collects all enclosed shapes, sticky notes, arrows, typed text, and handwritten notes into a structured scene context.
 - **Multimodal Operations**:
   - *Ask & Explain*: Analyzes circled architecture diagrams or calculations, providing instant explanations.
-  - *Modify & Restyle*: Standardizes messy boxes, aligns connectors, or converts rough notes into structured tables.
-  - *Transform & Expand*: Converts rough wireframe sketches into structured UI components or expands flowcharts with error-handling logic.
+  - *Modify & Restyle*: Standardizes alignment, color-coding, or formats messy brainstorm notes into clean tables.
+  - *Transform & Expand*: Converts rough wireframe sketches into structured UI components or adds error-handling paths to flowcharts.
 
-### 4. Text-to-Diagram Synthesis
-- Converts natural language descriptions (e.g. *"Microservices payment processing workflow with Kafka and Redis"*) into structured Mermaid diagrams.
-- Translates Mermaid syntax into styled canvas elements with automated hierarchical (Sugiyama) coordinate positioning.
+### 5. Natural Language Diagram Synthesis
+- Generates complete architecture diagrams and flowcharts from textual prompts using Mermaid.js layout engines and the Sugiyama hierarchical graph algorithm.
 
 ---
 
-## Getting Started
+## Development Setup
 
-### Prerequisites
-- Python 3.12+
-- Virtual environment (recommended)
-
-### Installation & Development
 ```bash
-# Create and activate virtual environment
+# 1. Create and activate Python 3.12 virtual environment
 python -m venv venv
-# Windows:
-venv\Scripts\activate
-# Linux/macOS:
-source venv/bin/activate
+# Windows: venv\Scripts\activate | Linux/Mac: source venv/bin/activate
 
-# Install dependencies
+# 2. Install dependencies
 pip install -r requirements.txt
 
-# Start FastAPI development server (port 8000)
+# 3. Run FastAPI local development server
 uvicorn app.main:app --reload --port 8000
 ```
-
----
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/v1/ocr/extract` | Extract text from stroke vector points or image patch |
-| `POST` | `/api/v1/beautify/shape` | Snap irregular hand-drawn stroke into smooth vector primitive |
-| `POST` | `/api/v1/gesture/circle-action` | Process circled region context and execute LLM prompt |
-| `POST` | `/api/v1/diagram/generate` | Generate structured whiteboard diagram from text description |
-| `GET` | `/health` | Service liveness and model readiness check |
-
----
-
-## Environment Variables (`.env`)
-
-```ini
-PORT=8000
-BACKEND_CALLBACK_URL=http://localhost:8080/internal/rooms
-OPENAI_API_KEY=your_openai_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-OCR_ENGINE=trocr  # Options: trocr, paddleocr, vision_api
-```
+API runs on `http://localhost:8000`. Interactive Swagger documentation available at `http://localhost:8000/docs`.
