@@ -18,7 +18,8 @@ graffiti-aiml/
     │   ├── beautify_router.py      # Stroke smoothing & geometric shape fitting
     │   ├── math_router.py          # Live handwritten equation & math solver
     │   ├── gesture_router.py       # "Circle to Ask/Modify" context extraction & prompt execution
-    │   └── diagram_router.py       # Natural language text-to-diagram generation
+    │   ├── diagram_router.py       # Natural language text-to-diagram generation & TTD chat streaming
+    │   └── code_router.py          # Diagram-to-code / wireframe-to-code SSE streaming
     ├── ocr/                        # Handwriting recognition engine
     │   ├── preprocessor.py         # Stroke-to-raster image rasterization & binarization
     │   └── ocr_engine.py           # TrOCR / PaddleOCR / Vision API extraction pipeline
@@ -37,13 +38,22 @@ graffiti-aiml/
     │   ├── mermaid_parser.py       # Mermaid.js flowchart & sequence diagram parser
     │   ├── layout_engine.py        # Sugiyama hierarchical coordinate layout generator
     │   └── element_builder.py      # Translation of graph nodes/edges into Graffiti Canvas JSON elements
+    ├── code/                       # Wireframe-to-code synthesis
+    │   └── code_generator.py       # Intelligent UI code generator and SSE streaming engine
     └── schemas/                    # Pydantic request & response models
         ├── ocr_schema.py           # StrokeBatchRequest, OCRResultResponse
         ├── beautify_schema.py      # StrokePointsRequest, BeautifiedShapeResponse
         ├── math_schema.py          # MathSolveRequest, MathSolveResponse
         ├── gesture_schema.py       # CircleContextRequest, SuggestedModificationsResponse
-        └── diagram_schema.py       # DiagramPromptRequest, CanvasElementsResponse
+        ├── diagram_schema.py       # DiagramPromptRequest, CanvasElementsResponse, TTDChatRequest
+        └── code_schema.py          # DiagramToCodeRequest, StreamChunk
 ```
+
+### 6. Diagram-to-Code & Wireframe-to-Code (`/v1/ai/diagram-to-code/generate-streaming`)
+- Streams self-contained, responsive HTML/CSS/JS components via Server-Sent Events (SSE) based on wireframe texts, image captures, and theme (`dark` / `light`).
+
+### 7. Conversational Text-to-Diagram Streaming (`/v1/ai/text-to-diagram/chat-streaming`)
+- Excalidraw-compatible chat streaming returning Mermaid syntax chunks via SSE with rate-limiting and token management.
 
 ---
 
@@ -88,5 +98,8 @@ pip install -r requirements.txt
 
 # 3. Run FastAPI local development server
 uvicorn app.main:app --reload --port 8000
+
+# 4. Run test suite
+pytest -v tests/test_aiml.py
 ```
 API runs on `http://localhost:8000`. Interactive Swagger documentation available at `http://localhost:8000/docs`.

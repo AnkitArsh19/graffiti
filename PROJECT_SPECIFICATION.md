@@ -86,6 +86,8 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Voice-Driven Canvas Commands** | Browser-native Web Speech recognition translating spoken commands into tool changes, color selections, and page navigation with zero backend audio load. |
 | **"Circle to Ask / Modify / Change" Gesture AI** | Drawing a closed loop around any canvas area extracts spatial context and triggers interactive AI queries, restyling, or transformations. |
 | **Text-to-Diagram Synthesis** | Synthesizing structured flowcharts and architecture diagrams from natural language prompts via Mermaid/Sugiyama layout. |
+| **Conversational Text-to-Diagram (TTD) Streaming** | Multi-turn conversational chat streaming generating structured Mermaid flowchart syntax and real-time previews via Server-Sent Events (SSE). |
+| **Diagram-to-Code / Wireframe-to-Code (MagicFrame)** | Multimodal AI vision analysis of hand-drawn UI sketches within a frame, streaming interactive HTML/CSS/JS code directly into canvas iframes via SSE. |
 | **Non-Destructive Ghost Overlays** | All AI operations render as preview overlays with **Accept (Enter)** and **Dismiss (Esc)** actions. |
 
 ### 2.4 Cross-Platform Desktop Capabilities (Tauri v2)
@@ -874,6 +876,8 @@ Synthesizes full diagrams from textual descriptions (e.g., *"Kubernetes deployme
 | `POST` | `/math/solve` | Evaluate mathematical expression | `{"roomId": "...", "equation": "45 * 2 + 10", "anchorPosition": {"x": 200, "y": 150}}` | `{"equation": "45 * 2 + 10", "result": "100", "proposedElement": {...}}` |
 | `POST` | `/circle-query` | Handle "Circle to Ask/Modify" request | `{"roomId": "...", "circleBounds": {...}, "enclosedElements": [...], "userPrompt": "..."}` | `{"action": "restyle" \| "explain" \| "transform", "proposedElements": [...], "explanationText": "..."}` |
 | `POST` | `/diagram/synthesize` | Generate diagram from text prompt | `{"roomId": "...", "prompt": "...", "anchorPosition": {"x": 0, "y": 0}}` | `{"proposedElements": [...]}` |
+| `POST` | `/v1/ai/text-to-diagram/chat-streaming` | Excalidraw-compatible chat streaming returning Mermaid syntax | `{"messages": [{"role": "user", "content": "..."}]}` | `text/event-stream (StreamChunk SSE)` |
+| `POST` | `/v1/ai/diagram-to-code/generate-streaming` | Excalidraw-compatible diagram-to-code streaming HTML/CSS | `{"texts": [...], "image": "...", "theme": "light"}` | `text/event-stream (StreamChunk SSE)` |
 
 All AI endpoints are called **by the backend only**. On success, the backend takes `proposedElements` / `payload`, tags each with `customData.aiGenerated: true`, and forwards them to `POST /internal/rooms/{slug}/ai-suggestion` (§6.1) to be broadcast as ghost-preview ops (§8.7).
 
@@ -958,23 +962,25 @@ Phase 2: Distributed Scalability, Presence & Cloud Export
 └── [ ] Local undo/redo stack integrated with remote op streams
 
 Phase 3: Handwriting OCR, Search & Live Math Solver
-├── [ ] Python FastAPI microservice setup for asynchronous vision tasks
-├── [ ] Background OCR extraction worker for freedraw strokes (populating customData.ocrText)
+├── [✓] Python FastAPI microservice setup for asynchronous vision tasks
+├── [✓] Background OCR extraction worker for freedraw strokes (populating customData.ocrText)
 ├── [ ] Unified Canvas Search modal (Ctrl+F) covering text shapes and handwritten strokes
-├── [ ] Live Handwritten Math & Equation Solver via SymPy (/math/solve)
+├── [✓] Live Handwritten Math & Equation Solver via SymPy (/math/solve)
 └── [ ] Viewport auto-pan and smooth zoom to search results
 
 Phase 4: Stroke Beautification & Voice Commands
-├── [ ] Douglas-Peucker point decimation & geometric primitive fitting (rect, ellipse, diamond, arrow)
-├── [ ] Catmull-Rom & cubic Bezier curve smoothing for irregular hand-drawn strokes
+├── [✓] Douglas-Peucker point decimation & geometric primitive fitting (rect, ellipse, diamond, arrow)
+├── [✓] Catmull-Rom & cubic Bezier curve smoothing for irregular hand-drawn strokes
 ├── [ ] "Auto-Snap on Hold" stylus/mouse interaction
 ├── [ ] Browser Web Speech API command parser (tool selection, colors, page navigation)
 └── [ ] One-tap stroke beautification tool in canvas toolbar
 
 Phase 5: Gesture AI, Diagram Synthesis & Desktop Packaging
-├── [ ] "Circle to Ask / Modify / Change" closed-loop gesture detection
+├── [✓] "Circle to Ask / Modify / Change" closed-loop gesture detection & prompt execution (/circle-query)
 ├── [ ] Spatial context extraction (enclosed shapes, sticky notes, text, connectors)
-├── [ ] Multimodal LLM integration (Ask, Restyle, Transform, Wireframe-to-Diagram)
+├── [✓] Natural language text-to-diagram synthesis (/diagram/synthesize)
+├── [✓] Conversational Text-to-Diagram (TTD) SSE chat streaming (/v1/ai/text-to-diagram/chat-streaming)
+├── [✓] Diagram-to-Code / Wireframe-to-Code SSE streaming (/v1/ai/diagram-to-code/generate-streaming)
 ├── [ ] Non-destructive Ghost Preview overlay with Accept/Dismiss actions
 ├── [ ] Tauri v2 native desktop app packaging for Windows, macOS, and Linux
 ├── [ ] Native frameless window styling (macOS traffic lights & blur / Windows 11 Mica)
@@ -1048,8 +1054,22 @@ graffiti/
 │       ├── voice/                  # Web Speech API voice commander & HUD
 │       └── ai/                     # OCR search, beautifier, math solver, gesture AI
 ├── graffiti-aiml/                  # Python FastAPI AI microservice
+│   ├── Dockerfile                  # Container definition for Python 3.12-slim
+│   ├── requirements.txt            # Microservice dependencies (FastAPI, SymPy, NumPy, Shapely)
 │   ├── README.md                   # AI/ML service endpoints & pipeline documentation
-│   └── app/                        # OCR, beautify, math (sympy), gesture, diagram synthesis
+│   ├── app/
+│   │   ├── main.py                 # FastAPI application entrypoint & CORS middleware
+│   │   ├── config.py               # SettingsConfigDict environment settings
+│   │   ├── api/                    # OCR, beautify, math, gesture, diagram, code routers
+│   │   ├── diagram/                # Mermaid parser, Sugiyama layout engine, element builder
+│   │   ├── code/                   # Wireframe-to-code generator & SSE streaming
+│   │   ├── math/                   # Equation parser & sandboxed SymPy solver
+│   │   ├── beautify/               # RDP simplification & geometric shape classifier
+│   │   ├── gesture/                # Loop detector & multimodal prompt runner
+│   │   ├── ocr/                    # Stroke text recognition engine
+│   │   └── schemas/                # Pydantic request & response models
+│   └── tests/
+│       └── test_aiml.py            # Comprehensive unit and integration test suite
 ├── README.md                       # Master repository overview & quickstart guide
 └── PROJECT_SPECIFICATION.md        # Master technical blueprint & engineering contract
 ```

@@ -28,3 +28,27 @@ Thumbs.db
 # Docker Persistence Volumes
 docker/postgres_data/
 docker/redis_data/
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.env.local
+.env.*.local
+
+# Testing & Cache
+.pytest_cache/
+.coverage
+htmlcov/
+.cache
+
+# Node & Frontend Build (for future scaffold)
+node_modules/
+dist/
+build/
+.next/
