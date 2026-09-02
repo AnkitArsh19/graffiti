@@ -53,7 +53,7 @@ graffiti-aiml/
 - Streams self-contained, responsive HTML/CSS/JS components via Server-Sent Events (SSE) based on wireframe texts, image captures, and theme (`dark` / `light`).
 
 ### 7. Conversational Text-to-Diagram Streaming (`/v1/ai/text-to-diagram/chat-streaming`)
-- Excalidraw-compatible chat streaming returning Mermaid syntax chunks via SSE with rate-limiting and token management.
+- 2D vector canvas engine (in docs_archive)-compatible chat streaming returning Mermaid syntax chunks via SSE with rate-limiting and token management.
 
 ---
 

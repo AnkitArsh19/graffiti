@@ -28,23 +28,25 @@ def parse_mermaid(content: str) -> ParsedDiagram:
 
     node_patterns = [
         # diamond: id{Label}
-        (re.compile(r"^([a-zA-Z0-9_]+)\s*\{([^}]+)\}"), "diamond"),
+        (re.compile(r"^([a-zA-Z0-9_-]+)\s*\{([^}]+)\}"), "diamond"),
+        # database / cylinder: id[(Label)]
+        (re.compile(r"^([a-zA-Z0-9_-]+)\s*\[\(([^)]+)\)\]"), "rectangle"),
         # rounded / ellipse: id([Label]) or id((Label)) or id(Label)
-        (re.compile(r"^([a-zA-Z0-9_]+)\s*\(\[([^\]]+)\]\)"), "ellipse"),
-        (re.compile(r"^([a-zA-Z0-9_]+)\s*\(\(([^)]+)\)\)"), "ellipse"),
-        (re.compile(r"^([a-zA-Z0-9_]+)\s*\(([^)]+)\)"), "ellipse"),
+        (re.compile(r"^([a-zA-Z0-9_-]+)\s*\(\[([^\]]+)\]\)"), "ellipse"),
+        (re.compile(r"^([a-zA-Z0-9_-]+)\s*\(\(([^)]+)\)\)"), "ellipse"),
+        (re.compile(r"^([a-zA-Z0-9_-]+)\s*\(([^)]+)\)"), "ellipse"),
         # rectangle: id[Label]
-        (re.compile(r"^([a-zA-Z0-9_]+)\s*\[([^\]]+)\]"), "rectangle"),
+        (re.compile(r"^([a-zA-Z0-9_-]+)\s*\[([^\]]+)\]"), "rectangle"),
         # plain id
-        (re.compile(r"^([a-zA-Z0-9_]+)$"), "rectangle"),
+        (re.compile(r"^([a-zA-Z0-9_-]+)$"), "rectangle"),
     ]
 
     # edge regex: NodeA ---|label| NodeB or NodeA -->|label| NodeB
     edge_pattern = re.compile(
-        r"([a-zA-Z0-9_]+(?:\s*\[[^\]]+\]|\s*\([^\)]+\)|\s*\{[^\}]+\})?)\s*"
+        r"([a-zA-Z0-9_-]+(?:\s*\[\([^)]+\)\]|\s*\[[^\]]+\]|\s*\([^\)]+\)|\s*\{[^\}]+\})?)\s*"
         r"(-->|---|-.->|==>)"
         r"(?:\|([^\|]+)\|)?\s*"
-        r"([a-zA-Z0-9_]+(?:\s*\[[^\]]+\]|\s*\([^\)]+\)|\s*\{[^\}]+\})?)"
+        r"([a-zA-Z0-9_-]+(?:\s*\[\([^)]+\)\]|\s*\[[^\]]+\]|\s*\([^\)]+\)|\s*\{[^\}]+\})?)"
     )
 
     def extract_or_add_node(token: str) -> str:

@@ -72,6 +72,8 @@ def build_graffiti_elements(
             "type": "text",
             "x": layout.x + 10,
             "y": layout.y + (layout.height / 2.0) - 10,
+            "width": max(len(layout.label) * 9.0, 40.0),
+            "height": 24.0,
             "text": layout.label,
             "fontSize": 16,
             "fontFamily": 1,
@@ -112,14 +114,47 @@ def build_graffiti_elements(
 
         arrow_uuid = f"el_arrow_{edge_idx}_{random.randint(10000, 99999)}"
 
-        # Compute center-to-center vector
-        src_cx = src_layout.x + src_layout.width / 2.0
-        src_cy = src_layout.y + src_layout.height
-        tgt_cx = tgt_layout.x + tgt_layout.width / 2.0
-        tgt_cy = tgt_layout.y
+        # Compute connection points based on diagram direction
+        if diagram.direction in ["LR", "RL"]:
+            # Connect right edge of source to left edge of target
+            src_cx = src_layout.x + src_layout.width
+            src_cy = src_layout.y + (src_layout.height / 2.0)
+            tgt_cx = tgt_layout.x
+            tgt_cy = tgt_layout.y + (tgt_layout.height / 2.0)
+        else:
+            # Vertical (TD/TB): bottom of source to top of target
+            src_cx = src_layout.x + (src_layout.width / 2.0)
+            src_cy = src_layout.y + src_layout.height
+            tgt_cx = tgt_layout.x + (tgt_layout.width / 2.0)
+            tgt_cy = tgt_layout.y
 
         dx = tgt_cx - src_cx
         dy = tgt_cy - src_cy
+
+        arrow_bound_elements = []
+
+        # Bound label element at arrow midpoint if edge has a label
+        if edge.label:
+            label_uuid = f"el_text_lbl_{edge_idx}_{random.randint(10000, 99999)}"
+            label_elem = {
+                "id": label_uuid,
+                "type": "text",
+                "x": (src_cx + tgt_cx) / 2.0 - 20.0,
+                "y": (src_cy + tgt_cy) / 2.0 - 10.0,
+                "width": max(len(edge.label) * 8.0, 30.0),
+                "height": 20.0,
+                "text": edge.label,
+                "fontSize": 14,
+                "fontFamily": 1,
+                "textAlign": "center",
+                "verticalAlign": "middle",
+                "containerId": arrow_uuid,  # Binds text to arrow container
+                "strokeColor": "#1e1e1e",
+                "backgroundColor": "transparent",
+                "customData": {"aiGenerated": True}
+            }
+            elements.append(label_elem)
+            arrow_bound_elements.append({"id": label_uuid, "type": "text"})
 
         arrow_elem = {
             "id": arrow_uuid,
@@ -142,7 +177,7 @@ def build_graffiti_elements(
             "isDeleted": False,
             "groupIds": [],
             "frameId": None,
-            "boundElements": [],
+            "boundElements": arrow_bound_elements,
             "startBinding": {
                 "elementId": src_shape_id,
                 "focus": 0.0,

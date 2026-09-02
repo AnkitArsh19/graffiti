@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     port: int = 8000
     
     # LLM Provider Configuration
+    gemini_api_key: Optional[str] = None
+    gemini_model: str = "gemini-3.8-flash"
     openai_api_key: Optional[str] = None
     openai_model: str = "gpt-4o"
     anthropic_api_key: Optional[str] = None

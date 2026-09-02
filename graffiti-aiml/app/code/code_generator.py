@@ -165,8 +165,69 @@ async def stream_diagram_to_code(
     image: Optional[str] = None,
     theme: str = "light"
 ) -> AsyncGenerator[str, None]:
-    """Streams SSE events conforming to Excalidraw's StreamChunk specification."""
-    # Check if OpenAI is configured
+    """Streams SSE events conforming to 2D vector canvas engine (in docs_archive)'s StreamChunk specification."""
+    # 1. Primary: If Gemini API key is configured and not in mock mode, stream from Gemini
+    if settings.gemini_api_key and not settings.enable_mock_llm:
+        try:
+            parts = [{"text": f"Extracted labels: {', '.join(texts)}. Theme: {theme}"}]
+            if image:
+                if image.startswith("data:"):
+                    header, b64_data = image.split(",", 1)
+                    mime_type = header.split(";")[0].replace("data:", "")
+                    parts.append({
+                        "inline_data": {
+                            "mime_type": mime_type or "image/png",
+                            "data": b64_data
+                        }
+                    })
+                else:
+                    parts.append({
+                        "inline_data": {
+                            "mime_type": "image/png",
+                            "data": image
+                        }
+                    })
+
+            gemini_payload = {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": parts
+                    }
+                ],
+                "systemInstruction": {
+                    "parts": [{"text": SYSTEM_PROMPT}]
+                }
+            }
+
+            url = (
+                f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}"
+                f":streamGenerateContent?alt=sse&key={settings.gemini_api_key}"
+            )
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                async with client.stream("POST", url, json=gemini_payload) as resp:
+                    if resp.status_code == 200:
+                        async for line in resp.aiter_lines():
+                            if line.startswith("data: "):
+                                data_str = line[6:].strip()
+                                if not data_str:
+                                    continue
+                                chunk_json = json.loads(data_str)
+                                candidates = chunk_json.get("candidates", [])
+                                if candidates:
+                                    parts_resp = candidates[0].get("content", {}).get("parts", [])
+                                    for part in parts_resp:
+                                        delta = part.get("text", "")
+                                        if delta:
+                                            chunk = StreamChunk(type="content", delta=delta)
+                                            yield f"data: {chunk.model_dump_json()}\n\n"
+                        yield "data: {\"type\":\"done\"}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
+        except Exception:
+            pass
+
+    # 2. Secondary: Check if OpenAI is configured
     if settings.openai_api_key and not settings.enable_mock_llm:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -208,7 +269,7 @@ async def stream_diagram_to_code(
             yield "data: {\"type\":\"done\"}\n\n"
             yield "data: [DONE]\n\n"
             return
-        except Exception as e:
+        except Exception:
             # Fall back gracefully to synthesized generation
             pass
 

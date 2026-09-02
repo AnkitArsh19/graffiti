@@ -2,7 +2,15 @@ import random
 import time
 from typing import Any, Dict, Tuple
 import sympy as sp
+from sympy.parsing.sympy_parser import (
+    parse_expr,
+    standard_transformations,
+    implicit_multiplication_application,
+    convert_xor
+)
 from app.math.equation_parser import clean_equation_string
+
+transformations = standard_transformations + (implicit_multiplication_application, convert_xor)
 
 
 def solve_math_expression(
@@ -14,10 +22,12 @@ def solve_math_expression(
     result_str = ""
 
     try:
-        # Check if it contains an algebraic equals sign: e.g. 2*x + 10 = 30
+        # Check if it contains an algebraic equals sign: e.g. 2*x + 10 = 30, 3x + 5 = 20
         if "=" in clean_expr:
             left_side, right_side = clean_expr.split("=", 1)
-            eq = sp.Eq(sp.sympify(left_side.strip()), sp.sympify(right_side.strip()))
+            left_parsed = parse_expr(left_side.strip(), transformations=transformations)
+            right_parsed = parse_expr(right_side.strip(), transformations=transformations)
+            eq = sp.Eq(left_parsed, right_parsed)
             free_symbols = list(eq.free_symbols)
             if free_symbols:
                 sol = sp.solve(eq, free_symbols[0])
@@ -26,7 +36,7 @@ def solve_math_expression(
                 result_str = "True" if eq else "False"
         else:
             # Standard arithmetic / algebraic simplification
-            parsed = sp.sympify(clean_expr)
+            parsed = parse_expr(clean_expr, transformations=transformations)
             if parsed.is_number:
                 try:
                     val = float(parsed.evalf())
@@ -38,7 +48,7 @@ def solve_math_expression(
                     result_str = str(parsed)
             else:
                 result_str = str(parsed)
-    except Exception as e:
+    except Exception:
         result_str = "Error"
 
     now = int(time.time() * 1000)
@@ -47,6 +57,8 @@ def solve_math_expression(
         "type": "text",
         "x": anchor_x + 30.0,
         "y": anchor_y,
+        "width": max(len(result_str) * 12.0, 40.0),
+        "height": 28.0,
         "text": f" {result_str}",
         "fontSize": 20,
         "fontFamily": 1,

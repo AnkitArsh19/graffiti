@@ -8,7 +8,7 @@ router = APIRouter(tags=["Code"])
 
 @router.post("/v1/ai/diagram-to-code/generate-streaming")
 async def generate_code_streaming(req: DiagramToCodeRequest):
-    """Excalidraw-compatible Diagram-to-Code SSE streaming endpoint."""
+    """2D vector canvas engine (in docs_archive)-compatible Diagram-to-Code SSE streaming endpoint."""
     return StreamingResponse(
         stream_diagram_to_code(
             texts=req.texts,
