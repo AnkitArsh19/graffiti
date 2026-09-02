@@ -67,7 +67,7 @@ public class RoomService {
      */
     public RoomDetailResponse getRoomDetail(String slug) {
         Room room = roomRepository.findBySlug(slug)
-                .orElseThrow(() -> new IllegalArgumentException("Room not found with slug: " + slug));
+                .orElseThrow(() -> new com.graffiti.exception.ResourceNotFoundException("ROOM_NOT_FOUND", "No room exists for slug '" + slug + "'."));
 
         Snapshot snapshot = snapshotRepository.findTopByRoomIdOrderByUpToLamportTsDesc(room.getId()).orElse(null);
         Long upToLamport = (snapshot != null) ? snapshot.getUpToLamportTs() : -1L;
@@ -101,7 +101,7 @@ public class RoomService {
         }
 
         Room room = roomRepository.findBySlug(slug)
-                .orElseThrow(() -> new IllegalArgumentException("Room not found with slug: " + slug));
+                .orElseThrow(() -> new com.graffiti.exception.ResourceNotFoundException("ROOM_NOT_FOUND", "No room exists for slug '" + slug + "'."));
 
         if (room.getOwnerId() != null) {
             throw new IllegalStateException("Room is already owned by another user");

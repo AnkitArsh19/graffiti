@@ -51,10 +51,10 @@ public class UserService {
      */
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
+                .orElseThrow(() -> new org.springframework.security.authentication.BadCredentialsException("Invalid email or password"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new IllegalArgumentException("Invalid email or password");
+            throw new org.springframework.security.authentication.BadCredentialsException("Invalid email or password");
         }
 
         String token = tokenProvider.generateToken(user.getId(), user.getEmail());

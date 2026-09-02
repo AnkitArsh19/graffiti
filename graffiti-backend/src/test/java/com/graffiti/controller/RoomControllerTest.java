@@ -1,5 +1,6 @@
 package com.graffiti.controller;
 
+import com.graffiti.exception.ResourceNotFoundException;
 import com.graffiti.room.*;
 import com.graffiti.user.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -49,6 +51,15 @@ class RoomControllerTest {
     }
 
     @Test
+    void testGetRoomNotFoundThrowsResourceNotFoundException() {
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class, () -> {
+            roomController.getRoom("non-existent-slug");
+        });
+        assertEquals("ROOM_NOT_FOUND", ex.getCode());
+        assertTrue(ex.getMessage().contains("non-existent-slug"));
+    }
+
+    @Test
     void testRegisterLoginAndClaimRoom() {
         RegisterRequest regReq = new RegisterRequest("user1@example.com", "secret123");
         AuthResponse authResp = userService.register(regReq);
@@ -61,5 +72,15 @@ class RoomControllerTest {
         // Directly test room claim logic via roomService
         Room createdRoom = roomRepository.findBySlug(slug).orElseThrow();
         assertNull(createdRoom.getOwnerId());
+    }
+
+    @Test
+    void testLoginInvalidPasswordThrowsBadCredentialsException() {
+        RegisterRequest regReq = new RegisterRequest("user2@example.com", "validPass123");
+        userService.register(regReq);
+
+        assertThrows(BadCredentialsException.class, () -> {
+            userService.login(new LoginRequest("user2@example.com", "wrongPass"));
+        });
     }
 }

@@ -16,7 +16,8 @@ import java.util.stream.Collectors;
 /**
  * Global REST Exception Handler intercepting unhandled exceptions thrown by REST controllers.
  *
- * Translates domain exceptions into standardized ErrorResponse payloads with appropriate HTTP status codes.
+ * Translates domain exceptions into standardized ErrorResponse payloads adhering to
+ * Project Specification §6.1.1 envelope schema.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -24,7 +25,23 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
-     * Handles IllegalArgumentException (e.g. invalid request arguments, room not found, user already exists).
+     * Handles ResourceNotFoundException (e.g. room slug or user not found).
+     * Returns HTTP 404 Not Found.
+     */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleResourceNotFoundException(ResourceNotFoundException ex, HttpServletRequest request) {
+        log.warn("Not Found (ResourceNotFoundException): {}", ex.getMessage());
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                ex.getCode(),
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    /**
+     * Handles IllegalArgumentException (e.g. invalid request arguments, validation failure).
      * Returns HTTP 400 Bad Request.
      */
     @ExceptionHandler(IllegalArgumentException.class)
@@ -32,7 +49,7 @@ public class GlobalExceptionHandler {
         log.warn("Bad Request (IllegalArgumentException): {}", ex.getMessage());
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
-                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "BAD_REQUEST",
                 ex.getMessage(),
                 request.getRequestURI()
         );
@@ -48,7 +65,7 @@ public class GlobalExceptionHandler {
         log.warn("State Conflict (IllegalStateException): {}", ex.getMessage());
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.CONFLICT.value(),
-                HttpStatus.CONFLICT.getReasonPhrase(),
+                "ROOM_ALREADY_CLAIMED",
                 ex.getMessage(),
                 request.getRequestURI()
         );
@@ -64,7 +81,7 @@ public class GlobalExceptionHandler {
         log.warn("Unauthorized (BadCredentialsException): {}", ex.getMessage());
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.UNAUTHORIZED.value(),
-                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                "UNAUTHENTICATED",
                 ex.getMessage(),
                 request.getRequestURI()
         );
@@ -80,7 +97,7 @@ public class GlobalExceptionHandler {
         log.warn("Forbidden (AccessDeniedException): {}", ex.getMessage());
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.FORBIDDEN.value(),
-                HttpStatus.FORBIDDEN.getReasonPhrase(),
+                "FORBIDDEN_ROLE",
                 ex.getMessage(),
                 request.getRequestURI()
         );
@@ -100,7 +117,7 @@ public class GlobalExceptionHandler {
         log.warn("Validation Error: {}", details);
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
-                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "VALIDATION_ERROR",
                 "Validation failed: " + details,
                 request.getRequestURI()
         );
@@ -116,7 +133,7 @@ public class GlobalExceptionHandler {
         log.error("Internal Server Error: ", ex);
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                "INTERNAL_ERROR",
                 "An unexpected internal server error occurred.",
                 request.getRequestURI()
         );
