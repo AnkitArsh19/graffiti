@@ -10,7 +10,7 @@
 
 Graffiti is a high-performance, horizontally scalable real-time collaborative whiteboard and note-taking application for Web and native Desktop (Windows, macOS, Linux). Multiple distributed users, students, and educators can draw, write, manipulate shapes, organize complex diagrams, and take structured multi-page lecture notes concurrently on an infinite canvas with deterministic CRDT synchronization, ephemeral presence streaming, periodic snapshot compaction, multi-format/Google Drive export, and multimodal AI assistance.
 
-> 📖 **Master Blueprint & Architecture Contract:** For low-level JSON schemas, CRDT mathematical merge rules, keyboard shortcut maps, and REST/STOMP protocol specifications, see [**`PROJECT_SPECIFICATION.md`**](file:///e:/graffiti/PROJECT_SPECIFICATION.md).
+> 📖 **Master Blueprint & Architecture Contract:** For low-level JSON schemas, CRDT mathematical merge rules, keyboard shortcut maps, and REST/STOMP protocol specifications, see [**`PROJECT_SPECIFICATION.md`**](file:///e:/graffiti/PROJECT_SPECIFICATION.md). For scalability design decisions, distributed systems trade-offs, and benchmarks (Google Docs OT vs. Figma Spatial CRDT), see [**`ARCHITECTURE_DECISIONS.md`**](file:///e:/graffiti/ARCHITECTURE_DECISIONS.md).
 
 ---
 

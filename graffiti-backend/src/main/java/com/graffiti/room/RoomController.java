@@ -61,4 +61,20 @@ public class RoomController {
         CreateRoomResponse response = roomService.claimRoom(slug, principal);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * Incremental catch-up synchronization endpoint (Google Docs / Figma fast reconnect strategy).
+     * Clients recovering from temporary network drops or sleep mode fetch only the missing operations
+     * executed after their last acknowledged Lamport timestamp without reloading the entire room.
+     *
+     * @param slug Short unique room identifier
+     * @param since Optional Lamport timestamp threshold (defaults to -1L)
+     * @return List of delta operations since the specified timestamp
+     */
+    @GetMapping("/{slug}/sync")
+    public ResponseEntity<java.util.List<com.graffiti.op.Op>> syncDeltaOps(@PathVariable("slug") String slug,
+                                                                          @RequestParam(value = "since", defaultValue = "-1") Long since) {
+        java.util.List<com.graffiti.op.Op> deltaOps = roomService.getDeltaOps(slug, since);
+        return ResponseEntity.ok(deltaOps);
+    }
 }

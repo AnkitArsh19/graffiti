@@ -118,6 +118,12 @@ public class CompactionService {
                 Snapshot newSnapshot = new Snapshot(roomId, newCompactedState, maxLamportTs);
                 snapshotRepository.save(newSnapshot);
 
+                try {
+                    redisTemplate.opsForValue().set("cache:snapshot:" + roomId, newCompactedState.toString(), Duration.ofHours(1));
+                } catch (Exception e) {
+                    log.debug("Redis unavailable to cache snapshot for room {}: {}", roomId, e.getMessage());
+                }
+
                 log.info("Successfully compacted room {} into snapshot with upToLamportTs {}", roomId, maxLamportTs);
                 return true;
             } finally {

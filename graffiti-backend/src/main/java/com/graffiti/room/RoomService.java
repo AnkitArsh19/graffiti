@@ -2,6 +2,7 @@ package com.graffiti.room;
 
 import com.graffiti.op.Op;
 import com.graffiti.op.OpRepository;
+import com.graffiti.op.OpService;
 import com.graffiti.roommember.Role;
 import com.graffiti.roommember.RoomMember;
 import com.graffiti.roommember.RoomMemberRepository;
@@ -25,16 +26,16 @@ public class RoomService {
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final SnapshotRepository snapshotRepository;
-    private final OpRepository opRepository;
+    private final OpService opService;
 
     public RoomService(RoomRepository roomRepository,
                        RoomMemberRepository roomMemberRepository,
                        SnapshotRepository snapshotRepository,
-                       OpRepository opRepository) {
+                       OpService opService) {
         this.roomRepository = roomRepository;
         this.roomMemberRepository = roomMemberRepository;
         this.snapshotRepository = snapshotRepository;
-        this.opRepository = opRepository;
+        this.opService = opService;
     }
 
     /**
@@ -72,8 +73,8 @@ public class RoomService {
         Snapshot snapshot = snapshotRepository.findTopByRoomIdOrderByUpToLamportTsDesc(room.getId()).orElse(null);
         Long upToLamport = (snapshot != null) ? snapshot.getUpToLamportTs() : -1L;
 
-        // Efficiently fetch ops executed since the latest snapshot
-        List<Op> opsSinceSnapshot = opRepository.findByRoomIdAndLamportTsGreaterThanOrderByLamportTsAsc(room.getId(), upToLamport);
+        // Efficiently fetch ops executed since the latest snapshot, flushing any pending write-behind buffer items
+        List<Op> opsSinceSnapshot = opService.getOpsAfterLamport(room.getId(), upToLamport);
 
         return new RoomDetailResponse(
                 room.getId(),
@@ -114,6 +115,20 @@ public class RoomService {
         roomMemberRepository.save(member);
 
         return new CreateRoomResponse(room.getId(), room.getSlug(), room.getOwnerId(), room.getCreatedAt());
+    }
+
+    /**
+     * Incremental catch-up synchronization: fetches only the delta operations executed
+     * after a specified Lamport timestamp, flushing any pending write-behind buffer items.
+     *
+     * @param slug Room unique slug identifier
+     * @param since Lamport timestamp threshold
+     * @return List of delta operations
+     */
+    public List<Op> getDeltaOps(String slug, Long since) {
+        Room room = roomRepository.findBySlug(slug)
+                .orElseThrow(() -> new com.graffiti.exception.ResourceNotFoundException("ROOM_NOT_FOUND", "No room exists for slug '" + slug + "'."));
+        return opService.getOpsAfterLamport(room.getId(), (since != null) ? since : -1L);
     }
 
     /**

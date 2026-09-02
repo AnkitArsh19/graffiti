@@ -65,16 +65,16 @@ The system is architected to be built **progressively across distinct, verifiabl
 
 ### 2.2 Multi-User Collaboration & Workspace Capabilities
 
-| Feature | Implementation Specification |
-| :--- | :--- |
-| **Real-Time Multi-User Editing** | Sub-50ms sync via STOMP WebSockets, Redis Pub/Sub, and LWW CRDT engine. |
-| **Share Link (Guest / Room Sharing)** | Instant shareable room URLs (`/rooms/{slug}`) for anonymous and authenticated collaboration. |
-| **Role-Based Access Control (RBAC)** | 3-tier room permissions: `OWNER` (teacher/admin/claim), `EDITOR` (student/editor), `VIEWER` (read-only canvas). |
+| Feature                                 | Implementation Specification                                                                                                                                         |
+| :----------------------------------------| :---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Real-Time Multi-User Editing**        | Sub-50ms sync via STOMP WebSockets, Redis Pub/Sub, and LWW CRDT engine.                                                                                              |
+| **Share Link (Guest / Room Sharing)**   | Instant shareable room URLs (`/rooms/{slug}`) for anonymous and authenticated collaboration.                                                                         |
+| **Role-Based Access Control (RBAC)**    | 3-tier room permissions: `OWNER` (teacher/admin/claim), `EDITOR` (student/editor), `VIEWER` (read-only canvas).                                                      |
 | **Teacher Follow-Me Presentation Mode** | Teacher (`OWNER`) page navigation and viewport zoom broadcasts `TEACHER_PAGE_SYNC` over Redis Pub/Sub, automatically flipping all student canvases to the same page. |
-| **Ephemeral Presence & Cursors** | Live multiplayer cursors, laser trails, and selection bounds over Redis Pub/Sub without database bloat. |
-| **Append-Only History & Compaction** | PostgreSQL immutable op log + periodic background JSONB snapshot compaction with Redis distributed locks. |
-| **User Accounts & Google OAuth2** | Email/password registration, stateless JWT bearer tokens, and Google OAuth2 login with Drive export scope. |
-| **Room Ownership Claiming** | Logged-in users can claim anonymous rooms (`POST /rooms/{slug}/claim`). |
+| **Ephemeral Presence & Cursors**        | Live multiplayer cursors, laser trails, and selection bounds over Redis Pub/Sub without database bloat.                                                              |
+| **Append-Only History & Compaction**    | PostgreSQL immutable op log + periodic background JSONB snapshot compaction with Redis distributed locks.                                                            |
+| **User Accounts & Google OAuth2**       | Email/password registration, stateless JWT bearer tokens, and Google OAuth2 login with Drive export scope.                                                           |
+| **Room Ownership Claiming**             | Logged-in users can claim anonymous rooms (`POST /rooms/{slug}/claim`).                                                                                              |
 
 ### 2.3 Intelligent AI/ML Multimodal Capabilities
 
@@ -869,15 +869,15 @@ Synthesizes full diagrams from textual descriptions (e.g., *"Kubernetes deployme
 
 ### 8.6 AI Microservice REST API Contract
 
-| Method | Path | Purpose | Request Body | Response Body |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/ocr/extract` | Recognize text from a `freedraw` stroke | `{"roomId": "...", "shapeId": "...", "points": [...], "pressures": [...]}` | `{"shapeId": "...", "ocrText": "...", "confidence": 0.91}` |
-| `POST` | `/beautify` | Snap rough stroke to clean primitive/spline | `{"roomId": "...", "shapeId": "...", "points": [...]}` | `{"shapeId": "...", "detectedType": "rectangle", "payload": {...}}` |
-| `POST` | `/math/solve` | Evaluate mathematical expression | `{"roomId": "...", "equation": "45 * 2 + 10", "anchorPosition": {"x": 200, "y": 150}}` | `{"equation": "45 * 2 + 10", "result": "100", "proposedElement": {...}}` |
-| `POST` | `/circle-query` | Handle "Circle to Ask/Modify" request | `{"roomId": "...", "circleBounds": {...}, "enclosedElements": [...], "userPrompt": "..."}` | `{"action": "restyle" \| "explain" \| "transform", "proposedElements": [...], "explanationText": "..."}` |
-| `POST` | `/diagram/synthesize` | Generate diagram from text prompt | `{"roomId": "...", "prompt": "...", "anchorPosition": {"x": 0, "y": 0}}` | `{"proposedElements": [...]}` |
-| `POST` | `/v1/ai/text-to-diagram/chat-streaming` | Excalidraw-compatible chat streaming returning Mermaid syntax | `{"messages": [{"role": "user", "content": "..."}]}` | `text/event-stream (StreamChunk SSE)` |
-| `POST` | `/v1/ai/diagram-to-code/generate-streaming` | Excalidraw-compatible diagram-to-code streaming HTML/CSS | `{"texts": [...], "image": "...", "theme": "light"}` | `text/event-stream (StreamChunk SSE)` |
+| Method | Path                                        | Purpose                                                       | Request Body                                                                               | Response Body                                                            |             |                                                                    |
+| :-------| :--------------------------------------------| :--------------------------------------------------------------| :-------------------------------------------------------------------------------------------| :-------------------------------------------------------------------------| -------------| --------------------------------------------------------------------|
+| `POST` | `/ocr/extract`                              | Recognize text from a `freedraw` stroke                       | `{"roomId": "...", "shapeId": "...", "points": [...], "pressures": [...]}`                 | `{"shapeId": "...", "ocrText": "...", "confidence": 0.91}`               |             |                                                                    |
+| `POST` | `/beautify`                                 | Snap rough stroke to clean primitive/spline                   | `{"roomId": "...", "shapeId": "...", "points": [...]}`                                     | `{"shapeId": "...", "detectedType": "rectangle", "payload": {...}}`      |             |                                                                    |
+| `POST` | `/math/solve`                               | Evaluate mathematical expression                              | `{"roomId": "...", "equation": "45 * 2 + 10", "anchorPosition": {"x": 200, "y": 150}}`     | `{"equation": "45 * 2 + 10", "result": "100", "proposedElement": {...}}` |             |                                                                    |
+| `POST` | `/circle-query`                             | Handle "Circle to Ask/Modify" request                         | `{"roomId": "...", "circleBounds": {...}, "enclosedElements": [...], "userPrompt": "..."}` | `{"action": "restyle" \                                                  | "explain" \ | "transform", "proposedElements": [...], "explanationText": "..."}` |
+| `POST` | `/diagram/synthesize`                       | Generate diagram from text prompt                             | `{"roomId": "...", "prompt": "...", "anchorPosition": {"x": 0, "y": 0}}`                   | `{"proposedElements": [...]}`                                            |             |                                                                    |
+| `POST` | `/v1/ai/text-to-diagram/chat-streaming`     | Excalidraw-compatible chat streaming returning Mermaid syntax | `{"messages": [{"role": "user", "content": "..."}]}`                                       | `text/event-stream (StreamChunk SSE)`                                    |             |                                                                    |
+| `POST` | `/v1/ai/diagram-to-code/generate-streaming` | Excalidraw-compatible diagram-to-code streaming HTML/CSS      | `{"texts": [...], "image": "...", "theme": "light"}`                                       | `text/event-stream (StreamChunk SSE)`                                    |             |                                                                    |
 
 All AI endpoints are called **by the backend only**. On success, the backend takes `proposedElements` / `payload`, tags each with `customData.aiGenerated: true`, and forwards them to `POST /internal/rooms/{slug}/ai-suggestion` (§6.1) to be broadcast as ghost-preview ops (§8.7).
 

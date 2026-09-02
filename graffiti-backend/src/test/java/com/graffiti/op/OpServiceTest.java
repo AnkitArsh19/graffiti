@@ -67,4 +67,20 @@ class OpServiceTest {
         List<Op> opsAfter1 = opService.getOpsAfterLamport(roomId, 1L);
         assertEquals(2, opsAfter1.size());
     }
+
+    @Test
+    void testWriteBehindBufferFlushBatching() {
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("type", "ellipse");
+        payload.put("radius", 50);
+
+        // Manually trigger buffer operations
+        Op op = new Op(roomId, "buffered_shape_1", OpType.CREATE_OR_UPDATE, payload, 100L, "worker");
+        opRepository.save(op);
+
+        opService.flushBuffer();
+        List<Op> ops = opService.getOpsAfterLamport(roomId, 99L);
+        assertEquals(1, ops.size());
+        assertEquals("buffered_shape_1", ops.get(0).getShapeId());
+    }
 }

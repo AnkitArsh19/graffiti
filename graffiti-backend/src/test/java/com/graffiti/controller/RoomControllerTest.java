@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
@@ -27,8 +29,15 @@ class RoomControllerTest {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private com.graffiti.op.OpRepository opRepository;
+
+    @Autowired
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
     @BeforeEach
     void setUp() {
+        opRepository.deleteAll();
         roomRepository.deleteAll();
     }
 
@@ -82,5 +91,22 @@ class RoomControllerTest {
         assertThrows(BadCredentialsException.class, () -> {
             userService.login(new LoginRequest("user2@example.com", "wrongPass"));
         });
+    }
+
+    @Test
+    void testSyncDeltaOpsReturnsOperations() {
+        Room room = new Room("sync-test-slug", null);
+        roomRepository.save(room);
+
+        com.fasterxml.jackson.databind.node.ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("type", "rectangle");
+        com.graffiti.op.Op op = new com.graffiti.op.Op(room.getId(), "shape_sync", com.graffiti.op.OpType.CREATE_OR_UPDATE, payload, 50L, "author_1");
+        opRepository.save(op);
+
+        ResponseEntity<List<com.graffiti.op.Op>> response = roomController.syncDeltaOps("sync-test-slug", 40L);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().size());
+        assertEquals("shape_sync", response.getBody().get(0).getShapeId());
     }
 }
