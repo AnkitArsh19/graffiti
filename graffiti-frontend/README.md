@@ -1,27 +1,40 @@
-# Graffiti Frontend — Real-Time Collaborative Canvas UI
+# Graffiti Frontend — Real-Time Collaborative Canvas & Desktop UI
 
-The frontend client for Graffiti, built with **React 19**, **TypeScript**, and **Vite**. It provides a high-performance, infinite 2D vector canvas with hand-drawn aesthetic rendering, local-first optimistic state management, STOMP WebSocket synchronization, layout superpowers (minimap, sticky notes, tidy-up), and intelligent AI-assisted whiteboard interactions.
+The frontend client and native desktop app for Graffiti, built with **React 19**, **TypeScript**, **Vite**, and **Tauri v2**. It provides an infinite 2D vector canvas with rough aesthetic rendering, multi-page notebook management with paper background templates, local-first optimistic CRDT synchronization, Google Drive export, and hardware-accelerated desktop integration for Windows, macOS, and Linux.
 
 ---
 
-## Architecture & Key Modules
+## Architecture & Module Structure
 
 ```
 graffiti-frontend/
 ├── index.html                      # Entry HTML
-├── package.json                    # Dependencies (React 19, Vite, @stomp/stompjs, roughjs)
+├── package.json                    # Dependencies (React 19, Vite, @stomp/stompjs, roughjs, jspdf)
 ├── vite.config.ts                  # Vite build & proxy configuration
+├── src-tauri/                      # Tauri v2 native cross-platform desktop configuration
+│   ├── Cargo.toml                  # Rust dependencies
+│   ├── tauri.conf.json             # Window framing, Mica/Vibrancy blur, OS menus
+│   └── src/main.rs                 # Native desktop entrypoint & file association handler
 └── src/
     ├── main.tsx                    # React application bootstrap
-    ├── App.tsx                     # Main layout & canvas shell
+    ├── App.tsx                     # Main layout, page bar, and canvas shell
     ├── canvas/                     # Core 2D vector rendering surface
     │   ├── Canvas.tsx              # Main viewport, panning, zooming, and render loop
     │   ├── renderer.ts             # Rough-style vector shape procedural rendering
+    │   ├── paperTemplates.ts       # Ruled (28px), Grid (20x20), Dotted, Cornell backgrounds
     │   ├── bounds.ts               # Bounding box calculation & hit detection
     │   ├── fractionalIndex.ts      # Fractional indexing for conflict-free z-ordering
     │   ├── minimap.tsx             # Interactive 160x100 navigation minimap (Alt+M)
     │   ├── tidyUp.ts               # Multi-element auto-align & grid distribution engine (Ctrl+Alt+T)
     │   └── stickyNotes.ts          # Preset pastel sticky notes & auto-bound text engine (N)
+    ├── notebook/                   # Multi-page notebook manager
+    │   ├── pageStore.ts            # Ordered page list (id, title, template, order)
+    │   ├── PageBar.tsx             # Bottom page-bar ([ ◀ Page 1 of 5 ▶ ], + Add Page)
+    │   └── SlideDrawer.tsx         # Collapsible sidebar with live page thumbnails
+    ├── export/                     # Multi-format document compilation
+    │   ├── pdfCompiler.ts          # Multi-page high-DPI PDF generation via jsPDF
+    │   ├── markdownExporter.ts     # Lecture notes text aggregator (.md)
+    │   └── driveUploader.ts        # 1-Click Google Drive upload & shareable link modal
     ├── crdt/                       # Client-side CRDT state & reconciliation
     │   ├── sceneStore.ts           # In-memory scene store (Shape ID -> Element)
     │   ├── reconcile.ts            # Optimistic local vs remote conflict resolution
@@ -46,6 +59,7 @@ graffiti-frontend/
     │   └── UserAvatarList.tsx      # Active collaborators header list
     └── types/                      # TypeScript element & protocol definitions
         ├── element.ts              # CanvasElement, ShapeType, Point, Bounds, StickyNote
+        ├── page.ts                 # RoomPage, PaperTemplate ('ruled' | 'grid' | 'dotted' | 'cornell')
         ├── op.ts                   # OpRequestDTO, OpBroadcastDTO, OpType
         └── presence.ts             # PresenceDTO, CollaboratorState
 ```
@@ -54,32 +68,33 @@ graffiti-frontend/
 
 ## Core Capabilities
 
-### 1. 2D Vector Canvas & Hand-Drawn Rendering
-- Infinite 2D grid with smooth sub-pixel panning, zooming (10% to 500%), and viewport transform matrix.
-- Procedural hand-drawn rough rendering for primitives (`rectangle`, `ellipse`, `diamond`, `arrow`, `line`, `freedraw`, `text`, `image`).
-- Conflict-free layer ordering using string **fractional indexing** (`"a0"`, `"a1"`, `"a05"`).
+### 1. Multi-Page Notebook & Classroom Presentation
+- **Page Management**: Switch pages seamlessly (`◀ Page 1 of 5 ▶`), add pages (`Ctrl+Shift+N`), duplicate pages (`Ctrl+Shift+D`), and reorder in the thumbnail slide drawer.
+- **Paper Background Templates**:
+  - *Ruled / Lined Paper*: 28px horizontal line intervals for handwriting and note-taking.
+  - *Grid Paper*: 20×20px orthogonal math and engineering grid.
+  - *Dotted Matrix*: 24×24px dot pattern for sketches and bullet notes.
+  - *Cornell Notes*: 2.5-inch vertical cue margin on left + 2-inch bottom summary box.
+- **Teacher Follow-Me Sync**: Teacher navigation automatically flips all student viewports to the active page via `TEACHER_PAGE_SYNC` presence events.
 
-### 2. Layout Superpowers (Minimap, Sticky Notes, Tidy Up)
-- **Sticky Note Presets (`N`)**: Instant 200×200px square notes with pastel color palettes (`#fff3bf`, `#d0ebff`, `#d3f9d8`, `#ffdeeb`, `#f3d9fa`, `#ffe8cc`) and auto-expanding centered text.
-- **Canvas Minimap (`Alt+M`)**: Scaled overview thumbnail in the bottom corner with click-to-pan and draggable viewport bounds.
-- **"Tidy Up" Grid Engine (`Ctrl+Alt+T`)**: Multi-shape geometry engine organizing scattered selections into clean grids, columns, or rows with 24px uniform spacing.
+### 2. Multi-Format & Google Drive Export
+- **Multi-Page PDF**: Compiles all notebook pages sequentially into a high-DPI `.pdf`.
+- **1-Click Google Drive Upload**: Directly uploads the compiled PDF to the user's Google Drive via OAuth2 scope (`drive.file`) and displays an instant public share link.
+- **Markdown Lecture Notes**: Exports all typed text and OCR-extracted handwriting (`customData.ocrText`) into a clean `.md` document.
 
-### 3. Local-First Optimistic Synchronization
-- Canvas edits immediately mutate local scene state, increment `element.version`, regenerate `element.versionNonce`, and send an `OpRequestDTO` to the backend over STOMP (`/app/rooms/{slug}/op`).
-- Incoming remote operations are reconciled against local active states:
-  - If the local shape is actively being edited (`resizing`, `editingText`, `drawing`): local state is retained.
-  - If `local.version > remote.version`: local state is retained.
-  - If versions are identical, the lowest `versionNonce` wins deterministically.
+### 3. Native Desktop Application (Tauri v2)
+- **Frameless Window Styling**: Embedded macOS traffic lights (`🔴 🟡 🟢`) with glassmorphism / Windows 11 Mica material.
+- **OS System Menus**: Top menu bar (`File`, `Edit`, `View`, `Tools`, `Help`) with accelerator keybindings (`Cmd/Ctrl+S`, `Cmd/Ctrl+O`, `Cmd+,`).
+- **OS File Association**: Double-click `.graffiti` files in Finder/Explorer to open directly.
+- **Offline Local File Mode**: Open and save files directly to the local hard drive without an internet connection.
 
-### 4. Voice-Driven Canvas Commands (Web Speech API)
-- Client-side voice recognition via browser native `SpeechRecognition` API (zero backend audio streaming).
-- Push-to-talk (`M`) or toolbar mic toggle to trigger tools (*"select pen"*, *"sticky note"*), colors (*"color blue"*), navigation (*"zoom to fit"*), and actions (*"tidy up"*, *"export png"*).
-
-### 5. Multimodal AI Workflows
-- **Handwriting OCR Search (`Ctrl+F`)**: Unified canvas search matching typed text and handwriting strokes with smooth camera focusing.
-- **Stroke Beautification**: Douglas-Peucker point decimation snapping rough sketches into crisp vector shapes upon hold (400ms).
-- **Live Handwritten Math Solver**: Detects equations ending in `=`, evaluates via `sympy`, and places digital answer text adjacent to the `=` sign.
-- **"Circle to Ask/Modify" Gesture AI**: Drawing a closed loop triggers contextual LLM prompts (Ask, Restyle, Transform) rendered as non-destructive Ghost Previews with **Accept (Enter)** and **Dismiss (Esc)**.
+### 4. Layout Superpowers & AI Workflows
+- **Sticky Note Presets (`N`)**: 200×200px square notes with pastel palettes (`#fff3bf`, `#d0ebff`, `#d3f9d8`, `#ffdeeb`, `#f3d9fa`, `#ffe8cc`) and auto-expanding centered text.
+- **Canvas Minimap (`Alt+M`)**: Scaled overview thumbnail with draggable viewport frame.
+- **"Tidy Up" Grid Engine (`Ctrl+Alt+T`)**: Multi-shape geometry layout organizing selections into clean grids with 24px uniform spacing.
+- **Live Math Solver**: Detects equations ending in `=`, evaluates via `sympy`, and places digital answer text adjacent to the `=` sign.
+- **Voice-Driven Commands**: Native Web Speech recognition for hands-free tool switching, color selection, and page navigation.
+- **"Circle to Ask/Modify" Gesture AI**: Drawing a closed loop triggers contextual LLM prompts (Ask, Restyle, Transform) rendered as non-destructive Ghost Previews.
 
 ---
 
@@ -89,10 +104,13 @@ graffiti-frontend/
 # 1. Install dependencies
 npm install
 
-# 2. Run local development server
+# 2. Run Web Development Server
 npm run dev
 
-# 3. Build production bundle
-npm run build
+# 3. Run Native Desktop App (Tauri v2)
+npx tauri dev
+
+# 4. Build Native Desktop Installers (.exe, .dmg, .AppImage)
+npx tauri build
 ```
-Client runs on `http://localhost:5173`.
+Web client runs on `http://localhost:5173`. Desktop launches in a native hardware-accelerated window.

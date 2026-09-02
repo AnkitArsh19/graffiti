@@ -1,40 +1,46 @@
 # Real-Time Collaborative Whiteboard with AI Assist — Project Specification
 
 **Status:** Approved Master Architecture & Shared Engineering Contract  
-**Purpose:** Define the comprehensive system architecture, data models, real-time sync protocol, canvas element schemas, complete feature matrix, keyboard shortcut specification, and subteam interfaces (Backend/Sync, Frontend Canvas, AI/ML Service) for progressive, end-to-end implementation. Written to serve directly as an authoritative technical blueprint for team members and AI coding assistants (Claude, Copilot, Antigravity) to scaffold and implement every layer with high fidelity.
+**Purpose:** Define the comprehensive system architecture, data models, real-time sync protocol, canvas element schemas, complete feature matrix, keyboard shortcut specification, and subteam interfaces (Backend/Sync, Frontend Canvas, AI/ML Service) for progressive, end-to-end implementation across Web and Cross-Platform Desktop (Windows, macOS, Linux). Written to serve directly as an authoritative technical blueprint for team members and AI coding assistants (Claude, Copilot, Antigravity) to scaffold and implement every layer with high fidelity.
 
 ---
 
 ## 1. Product Overview & Progressive Delivery Model
 
-Graffiti is a high-performance, horizontally scalable real-time collaborative whiteboard web application. Multiple distributed users can draw, write, manipulate shapes, and organize complex diagrams concurrently on a shared infinite canvas without central locks or perceptible lag.
+Graffiti is a high-performance, horizontally scalable real-time collaborative whiteboard and note-taking application available on modern Web browsers and native Cross-Platform Desktop (Windows, macOS, Linux). Multiple distributed users, students, and educators can draw, write, manipulate shapes, organize complex diagrams, and take structured multi-page lecture notes concurrently on a shared infinite canvas without central locks or perceptible lag.
 
 ### 1.1 Progressive Architecture Philosophy
 The system is architected to be built **progressively across distinct, verifiable layers**:
-1. **Layer 1 (Core Canvas, Layout Tools & Single-Room State)**: Standalone 2D vector canvas with hand-drawn rough styling, discrete element schemas, complete keyboard shortcuts, sticky note presets, canvas navigation minimap, multi-shape "Tidy Up" alignment engine, and optimistic local manipulation.
+1. **Layer 1 (Core Canvas, Multi-Page Notebook & Layout Tools)**: Standalone 2D vector canvas with hand-drawn rough styling, discrete element schemas, complete keyboard shortcuts, sticky note presets, canvas navigation minimap, multi-shape "Tidy Up" alignment engine, multi-page notebook management with paper background templates (ruled, grid, dotted, Cornell), and optimistic local manipulation.
 2. **Layer 2 (Real-Time Synchronization & CRDT)**: Monotonically ordered Last-Writer-Wins (LWW) CRDT engine, STOMP WebSockets, and append-only database persistence for deterministic multi-user convergence.
-3. **Layer 3 (Distributed Scale & Compaction)**: Multi-instance Redis Pub/Sub event broadcasting, distributed lock snapshot compaction, and role-based authentication (JWT + Google OAuth2).
+3. **Layer 3 (Distributed Scale, Compaction & Cloud Export)**: Multi-instance Redis Pub/Sub event broadcasting, distributed lock snapshot compaction, role-based authentication (JWT + Google OAuth2), multi-page PDF/Markdown compilation, and 1-click Google Drive export with instant shareable link generation.
 4. **Layer 4 (Intelligent Canvas & Multimodal AI Assist)**: Asynchronous microservice & client-side intelligent interactions:
-   - **Handwriting & Canvas Text Search (`Ctrl+F`)**: Unified canvas search indexing both typed text and hand-drawn strokes via OCR/embeddings with auto-pan/zoom.
+   - **Handwriting & Canvas Text Search (`Ctrl+F`)**: Unified canvas search indexing both typed text and hand-drawn strokes across all notebook pages via OCR/embeddings with auto-pan/zoom.
    - **Stroke Beautification & Shape Smoothing**: Snapping irregular hand-drawn loops, strokes, and polygons into smooth geometric primitives or splines upon hold.
    - **Live Handwritten Math & Equation Solver**: Automatic OCR extraction of handwritten arithmetic and algebra ending in `=`, evaluated via symbolic math engine (`sympy`) and placed adjacent as digital text.
-   - **Voice-Driven Canvas Commands**: Browser-native Web Speech recognition translating spoken phrases into instant canvas tool actions, color changes, and export commands with zero backend audio streaming.
+   - **Voice-Driven Canvas Commands**: Browser-native Web Speech recognition translating spoken phrases into instant canvas tool actions, color changes, and page navigation with zero backend audio streaming.
    - **"Circle to Ask / Modify / Change" Gesture AI**: Drawing a closed loop around any canvas area to contextually query, restyle, or transform enclosed elements using multimodal LLMs.
    - **Natural Language Diagram Synthesis**: Generating complete structured flowcharts and system diagrams from text prompts.
+5. **Layer 5 (Native Cross-Platform Desktop Packaging via Tauri v2)**: Lightweight, hardware-accelerated desktop binary for Windows (10/11), macOS (Intel & Apple Silicon), and Linux:
+   - Native frameless window with macOS traffic lights (`🔴 🟡 🟢`) and vibrancy glassmorphism / Windows 11 Mica material.
+   - Full OS system menu bar integration (`File`, `Edit`, `View`, `Tools`, `Help`).
+   - OS Drag-and-Drop file import from Finder / File Explorer and native `.graffiti` file associations.
+   - Dual Operation Mode: Cloud Collaborative (STOMP WebSocket) vs. Local Offline File Mode.
 
 ### 1.2 Core System Engineering Goals
 - **Real-Time Collaboration**: Sub-50ms sync latency with zero lost edits under high-concurrency editing.
 - **Deterministic Convergence**: LWW Element-Set reducer guarantees mathematically identical canvas state across all replicas regardless of network packet reordering or duplicate delivery.
-- **Presence vs. Persistence Segregation**: High-frequency ephemeral events (mouse cursors, selection bounds, laser trails) stream directly over Redis Pub/Sub without causing database disk I/O bloat.
+- **Presence vs. Persistence Segregation**: High-frequency ephemeral events (mouse cursors, selection bounds, laser trails, teacher page sync) stream directly over Redis Pub/Sub without causing database disk I/O bloat.
 - **Snapshot Compaction**: Append-only operation logs in PostgreSQL are compacted periodically into JSONB snapshots using Redis distributed locks (`SET NX PX`).
 - **Non-Destructive AI UX**: AI suggestions render as non-destructive ghost overlays with explicit **Accept (Enter)** and **Dismiss (Esc)** actions, ensuring AI operations never silently overwrite human edits.
+- **Cross-Platform Native Fidelity**: 100% unified React 19 + TypeScript codebase running in the browser and as a lightweight (~8MB) native desktop app via Tauri v2 with native menus, trackpad inertia, and OS window styling.
 - **Horizontal Scalability**: Stateless backend cluster coordinated through Redis 7.
 
 ---
 
 ## 2. Feature Support & Capability Matrix
 
-### 2.1 Core Canvas & Editor Capabilities
+### 2.1 Core Canvas, Notebook & Editor Capabilities
 
 | Feature | Implementation Specification |
 | :--- | :--- |
@@ -43,11 +49,14 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Hand-Drawn Aesthetic** | Procedural rough stroke generation with customizable roughness, bowing, and jitter. |
 | **Dark / Light Mode** | Dynamic theme switching (`Alt+Shift+D`), CSS custom property tokens, and canvas color palette adaptation. |
 | **Customizable Styles** | Stroke colors, background colors, fill styles (`hachure`, `solid`, `cross-hatch`, `zigzag`), stroke widths, opacity. |
+| **Multi-Page Notebook Engine** | Multi-page document management (`pages: [...]`), bottom page-bar (`◀ Page 1 of 5 ▶`), slide drawer, page reordering, and page duplication (`Ctrl+Shift+D`). |
+| **Paper Background Templates** | Ruled/Lined paper (28px spacing), Grid paper (20×20px math grid), Dotted matrix (24px spacing), Cornell notes (left cue margin + summary box), and Blank canvas. |
 | **Sticky Note Presets** | Dedicated Sticky Note tool (`N`) creating square notes with curated pastel palette presets (`#fff3bf`, `#d0ebff`, `#d3f9d8`, `#ffdeeb`, `#f3d9fa`, `#ffe8cc`) and auto-focused centered text. |
 | **Canvas Navigation Minimap** | Interactive 160×100px overview thumbnail (`Alt+M`) rendering scaled scene bounds with click-to-pan and draggable viewport rectangle. |
 | **"Tidy Up" & Auto-Alignment** | Multi-selection layout engine (`Ctrl+Alt+T`) calculating bounding boxes and evenly distributing elements into clean rows, columns, or uniform grids with 24px gaps. |
-| **Image Support** | Image elements (`type: "image"`), drag-and-drop file upload, cropping/resizing, bounding box persistence. |
-| **Export to PNG, SVG, Clipboard** | Off-screen canvas serialization to PNG blob, SVG vector string, and direct OS clipboard copy (`Shift+Alt+C`). |
+| **Image Support** | Image elements (`type: "image"`), drag-and-drop file upload from OS Finder/Explorer, cropping/resizing, bounding box persistence. |
+| **Export to PNG, SVG, PDF, Clipboard** | Off-screen canvas serialization to PNG blob, SVG vector string, multi-page PDF document (`.pdf`), Markdown lecture notes (`.md`), and direct OS clipboard copy (`Shift+Alt+C`). |
+| **Google Drive Cloud Export** | 1-click export to user's Google Drive via OAuth2 scope (`drive.file`), uploading compiled PDF and returning an instant public shareable link. |
 | **Open Format JSON Export/Import** | Standardized `.graffiti` JSON scene export and full rehydration import. |
 | **Tool Palette** | Rectangle (`R`), Diamond (`D`), Ellipse (`O`), Arrow (`A`), Line (`L`), Free-draw (`P`), Text (`T`), Sticky Note (`N`), Eraser (`E`), Frame (`F`), Laser (`K`), Bucket Fill (`B`). |
 | **Arrow-Binding & Labeled Arrows** | Dynamic anchor binding to target shape IDs via `boundElements` array with auto-recalculating tangents and text labels. |
@@ -60,23 +69,34 @@ The system is architected to be built **progressively across distinct, verifiabl
 | :--- | :--- |
 | **Real-Time Multi-User Editing** | Sub-50ms sync via STOMP WebSockets, Redis Pub/Sub, and LWW CRDT engine. |
 | **Share Link (Guest / Room Sharing)** | Instant shareable room URLs (`/rooms/{slug}`) for anonymous and authenticated collaboration. |
-| **Role-Based Access Control (RBAC)** | 3-tier room permissions: `OWNER` (admin/claim), `EDITOR` (draw/edit ops), `VIEWER` (read-only canvas). |
+| **Role-Based Access Control (RBAC)** | 3-tier room permissions: `OWNER` (teacher/admin/claim), `EDITOR` (student/editor), `VIEWER` (read-only canvas). |
+| **Teacher Follow-Me Presentation Mode** | Teacher (`OWNER`) page navigation and viewport zoom broadcasts `TEACHER_PAGE_SYNC` over Redis Pub/Sub, automatically flipping all student canvases to the same page. |
 | **Ephemeral Presence & Cursors** | Live multiplayer cursors, laser trails, and selection bounds over Redis Pub/Sub without database bloat. |
 | **Append-Only History & Compaction** | PostgreSQL immutable op log + periodic background JSONB snapshot compaction with Redis distributed locks. |
-| **User Accounts & Google OAuth2** | Email/password registration, stateless JWT bearer tokens, and Google OAuth2 login. |
+| **User Accounts & Google OAuth2** | Email/password registration, stateless JWT bearer tokens, and Google OAuth2 login with Drive export scope. |
 | **Room Ownership Claiming** | Logged-in users can claim anonymous rooms (`POST /rooms/{slug}/claim`). |
 
 ### 2.3 Intelligent AI/ML Multimodal Capabilities
 
 | Feature | Implementation Specification |
 | :--- | :--- |
-| **Handwriting OCR & Canvas Search (`Ctrl+F`)** | Asynchronous stroke OCR extraction indexing `freedraw` notes with smooth auto-pan/zoom to matching bounding boxes. |
+| **Handwriting OCR & Canvas Search (`Ctrl+F`)** | Asynchronous stroke OCR extraction indexing `freedraw` notes across all notebook pages with smooth auto-pan/zoom to matching bounding boxes. |
 | **Stroke Beautification & Shape Smoothing** | Douglas-Peucker point decimation, geometric classification, and Catmull-Rom/Bezier curve smoothing (Auto-Snap on Hold). |
 | **Live Handwritten Math & Equation Solver** | OCR extraction of handwritten arithmetic and algebra ending in `=`, evaluated via symbolic Python engine (`sympy`) and rendered adjacent as digital text. |
-| **Voice-Driven Canvas Commands** | Browser-native Web Speech recognition translating spoken commands into tool changes, color selections, and canvas actions with zero backend audio load. |
+| **Voice-Driven Canvas Commands** | Browser-native Web Speech recognition translating spoken commands into tool changes, color selections, and page navigation with zero backend audio load. |
 | **"Circle to Ask / Modify / Change" Gesture AI** | Drawing a closed loop around any canvas area extracts spatial context and triggers interactive AI queries, restyling, or transformations. |
 | **Text-to-Diagram Synthesis** | Synthesizing structured flowcharts and architecture diagrams from natural language prompts via Mermaid/Sugiyama layout. |
 | **Non-Destructive Ghost Overlays** | All AI operations render as preview overlays with **Accept (Enter)** and **Dismiss (Esc)** actions. |
+
+### 2.4 Cross-Platform Desktop Capabilities (Tauri v2)
+
+| Feature | Implementation Specification |
+| :--- | :--- |
+| **Native Binaries for Windows / Mac / Linux** | Compiles to native `.exe`/`.msi` (Windows), `.dmg`/`.app` (macOS Intel & Apple Silicon), and `.AppImage`/`.deb` (Linux). |
+| **Frameless Window & Native OS Styling** | macOS: Embedded traffic lights (`🔴 🟡 🟢`) with translucent `vibrancy: "under-window"` glassmorphism; Windows 11: Native Mica / Acrylic material. |
+| **Native System Menu Bar Integration** | Full OS menu bar (`File`, `Edit`, `View`, `Tools`, `Help`) with accelerator keybindings (`Cmd/Ctrl+S`, `Cmd/Ctrl+O`, `Cmd+,`). |
+| **OS File Association & Native Drag-and-Drop** | Double-clicking `.graffiti` files in Finder/Explorer opens Graffiti; dragging images/PDFs from desktop drops them onto canvas coordinates. |
+| **Local Offline File Mode** | Allows standalone offline usage with direct hard drive save/open via native OS file dialogs (`NSOpenPanel` / `IFileDialog`). |
 
 ---
 
@@ -116,63 +136,72 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Toggle shape type** | `Tab` or `Shift + Tab` |
 
 ### 3.2 View & Navigation Shortcuts
-| Action | Keybinding |
-| :--- | :--- |
-| **Zoom in** | `Ctrl + +` |
-| **Zoom out** | `Ctrl + -` |
-| **Reset zoom (100%)** | `Ctrl + 0` |
-| **Zoom to fit all elements** | `Shift + 1` |
-| **Zoom to selection** | `Shift + 2` |
-| **Toggle Navigation Minimap** | `Alt + M` |
-| **Move page up / down** | `PgUp` / `PgDn` |
-| **Move page left / right** | `Shift + PgUp` / `Shift + PgDn` |
-| **Zen mode (hide toolbars)** | `Alt + Z` |
-| **Snap to objects / grid** | `Alt + S` |
-| **Toggle grid** | `Ctrl + '` |
-| **View mode (read-only)** | `Alt + R` |
-| **Toggle light/dark theme** | `Alt + Shift + D` |
-| **Canvas & shape properties** | `Alt + /` |
-| **Find on canvas (text + handwriting OCR)** | `Ctrl + F` |
-| **Command palette** | `Ctrl + /` or `Ctrl + Shift + P` |
+| Action                                      | Keybinding                       |
+| :--------------------------------------------| :---------------------------------|
+| **Next Notebook Page**                      | `Alt + PgDn` or `Alt + ]`        |
+| **Previous Notebook Page**                  | `Alt + PgUp` or `Alt + [`        |
+| **Add New Notebook Page**                   | `Ctrl + Shift + N`               |
+| **Duplicate Current Page**                  | `Ctrl + Shift + D`               |
+| **Zoom in**                                 | `Ctrl + +`                       |
+| **Zoom out**                                | `Ctrl + -`                       |
+| **Reset zoom (100%)**                       | `Ctrl + 0`                       |
+| **Zoom to fit all elements**                | `Shift + 1`                      |
+| **Zoom to selection**                       | `Shift + 2`                      |
+| **Toggle Navigation Minimap**               | `Alt + M`                        |
+| **Move page up / down**                     | `PgUp` / `PgDn`                  |
+| **Move page left / right**                  | `Shift + PgUp` / `Shift + PgDn`  |
+| **Zen mode (hide toolbars)**                | `Alt + Z`                        |
+| **Snap to objects / grid**                  | `Alt + S`                        |
+| **Toggle grid**                             | `Ctrl + '`                       |
+| **View mode (read-only)**                   | `Alt + R`                        |
+| **Toggle light/dark theme**                 | `Alt + Shift + D`                |
+| **Canvas & shape properties**               | `Alt + /`                        |
+| **Find on canvas (text + handwriting OCR)** | `Ctrl + F`                       |
+| **Command palette**                         | `Ctrl + /` or `Ctrl + Shift + P` |
 
-### 3.3 Editor & Manipulation Shortcuts
-| Action | Keybinding |
-| :--- | :--- |
-| **Tidy Up / Auto-Distribute Selection** | `Ctrl + Alt + T` |
-| **Solve Handwritten Equation on Selection** | `Ctrl + Shift + M` (or automatic on `=`) |
-| **Create connected flowchart element** | `Ctrl + Arrow Key` |
-| **Navigate flowchart** | `Alt + Arrow Key` |
-| **Move canvas** | `Space + drag` or `Wheel + drag` |
-| **Reset canvas** | `Ctrl + Delete` |
-| **Delete selected elements** | `Delete` or `Backspace` |
-| **Cut** | `Ctrl + X` |
-| **Copy** | `Ctrl + C` |
-| **Paste** | `Ctrl + V` |
-| **Paste as plaintext** | `Ctrl + Shift + V` |
-| **Select all** | `Ctrl + A` |
-| **Add element to selection** | `Shift + click` |
-| **Deep select inside group** | `Ctrl + click` |
-| **Deep select within box (prevent drag)** | `Ctrl + drag` |
-| **Copy selection to clipboard as PNG** | `Shift + Alt + C` |
-| **Copy shape styles** | `Ctrl + Alt + C` |
-| **Paste shape styles** | `Ctrl + Alt + V` |
-| **Send to back** | `Ctrl + Shift + [` |
-| **Send backward** | `Ctrl + [` |
-| **Bring forward** | `Ctrl + ]` |
-| **Bring to front** | `Ctrl + Shift + ]` |
-| **Align top / bottom / left / right** | `Ctrl + Shift + Up / Down / Left / Right` |
-| **Duplicate** | `Ctrl + D` or `Alt + drag` |
-| **Lock / unlock selection** | `Ctrl + Shift + L` |
-| **Undo** | `Ctrl + Z` |
-| **Redo** | `Ctrl + Y` or `Ctrl + Shift + Z` |
-| **Group selection** | `Ctrl + G` |
-| **Ungroup selection** | `Ctrl + Shift + G` |
-| **Flip horizontal** | `Shift + H` |
-| **Flip vertical** | `Shift + V` |
-| **Show stroke color picker** | `S` |
-| **Show background color picker** | `G` |
-| **Show font picker** | `Shift + F` |
-| **Decrease / Increase font size** | `Ctrl + Shift + <` / `Ctrl + Shift + >` |
+### 3.3 Editor & Desktop Manipulation Shortcuts
+| Action                                      | Keybinding                                |
+| :--------------------------------------------| :------------------------------------------|
+| **New Whiteboard / Notebook (Desktop)**     | `Ctrl + N` (or `Cmd + N` on macOS)        |
+| **Open `.graffiti` File (Desktop)**         | `Ctrl + O` (or `Cmd + O` on macOS)        |
+| **Save / Save As (Desktop)**                | `Ctrl + S` (or `Cmd + S` on macOS)        |
+| **Export to Multi-Page PDF / Drive**        | `Ctrl + Shift + E`                        |
+| **Preferences (macOS)**                     | `Cmd + ,`                                 |
+| **Tidy Up / Auto-Distribute Selection**     | `Ctrl + Alt + T`                          |
+| **Solve Handwritten Equation on Selection** | `Ctrl + Shift + M` (or automatic on `=`)  |
+| **Create connected flowchart element**      | `Ctrl + Arrow Key`                        |
+| **Navigate flowchart**                      | `Alt + Arrow Key`                         |
+| **Move canvas**                             | `Space + drag` or `Wheel + drag`          |
+| **Reset canvas**                            | `Ctrl + Delete`                           |
+| **Delete selected elements**                | `Delete` or `Backspace`                   |
+| **Cut**                                     | `Ctrl + X`                                |
+| **Copy**                                    | `Ctrl + C`                                |
+| **Paste**                                   | `Ctrl + V`                                |
+| **Paste as plaintext**                      | `Ctrl + Shift + V`                        |
+| **Select all**                              | `Ctrl + A`                                |
+| **Add element to selection**                | `Shift + click`                           |
+| **Deep select inside group**                | `Ctrl + click`                            |
+| **Deep select within box (prevent drag)**   | `Ctrl + drag`                             |
+| **Copy selection to clipboard as PNG**      | `Shift + Alt + C`                         |
+| **Copy shape styles**                       | `Ctrl + Alt + C`                          |
+| **Paste shape styles**                      | `Ctrl + Alt + V`                          |
+| **Send to back**                            | `Ctrl + Shift + [`                        |
+| **Send backward**                           | `Ctrl + [`                                |
+| **Bring forward**                           | `Ctrl + ]`                                |
+| **Bring to front**                          | `Ctrl + Shift + ]`                        |
+| **Align top / bottom / left / right**       | `Ctrl + Shift + Up / Down / Left / Right` |
+| **Duplicate**                               | `Ctrl + D` or `Alt + drag`                |
+| **Lock / unlock selection**                 | `Ctrl + Shift + L`                        |
+| **Undo**                                    | `Ctrl + Z`                                |
+| **Redo**                                    | `Ctrl + Y` or `Ctrl + Shift + Z`          |
+| **Group selection**                         | `Ctrl + G`                                |
+| **Ungroup selection**                       | `Ctrl + Shift + G`                        |
+| **Flip horizontal**                         | `Shift + H`                               |
+| **Flip vertical**                           | `Shift + V`                               |
+| **Show stroke color picker**                | `S`                                       |
+| **Show background color picker**            | `G`                                       |
+| **Show font picker**                        | `Shift + F`                               |
+| **Decrease / Increase font size**           | `Ctrl + Shift + <` / `Ctrl + Shift + >`   |
 
 ---
 
@@ -180,18 +209,18 @@ The system is architected to be built **progressively across distinct, verifiabl
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────┐
-│                                Frontend Clients                                  │
-│                 (React + Canvas Rendering Engine + STOMP Client)                 │
+│             Cross-Platform Clients (Web Browser & Tauri v2 Desktop)              │
+│       (React 19 + Canvas Rendering Engine + Multi-Page Notebook + STOMP)         │
 └──────────────┬────────────────────────────────────────────────────┬──────────────┘
                │                                                    │
-      REST (Rooms/Auth/Search)                             STOMP WebSocket (Ops/Presence)
+      REST (Rooms/Auth/Drive/PDF)                          STOMP WebSocket (Ops/Presence)
                │                                                    │
                ▼                                                    ▼
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │                         Spring Boot 4.1.0 Node Cluster                           │
 │                          (Java 25 Runtime / Port 8080)                           │
 │  ┌───────────────────────┐ ┌─────────────────────────┐ ┌──────────────────────┐  │
-│  │ Room & Auth REST API  │ │ STOMP MessageController │ │ Compaction Worker    │  │
+│  │ Room, Page & Drive API│ │ STOMP MessageController │ │ Compaction Worker    │  │
 │  │ (JWT / Google OAuth2) │ │ (/app/rooms/{slug}/*)   │ │ (Redis Distributed)  │  │
 │  └───────────────────────┘ └─────────────────────────┘ └──────────────────────┘  │
 │  ┌────────────────────────────────────────────────────────────────────────────┐  │
@@ -206,7 +235,7 @@ The system is architected to be built **progressively across distinct, verifiabl
 │        PostgreSQL 16        │ │       Redis 7        │ │      AI/ML Service      │
 │  - ops (Append-only JSONB)  │ │ - room:{slug}:op     │ │    (FastAPI / Python)   │
 │  - snapshots (State JSONB)  │ │ - room:{slug}:pres.. │ │ - Handwriting OCR Search│
-│  - rooms, users, members    │ │ - lock:compact:{id}  │ │ - Stroke Beautification │
+│  - rooms, pages, users      │ │ - lock:compact:{id}  │ │ - Stroke Beautification │
 │                             │ │                      │ │ - Live Math Solver      │
 │                             │ │                      │ │ - Circle-to-Edit Engine │
 │                             │ │                      │ │ - Text-to-Diagram (LLM) │
@@ -214,9 +243,9 @@ The system is architected to be built **progressively across distinct, verifiabl
 ```
 
 ### Subsystem Responsibilities
-1. **Backend / Sync Engine (`graffiti-backend/`)**: Java 25 & Spring Boot. Owns room management, JWT/OAuth2 authentication, STOMP WebSocket broker, PostgreSQL persistence, Redis Pub/Sub relay, snapshot compaction with distributed locks, and CRDT merge reduction.
-2. **Frontend Canvas (`graffiti-frontend/`)**: React + TypeScript. Implements the 2D vector canvas (referencing `docs_archive/`), Rough-style procedural rendering, sticky note presets, canvas minimap, tidy-up layout algorithms, Web Speech command recognition, optimistic local mutations, fractional-index z-ordering, multi-user presence, and the AI ghost preview overlay.
-3. **AI/ML Service (`graffiti-aiml/`)**: Python (FastAPI). Asynchronously processes stroke beautification, handwriting recognition, live equation solving via `sympy`, canvas search indexing, and circle-to-edit multimodal workflows, returning proposed operations to the backend callback API.
+1. **Backend / Sync Engine (`graffiti-backend/`)**: Java 25 & Spring Boot. Owns room & page management, JWT/Google OAuth2 authentication (with Drive export scope), STOMP WebSocket broker, PostgreSQL persistence, Redis Pub/Sub relay, snapshot compaction with distributed locks, and CRDT merge reduction.
+2. **Frontend Canvas UI & Desktop App (`graffiti-frontend/` & `src-tauri/`)**: React 19 + TypeScript + Tauri v2. Implements the 2D vector canvas (referencing `docs_archive/`), Rough-style procedural rendering, multi-page notebook engine, paper background templates (ruled/grid/dotted/Cornell), canvas minimap, tidy-up layout algorithms, Web Speech command recognition, native OS glassmorphism/Mica windows, OS system menus, and the AI ghost preview overlay.
+3. **AI/ML Service (`graffiti-aiml/`)**: Python (FastAPI). Asynchronously processes stroke beautification, handwriting recognition across pages, live equation solving via `sympy`, canvas search indexing, and circle-to-edit multimodal workflows, returning proposed operations to the backend callback API.
 
 ---
 
@@ -228,6 +257,7 @@ Every visual object on the whiteboard conforms to a standardized, discrete JSON 
 ```json
 {
   "id": "el_k9J2xLpQ8v1M",
+  "pageId": "page_01",
   "type": "rectangle",
   "x": 240,
   "y": 180,
@@ -265,17 +295,32 @@ Every visual object on the whiteboard conforms to a standardized, discrete JSON 
 }
 ```
 
-#### Supported Shape Types (`type`)
-- `rectangle`, `diamond`, `ellipse` (basic geometric containers)
-- `arrow`, `line` (linear connectors with relative `points: [[0,0], [dx,dy]]` and binding references)
-- `freedraw` (hand-drawn strokes with `points: [...]`, `pressures: [...]`, `simulatePressure: boolean`)
-- `text` (typed text with `text`, `fontSize`, `fontFamily`, `textAlign`, `verticalAlign`)
-- `image` (`fileId`, `status`, `scale`, `mimeType`)
-- `frame` (structural bounding container for grouping related diagram sections)
-- `embeddable` / `iframe` (interactive web content embeds)
+### 5.2 Multi-Page Notebook Schema (`RoomPage`)
+
+A room contains an ordered list of pages, allowing lecture notes, multi-slide decks, and student notebooks:
+
+```json
+{
+  "id": "page_01",
+  "roomId": "e0b57e79-52d3-488f-9a1d-7203e8ff0938",
+  "title": "Lecture 1: Introduction",
+  "template": "ruled",
+  "order": 0,
+  "width": 1920,
+  "height": 1080,
+  "createdAt": "2026-09-02T08:00:00.000Z"
+}
+```
+
+#### Supported Paper Templates (`template`)
+- `blank`: Standard infinite whiteboard plane.
+- `ruled`: 28px horizontal line intervals for handwriting and lined note-taking.
+- `grid`: 20×20px orthogonal math and engineering grid.
+- `dotted`: 24px equidistant dot matrix for bullet journaling and sketching.
+- `cornell`: 2.5-inch left cue column line + 2-inch bottom summary box.
 
 #### Type-Specific Required Fields
-All shape types share the common base fields shown in the schema above (`id`, `x`, `y`, `angle`, `strokeColor`, `opacity`, `version`, `versionNonce`, `index`, `isDeleted`, `groupIds`, `boundElements`, `updated`). The table below lists the **additional fields required per type**:
+All shape types share common base fields (`id`, `pageId`, `x`, `y`, `angle`, `strokeColor`, `opacity`, `version`, `versionNonce`, `index`, `isDeleted`, `groupIds`, `boundElements`, `updated`). Additional fields required per type:
 
 | Type | Required Additional Fields |
 | :--- | :--- |
@@ -289,7 +334,7 @@ All shape types share the common base fields shown in the schema above (`id`, `x
 
 ---
 
-### 5.2 Persistent Operation Entity (`Op`)
+### 5.3 Persistent Operation Entity (`Op`)
 
 Structural canvas mutations (`CREATE_OR_UPDATE` and `DELETE`) are persisted into PostgreSQL as immutable append-only events:
 
@@ -301,6 +346,7 @@ Structural canvas mutations (`CREATE_OR_UPDATE` and `DELETE`) are persisted into
   "opType": "CREATE_OR_UPDATE",
   "payload": {
     "id": "el_k9J2xLpQ8v1M",
+    "pageId": "page_01",
     "type": "rectangle",
     "x": 250,
     "y": 180,
@@ -318,8 +364,17 @@ Structural canvas mutations (`CREATE_OR_UPDATE` and `DELETE`) are persisted into
 }
 ```
 
-#### Database Table: `ops`
+#### Database Tables: `ops`, `pages`, and `snapshots`
 ```sql
+CREATE TABLE pages (
+    id VARCHAR(64) PRIMARY KEY,
+    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    template VARCHAR(32) NOT NULL DEFAULT 'blank', -- 'blank', 'ruled', 'grid', 'dotted', 'cornell'
+    page_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE ops (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
@@ -332,11 +387,22 @@ CREATE TABLE ops (
 );
 
 CREATE INDEX idx_ops_room_lamport ON ops (room_id, lamport_ts ASC);
+
+CREATE TABLE snapshots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    state JSONB NOT NULL,
+    pages JSONB NOT NULL DEFAULT '[]',
+    up_to_lamport_ts BIGINT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_snapshots_room_lamport ON snapshots (room_id, up_to_lamport_ts DESC);
 ```
 
 ---
 
-### 5.3 CRDT State Representation & LWW Reducer
+### 5.4 CRDT State Representation & LWW Reducer
 
 The active state of each canvas shape is represented on the backend as a `ShapeState`:
 
@@ -357,7 +423,7 @@ public class ShapeState {
    - If $O.\text{lamportTs} > S.\text{lamportTs}$: **Apply $O$**.
    - If $O.\text{lamportTs} == S.\text{lamportTs}$: **Tiebreak on Author ID** $\rightarrow$ Apply $O$ if $O.\text{authorId}.\text{compareTo}(S.\text{authorId}) > 0$.
    - Otherwise: **Discard $O$ as stale**.
-3. **Tombstone Deletion Guarantee**: Deleting a shape emits `opType: "DELETE"` with `deleted: true` and an incremented Lamport timestamp. Because tombstones update the Lamport timestamp, late-arriving concurrent edits with lower timestamps cannot resurrect deleted shapes.
+3. **Tombstone Deletion Guarantee**: Deleting a shape emits `opType: "DELETE"` with `deleted: true` and an incremented Lamport timestamp. Late-arriving concurrent edits with lower timestamps cannot resurrect deleted shapes.
 4. **Mathematical Properties**:
    - **Commutative**: $Merge(A, B) \equiv Merge(B, A)$
    - **Associative**: $Merge(Merge(A, B), C) \equiv Merge(A, Merge(B, C))$
@@ -365,7 +431,7 @@ public class ShapeState {
 
 ---
 
-### 5.4 Consolidated Snapshot Entity (`Snapshot`)
+### 5.5 Consolidated Snapshot Entity (`Snapshot`)
 
 Snapshots prevent the operation log from growing indefinitely and allow rapid room rehydration:
 
@@ -382,31 +448,26 @@ Snapshots prevent the operation log from growing indefinitely and allow rapid ro
       "deleted": false
     }
   },
+  "pages": [
+    {
+      "id": "page_01",
+      "title": "Lecture 1: Introduction",
+      "template": "ruled",
+      "order": 0
+    }
+  ],
   "upToLamportTs": 43,
   "createdAt": "2026-09-01T08:35:00.000Z"
 }
-```
-
-#### Database Table: `snapshots`
-```sql
-CREATE TABLE snapshots (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-    state JSONB NOT NULL,
-    up_to_lamport_ts BIGINT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_snapshots_room_lamport ON snapshots (room_id, up_to_lamport_ts DESC);
 ```
 
 **Retention Policy**: Snapshots are a read-optimization only — creating a snapshot never deletes or mutates rows in the `ops` table. The append-only op log is retained in full for audit purposes as stated in §2.2. Room rehydration (`GET /rooms/{slug}`) reads the latest snapshot plus any ops with `lamport_ts` greater than `up_to_lamport_ts`, rather than replaying the full log from Lamport 0.
 
 ---
 
-### 5.5 Ephemeral Presence DTO (`PresenceMessageDTO`)
+### 5.6 Ephemeral Presence DTO (`PresenceMessageDTO`)
 
-Mouse cursor movements, laser trails, and active selections are high-frequency events that stream across Redis Pub/Sub directly to connected WebSocket sessions without database disk I/O:
+Mouse cursor movements, laser trails, selection bounds, and teacher page navigation stream across Redis Pub/Sub directly to connected WebSocket sessions without database disk I/O:
 
 ```json
 {
@@ -417,6 +478,7 @@ Mouse cursor movements, laser trails, and active selections are high-frequency e
     "y": 320.0,
     "username": "Ankit",
     "color": "#ff4d4f",
+    "activePageId": "page_01",
     "selectedElementIds": ["el_k9J2xLpQ8v1M"],
     "laserPath": []
   }
@@ -433,9 +495,11 @@ Mouse cursor movements, laser trails, and active selections are high-frequency e
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/auth/register` | Public | Register new user account | `{"email": "...", "password": "...", "name": "..."}` | `{"token": "jwt...", "user": {"id": "...", "email": "...", "name": "..."}}` |
 | `POST` | `/auth/login` | Public | Log into existing account | `{"email": "...", "password": "..."}` | `{"token": "jwt...", "user": {"id": "...", "email": "...", "name": "..."}}` |
-| `GET` | `/oauth2/authorization/google` | Public | Initiate Google OAuth2 flow | — | 302 Redirect to Google OAuth Consent |
-| `POST` | `/rooms` | Optional | Create new room (anonymous or owned) | — | `{"id": "uuid", "slug": "a1b2c3d4", "ownerId": "uuid | null", "createdAt": "..."}` |
-| `GET` | `/rooms/{slug}` | Public | Rehydrate room (snapshot + delta ops) | — | `{"id": "...", "slug": "...", "ownerId": "...", "snapshotState": {...}, "upToLamportTs": 40, "opsSinceSnapshot": [...]}` |
+| `GET` | `/oauth2/authorization/google` | Public | Initiate Google OAuth2 with Drive Scope | — | 302 Redirect to Google Consent |
+| `POST` | `/rooms` | Optional | Create new room (anonymous or owned) | — | `{"id": "uuid", "slug": "a1b2c3d4", "ownerId": "uuid \| null", "pages": [...]}` |
+| `GET` | `/rooms/{slug}` | Public | Rehydrate room (snapshot + pages + delta ops) | — | `{"id": "...", "slug": "...", "pages": [...], "snapshotState": {...}, "upToLamportTs": 40, "opsSinceSnapshot": [...]}` |
+| `POST` | `/rooms/{slug}/pages` | Required (Owner/Editor) | Create new notebook page | `{"title": "Lecture 2", "template": "ruled", "order": 1}` | `{"id": "page_02", "title": "Lecture 2", "template": "ruled", "order": 1}` |
+| `POST` | `/rooms/{slug}/export/google-drive` | Required | Export compiled PDF directly to Google Drive | `{"title": "Lecture Notes"}` | `{"driveFileId": "1a2b3c...", "shareableLink": "https://drive.google.com/file/d/1a2b3c/view?usp=sharing"}` |
 | `POST` | `/rooms/{slug}/claim` | Required | Claim ownership of an anonymous room | — | `{"id": "...", "slug": "...", "ownerId": "...", "createdAt": "..."}` |
 | `POST` | `/internal/rooms/{slug}/ai-suggestion` | Internal | Ingest AI-proposed shape operations | `{"shapeId": "...", "opType": "CREATE_OR_UPDATE", "payload": {...}}` | `{"status": "STUBBED_ACCEPTED"}` |
 
@@ -484,10 +548,19 @@ Every REST endpoint returns errors in a single shared shape:
     "roomId": "e0b57e79-52d3-488f-9a1d-7203e8ff0938",
     "shapeId": "el_k9J2xLpQ8v1M",
     "opType": "CREATE_OR_UPDATE",
-    "payload": { "id": "el_k9J2xLpQ8v1M", "type": "rectangle", "x": 250, "y": 180, "width": 160, "height": 90 },
+    "payload": { "id": "el_k9J2xLpQ8v1M", "pageId": "page_01", "type": "rectangle", "x": 250, "y": 180, "width": 160, "height": 90 },
     "lamportTs": 43,
     "authorId": "usr_991823ab",
     "createdAt": "2026-09-01T08:30:00.000Z"
+  }
+  ```
+- **Server Broadcast (Teacher Follow-Me Page Sync)**:
+  ```json
+  {
+    "type": "PRESENCE",
+    "presenceType": "TEACHER_PAGE_SYNC",
+    "authorId": "usr_teacher_12",
+    "pageId": "page_02"
   }
   ```
 - **Server Broadcast Payload (Ephemeral Presence)**:
@@ -496,7 +569,7 @@ Every REST endpoint returns errors in a single shared shape:
     "type": "PRESENCE",
     "authorId": "usr_991823ab",
     "presenceType": "cursor",
-    "payload": { "x": 450.5, "y": 320.0, "username": "Ankit", "color": "#ff4d4f" }
+    "payload": { "x": 450.5, "y": 320.0, "username": "Ankit", "color": "#ff4d4f", "activePageId": "page_01" }
   }
   ```
 
@@ -507,6 +580,7 @@ Every REST endpoint returns errors in a single shared shape:
   "opType": "CREATE_OR_UPDATE",
   "payload": {
     "id": "el_k9J2xLpQ8v1M",
+    "pageId": "page_01",
     "type": "rectangle",
     "x": 250,
     "y": 180,
@@ -533,6 +607,7 @@ Every REST endpoint returns errors in a single shared shape:
     "y": 320.0,
     "username": "Ankit",
     "color": "#ff4d4f",
+    "activePageId": "page_01",
     "selectedElementIds": ["el_k9J2xLpQ8v1M"]
   }
 }
@@ -541,7 +616,7 @@ Every REST endpoint returns errors in a single shared shape:
 #### 6.2.1 Reconnection Protocol
 1. Client detects STOMP disconnect and enters a **reconnecting** state (retaining local state).
 2. Retries with exponential backoff: `1s, 2s, 4s, 8s, capped at 30s` (±20% jitter).
-3. On reconnect, calls `GET /rooms/{slug}` to rehydrate authoritative snapshot + delta ops, then re-applies unacknowledged local ops with fresh Lamport timestamps.
+3. On reconnect, calls `GET /rooms/{slug}` to rehydrate authoritative snapshot, pages, and delta ops, then re-applies unacknowledged local ops with fresh Lamport timestamps.
 4. Resubscribes to `/topic/rooms/{slug}` and resumes presence broadcast.
 
 ---
@@ -552,7 +627,7 @@ Multi-instance cluster scaling and background compaction rely on Redis 7:
 
 1. **Pub/Sub Channels**:
    - `room:{slug}:op`: Relays structural operations between cluster nodes.
-   - `room:{slug}:presence`: Relays live cursors and join/leave lifecycle events.
+   - `room:{slug}:presence`: Relays live cursors, teacher page synchronizations, and join/leave lifecycle events.
 2. **Distributed Compaction Lock**:
    - Key: `lock:compact:{roomId}`
    - Value: Unique random UUID per node.
@@ -562,16 +637,49 @@ Multi-instance cluster scaling and background compaction rely on Redis 7:
 
 ---
 
-## 7. Frontend Canvas Engine & Interaction Architecture
+## 7. Frontend Canvas & Desktop Engine Architecture
 
-The frontend client implements a high-performance 2D vector canvas referencing the architectural patterns in `docs_archive`:
+The frontend client implements a high-performance 2D vector canvas referencing the architectural patterns in `docs_archive`, structured to run seamlessly in modern web browsers and natively inside **Tauri v2** on Windows, macOS, and Linux:
 
 ### 7.1 Procedural Vector Rendering Engine & Rough Aesthetic
 - Generates hand-drawn stroke variations dynamically using custom curvature, bowing, and roughness parameters.
-- Canvas render pipeline uses off-screen double-buffering for silky-smooth 60 FPS drawing and zooming.
+- Canvas render pipeline uses off-screen double-buffering for silky-smooth 60–120 FPS drawing and panning.
+- Automatically clips and renders only elements belonging to the active `currentPageId`.
 - Renders anchor points, bounding handles, and rotation controls dynamically during selection.
 
-### 7.2 Local-First Optimistic Reconciliation (`reconcileElements`)
+### 7.2 Multi-Page Notebook Engine & Paper Background System
+- **Page Bar & Slide Drawer**: Bottom navigation widget (`◀ Page 1 of 5 ▶`, `+ Add Page`) and collapsible sidebar showing live canvas page thumbnails.
+- **Background Paper Template Renderer**:
+  - **Ruled / Lined Paper**: Renders horizontal guidelines at 28px intervals with a soft `#e9ecef` (or `#2b2c3d` in dark mode) stroke color, ideal for handwriting notes.
+  - **Grid Paper**: Renders a 20×20px orthogonal math/engineering grid.
+  - **Dotted Matrix**: Renders a 24×24px dot pattern for sketches and bullet notes.
+  - **Cornell Notes**: Draws a standard 2.5-inch vertical cue margin on the left and a 2-inch horizontal summary box at the bottom.
+  - **Blank Canvas**: Standard infinite whiteboard plane.
+
+### 7.3 Multi-Page PDF & Markdown Compilation Engine
+- **Multi-Page PDF Generator**: Iterates sequentially through all pages in `pages: [...]`, renders each page to a high-DPI off-screen canvas, and bundles them into a standardized multi-page `.pdf` using `jspdf` / `pdf-lib`.
+- **Markdown Lecture Notes Exporter**: Aggregates all typed text shapes and OCR-extracted handwriting (`customData.ocrText`) on each page, formatting them into structured Markdown notes (`.md`).
+
+### 7.4 Google Drive Cloud Export & Sharing Protocol
+1. User clicks **"Save to Google Drive"**.
+2. Frontend generates multi-page PDF blob.
+3. Backend uses user's Google OAuth2 access token (`drive.file` scope) to upload the file to Google Drive.
+4. Sets public read permission (`type: 'anyone', role: 'reader'`).
+5. Returns a shareable `webViewLink`, displaying an instant copyable URL modal.
+
+### 7.5 Cross-Platform Native Desktop Architecture (Tauri v2)
+- **Unified Codebase**: 100% of React 19, TypeScript, Rough canvas, and CRDT sync code is shared between Web and Desktop.
+- **Native Frameless Window**:
+  - **macOS**: Titlebar is hidden; native traffic light controls (`🔴 🟡 🟢`) are embedded directly into the top canvas toolbar with `vibrancy: "under-window"` glassmorphic backdrop blur.
+  - **Windows 11**: Integrates Windows Mica / Acrylic material matching the user's OS dark/light accent theme.
+- **Native OS System Menus**:
+  - **macOS Menu Bar (`Cmd+S`, `Cmd+O`, `Cmd+N`, `Cmd+,`)**: Top menu bar with `File`, `Edit`, `View`, `Tools`, and `Help` options.
+  - **Windows**: Standard native ribbon menu with accelerator shortcuts (`Alt+F`).
+- **OS Drag-and-Drop**: Users can drag images, PDFs, or `.graffiti` files directly from macOS Finder or Windows Explorer onto the canvas.
+- **Local File Association**: `.graffiti` file format is registered with the OS, enabling double-click to open.
+- **Local Offline File Mode**: Provides standalone offline capability using native file dialogs (`NSOpenPanel` / `IFileDialog`) to save and open whiteboard files directly on the local hard drive without a running server.
+
+### 7.6 Local-First Optimistic Reconciliation (`reconcileElements`)
 - **Optimistic Local Mutations**: When a user drags, resizes, or draws a shape locally, the client immediately updates in-memory scene state, increments `element.version`, regenerates `element.versionNonce`, and sends the op to the backend.
 - **Remote Reconciliation Rules**: When a remote element update arrives via STOMP:
   - If local element is actively being edited (`editingTextElement`, `resizingElement`, `newElement`): **Retain local version**.
@@ -580,29 +688,29 @@ The frontend client implements a high-performance 2D vector canvas referencing t
   - Otherwise: **Adopt remote element**.
 - **Fractional Indexing for Conflict-Free Z-Ordering**: Canvas elements use string fractional indices (e.g., `"a0"`, `"a1"`, `"a05"`) to preserve consistent visual layering across concurrent insertions without array index shifts.
 
-### 7.3 Presence & Cursor Visualization
+### 7.7 Presence & Cursor Visualization
 - Live collaborator cursors render on a separate dedicated canvas overlay layer.
 - Client throttles cursor emission to 30ms (via `requestAnimationFrame` / `throttle`) to conserve network bandwidth.
 - Disconnections or tab unloads trigger `USER_LEFT` events and remove collaborator avatars.
 
-### 7.4 Arrow-Binding Anchor Calculations & Labeled Connectors
+### 7.8 Arrow-Binding Anchor Calculations & Labeled Connectors
 - Arrows bind dynamically to shapes via `boundElements` references.
 - Moving or resizing a shape automatically updates connected arrow endpoints, recalculating boundary intersection tangents and bound text center positions.
 
-### 7.5 Multi-Format Export
+### 7.9 Multi-Format Export
 - **PNG Blob**: Serializes scene bounding box into high-DPI raster image.
 - **SVG Vector**: Generates standards-compliant SVG paths for vector editing.
 - **`.graffiti` JSON**: Standardized scene document for full canvas state backups and imports.
 
-### 7.6 Canvas Navigation Minimap Architecture
+### 7.10 Canvas Navigation Minimap Architecture
 - **Overview Sub-Canvas**: An interactive 160×100px overview widget positioned in the bottom corner of the viewport (toggleable via `Alt+M`).
-- **Real-Time Scene Representation**: Renders simplified bounding box miniatures of all non-deleted canvas shapes, scaled proportionately to the total scene bounding envelope.
+- **Real-Time Scene Representation**: Renders simplified bounding box miniatures of all non-deleted canvas shapes on the active page, scaled proportionately to the total scene bounding envelope.
 - **Draggable Viewport Bounding Box**: An illuminated translucent rectangle indicates the current viewport position and zoom level.
 - **Interactive Navigation**:
   - Clicking anywhere inside the minimap instantly centers the canvas viewport on that coordinate.
   - Dragging the viewport rectangle smoothly pans the main canvas in real time.
 
-### 7.7 "Tidy Up" & Auto-Alignment Grid Algorithm
+### 7.11 "Tidy Up" & Auto-Alignment Grid Algorithm
 When multiple elements ($N \ge 2$) are selected, clicking "Tidy Up" (`Ctrl+Alt+T`) organizes them into a clean, equidistant layout:
 1. **Bounding Box Calculation**: Determines the total bounding rectangle of all selected items and identifies their natural reading order (sorted by top-to-bottom, left-to-right).
 2. **Grid / Column / Row Layout Strategy**:
@@ -611,17 +719,17 @@ When multiple elements ($N \ge 2$) are selected, clicking "Tidy Up" (`Ctrl+Alt+T
    - If multi-row cluster: Calculates optimal $M \times K$ grid with standardized cell widths and uniform $24\text{px}$ horizontal and vertical spacing.
 3. **Smooth Interpolation & Batch Ops**: Animates shapes smoothly to target coordinates and emits standard `CREATE_OR_UPDATE` CRDT ops for each repositioned element.
 
-### 7.8 Voice-Driven Canvas Commands (Web Speech API)
+### 7.12 Voice-Driven Canvas Commands (Web Speech API)
 - **Zero Backend Audio Streaming**: Uses the browser's native `SpeechRecognition` / `webkitSpeechRecognition` API (free client-side speech-to-text built into Chromium, Edge, and Safari).
 - **Activation**: Toggle via microphone button in the toolbar or Push-to-Talk shortcut (`M`).
 - **Intent Mapping Engine**:
   - **Tool Switching**: *"Select pen"* $\rightarrow$ Tool: `freedraw`, *"Rectangle"* $\rightarrow$ Tool: `rectangle`, *"Sticky note"* $\rightarrow$ Tool: `sticky_note`, *"Eraser"* $\rightarrow$ Tool: `eraser`.
   - **Color Control**: *"Color red"*, *"Background blue"*, *"Fill green"*.
-  - **View & Navigation**: *"Zoom to fit"*, *"Reset zoom"*, *"Toggle dark mode"*, *"Show minimap"*.
-  - **Canvas Actions**: *"Tidy up"*, *"Clear board"*, *"Export PNG"*, *"Undo"*, *"Redo"*.
+  - **View & Navigation**: *"Zoom to fit"*, *"Reset zoom"*, *"Toggle dark mode"*, *"Show minimap"*, *"Next page"*, *"Previous page"*.
+  - **Canvas Actions**: *"Tidy up"*, *"Clear board"*, *"Export PNG"*, *"Export PDF"*, *"Undo"*, *"Redo"*.
 - **Visual HUD Toast**: Displays non-intrusive bottom HUD pill showing transcribed phrase and confirmation toast upon execution.
 
-### 7.9 Sticky Note System & Pastel Palette Engine
+### 7.13 Sticky Note System & Pastel Palette Engine
 - **Dedicated Tool (`N`)**: Instantly creates a 200×200px square `rectangle` with `customData: { isStickyNote: true }` and auto-bound centered text.
 - **Curated Pastel Palette**:
   - Pastel Yellow: `#fff3bf` (stroke: `#fab005`)
@@ -648,7 +756,7 @@ The AI/ML service runs independently in Python (FastAPI). It interacts asynchron
 ---
 
 ### 8.1 Feature 1: Canvas Search with Handwritten Text & Shapes (`Ctrl+F`)
-Enables users to search (`Ctrl+F` / `Cmd+F`) across the infinite canvas, matching both typed text elements and **hand-drawn handwriting strokes**.
+Enables users to search (`Ctrl+F` / `Cmd+F`) across the infinite canvas, matching both typed text elements and **hand-drawn handwriting strokes** across all notebook pages.
 
 ```
 [User draws freedraw strokes] ──> [Background OCR Worker] ──> [Attach customData.ocrText]
@@ -660,10 +768,10 @@ Enables users to search (`Ctrl+F` / `Cmd+F`) across the infinite canvas, matchin
    - When a user finishes drawing a series of `freedraw` strokes, the client bundles the stroke image/vectors and sends them to the OCR worker.
    - The worker runs lightweight handwriting recognition (e.g., TrOCR, PaddleOCR, or Vision API) and populates `element.customData.ocrText` with the recognized string and confidence score.
 2. **Unified Search Index**:
-   - The frontend maintains an in-memory spatial search index covering typed `text` shapes, sticky notes, frame labels, and OCR-annotated `freedraw` elements.
+   - The frontend maintains an in-memory spatial search index covering typed `text` shapes, sticky notes, frame labels, and OCR-annotated `freedraw` elements across all pages.
 3. **Interactive Search UI**:
    - Typing a query highlights all matching element bounding boxes on the canvas with an animated glow.
-   - Pressing Enter smoothly pans and zooms the viewport to focus on the next matching handwritten note or shape.
+   - Pressing Enter smoothly pans and zooms the viewport to focus on the next matching handwritten note or shape, automatically switching pages if necessary.
 
 ---
 
@@ -762,10 +870,10 @@ Synthesizes full diagrams from textual descriptions (e.g., *"Kubernetes deployme
 | Method | Path | Purpose | Request Body | Response Body |
 | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/ocr/extract` | Recognize text from a `freedraw` stroke | `{"roomId": "...", "shapeId": "...", "points": [...], "pressures": [...]}` | `{"shapeId": "...", "ocrText": "...", "confidence": 0.91}` |
-| `POST` | `/beautify` | Snap a rough stroke to a clean primitive/spline | `{"roomId": "...", "shapeId": "...", "points": [...]}` | `{"shapeId": "...", "detectedType": "rectangle", "payload": {...cleaned element fields...}}` |
-| `POST` | `/math/solve` | Evaluate a mathematical expression | `{"roomId": "...", "equation": "45 * 2 + 10", "anchorPosition": {"x": 200, "y": 150}}` | `{"equation": "45 * 2 + 10", "result": "100", "proposedElement": {...}}` |
-| `POST` | `/circle-query` | Handle a "Circle to Ask/Modify/Change" request | `{"roomId": "...", "circleBounds": {...}, "enclosedElements": [...], "userPrompt": "..."}` | `{"action": "restyle" \| "explain" \| "transform", "proposedElements": [...], "explanationText": "..."}` |
-| `POST` | `/diagram/synthesize` | Generate a diagram from a text prompt | `{"roomId": "...", "prompt": "...", "anchorPosition": {"x": 0, "y": 0}}` | `{"proposedElements": [...]}` |
+| `POST` | `/beautify` | Snap rough stroke to clean primitive/spline | `{"roomId": "...", "shapeId": "...", "points": [...]}` | `{"shapeId": "...", "detectedType": "rectangle", "payload": {...}}` |
+| `POST` | `/math/solve` | Evaluate mathematical expression | `{"roomId": "...", "equation": "45 * 2 + 10", "anchorPosition": {"x": 200, "y": 150}}` | `{"equation": "45 * 2 + 10", "result": "100", "proposedElement": {...}}` |
+| `POST` | `/circle-query` | Handle "Circle to Ask/Modify" request | `{"roomId": "...", "circleBounds": {...}, "enclosedElements": [...], "userPrompt": "..."}` | `{"action": "restyle" \| "explain" \| "transform", "proposedElements": [...], "explanationText": "..."}` |
+| `POST` | `/diagram/synthesize` | Generate diagram from text prompt | `{"roomId": "...", "prompt": "...", "anchorPosition": {"x": 0, "y": 0}}` | `{"proposedElements": [...]}` |
 
 All AI endpoints are called **by the backend only**. On success, the backend takes `proposedElements` / `payload`, tags each with `customData.aiGenerated: true`, and forwards them to `POST /internal/rooms/{slug}/ai-suggestion` (§6.1) to be broadcast as ghost-preview ops (§8.7).
 
@@ -780,8 +888,8 @@ All AI endpoints are called **by the backend only**. On success, the backend tak
 
 ### 9.1 Authentication Architecture
 - **Stateless JWT**: Signed using HMAC-SHA256 (256-bit key). Embeds `userId` (UUID) and `email`.
-- **Google OAuth2**: Handled via Spring Security OAuth2 Client. On successful authentication, creates or links a `User` entity and redirects to the frontend with an authorization token.
-- **Anonymous Collaboration**: Users can instantly create and participate in public rooms without signing up. Anonymous users are assigned a local session `authorId` (`anon_<uuid>`).
+- **Google OAuth2**: Handled via Spring Security OAuth2 Client with `drive.file` scope. On successful authentication, creates/links a `User` entity and redirects with a bearer token.
+- **Anonymous Collaboration**: Users can instantly create public rooms without signing up. Anonymous users are assigned a local session `authorId` (`anon_<uuid>`).
 
 ### 9.2 Role-Based Access Control (RBAC)
 
@@ -794,6 +902,8 @@ All AI endpoints are called **by the backend only**. On success, the backend tak
 │ View Canvas │      ✓       │       ✓       │       ✓       │
 │ Send Presence│     ✓       │       ✓       │       ✓       │
 │ Draw/Edit Ops│     ✓       │       ✓       │       ✗       │
+│ Teacher Sync │     ✓       │       ✗       │       ✗       │
+│ Manage Pages │     ✓       │       ✓       │       ✗       │
 │ Run AI Tools │     ✓       │       ✓       │       ✗       │
 │ Manage Roles │     ✓       │       ✗       │       ✗       │
 │ Delete Room  │     ✓       │       ✗       │       ✗       │
@@ -807,38 +917,44 @@ All AI endpoints are called **by the backend only**. On success, the backend tak
 
 ## 10. Conflict & Edge-Case Verification Matrix
 
-| Test Scenario | Trigger Conditions | Expected System Behavior |
-| :--- | :--- | :--- |
-| **Concurrent Property Edits** | User A moves shape to $(100, 200)$ at $T_1$; User B changes fill color to red at $T_2$ ($T_2 > T_1$). | LWW order wins. State adopts User B's payload. Final state across all replicas is identical. |
-| **Identical Lamport Timestamp** | User A ($ID=\text{"alice"}$) and User B ($ID=\text{"bob"}$) submit edits at identical Lamport TS $T=10$. | Tiebreak resolves on author ID: `"bob" > "alice"`. Bob's edit prevails deterministically. |
-| **Tombstone vs. Mid-Drag** | User A deletes a shape while User B is dragging it. | Delete op receives higher Lamport TS $T_{\text{del}} > T_{\text{drag}}$. The tombstone persists; shape remains deleted. |
-| **Out-of-Order Delivery** | Op 5 arrives before Op 4 over WebSocket. | When Op 4 arrives, $T_4 < T_5$, so Op 4 is safely ignored without overwriting Op 5. |
-| **Duplicate Delivery** | Network retry sends identical Op 4 twice. | Idempotent merge reducer processes Op 4 with no state change on the second invocation. |
-| **Concurrent Compaction** | Two backend nodes attempt compaction on the same room simultaneously. | Node 1 acquires Redis lock `lock:compact:{roomId}`. Node 2 fails `SET NX` and skips safely. |
-| **AI Suggestion Race** | AI proposes shape cleanup, but human moves the shape before accepting. | User's newer manual edit carries a higher Lamport timestamp; stale AI suggestion cannot overwrite. |
-| **Network Reconnect** | Client disconnects for 2 minutes and reconnects. | Client fetches `GET /rooms/{slug}`, loads latest snapshot, applies incremental delta ops, and resubscribes. |
+| Test Scenario                   | Trigger Conditions                                                                                       | Expected System Behavior                                                                                                |
+| :--------------------------------| :---------------------------------------------------------------------------------------------------------| :------------------------------------------------------------------------------------------------------------------------|
+| **Concurrent Property Edits**   | User A moves shape to $(100, 200)$ at $T_1$; User B changes fill color to red at $T_2$ ($T_2 > T_1$).    | LWW order wins. State adopts User B's payload. Final state across all replicas is identical.                            |
+| **Identical Lamport Timestamp** | User A ($ID=\text{"alice"}$) and User B ($ID=\text{"bob"}$) submit edits at identical Lamport TS $T=10$. | Tiebreak resolves on author ID: `"bob" > "alice"`. Bob's edit prevails deterministically.                               |
+| **Tombstone vs. Mid-Drag**      | User A deletes a shape while User B is dragging it.                                                      | Delete op receives higher Lamport TS $T_{\text{del}} > T_{\text{drag}}$. The tombstone persists; shape remains deleted. |
+| **Out-of-Order Delivery**       | Op 5 arrives before Op 4 over WebSocket.                                                                 | When Op 4 arrives, $T_4 < T_5$, so Op 4 is safely ignored without overwriting Op 5.                                     |
+| **Duplicate Delivery**          | Network retry sends identical Op 4 twice.                                                                | Idempotent merge reducer processes Op 4 with no state change on the second invocation.                                  |
+| **Concurrent Compaction**       | Two backend nodes attempt compaction on the same room simultaneously.                                    | Node 1 acquires Redis lock `lock:compact:{roomId}`. Node 2 fails `SET NX` and skips safely.                             |
+| **AI Suggestion Race**          | AI proposes shape cleanup, but human moves the shape before accepting.                                   | User's newer manual edit carries a higher Lamport timestamp; stale AI suggestion cannot overwrite.                      |
+| **Teacher Sync Race**           | Teacher flips to Page 3 while Student is drawing on Page 2.                                              | Student's uncommitted stroke commits to Page 2; viewport transitions smoothly to Page 3.                                |
+| **Network Reconnect**           | Client disconnects for 2 minutes and reconnects.                                                         | Client fetches `GET /rooms/{slug}`, loads latest snapshot and pages, applies delta ops, and resubscribes.               |
 
 ---
 
 ## 11. Progressive Engineering Roadmap
 
 ```
-Phase 1: Canvas Core, Layout Tools & Single-Node State Sync
+Phase 1: Canvas Core, Notebook Engine & Single-Node State Sync
 ├── [✓] Java 25 & Spring Boot 4.1.0 backend setup with PostgreSQL 16 JSONB schema
 ├── [✓] STOMP WebSocket message broker (/app/rooms/{slug}/op, /app/rooms/{slug}/presence)
 ├── [✓] LWW-Element-Set CRDT Merge Service & JUnit 5 test suite
 ├── [ ] React 19 + TypeScript canvas application (referencing docs_archive/)
+├── [ ] Multi-page notebook manager (page bar, slide drawer, page reordering)
+├── [ ] Paper background templates (Ruled 28px, Grid 20x20, Dotted, Cornell)
 ├── [ ] Sticky note preset engine (pastel color palette & auto-text binding)
 ├── [ ] Canvas navigation minimap (sub-canvas rendering & draggable viewport box)
 ├── [ ] "Tidy Up" auto-alignment grid layout algorithm
 ├── [ ] Complete keyboard shortcuts engine (Tools, View, Editor actions)
 └── [ ] Local-first optimistic reconciliation loop & fractional indexing
 
-Phase 2: Distributed Scalability & Presence
+Phase 2: Distributed Scalability, Presence & Cloud Export
 ├── [✓] Redis 7 Pub/Sub channel relays (room:{slug}:op, room:{slug}:presence)
 ├── [✓] Redis distributed locking (SET NX PX) for snapshot compaction
 ├── [✓] JWT Authentication, Google OAuth2, and room claiming API
 ├── [ ] Multi-user presence overlay (cursors, selection bounding boxes, avatars)
+├── [ ] Teacher "Follow-Me" presentation mode (TEACHER_PAGE_SYNC presence)
+├── [ ] Multi-page PDF & Markdown document compilation exporter
+├── [ ] 1-Click Google Drive upload & shareable link generator (POST /rooms/{slug}/export/google-drive)
 └── [ ] Local undo/redo stack integrated with remote op streams
 
 Phase 3: Handwriting OCR, Search & Live Math Solver
@@ -852,14 +968,17 @@ Phase 4: Stroke Beautification & Voice Commands
 ├── [ ] Douglas-Peucker point decimation & geometric primitive fitting (rect, ellipse, diamond, arrow)
 ├── [ ] Catmull-Rom & cubic Bezier curve smoothing for irregular hand-drawn strokes
 ├── [ ] "Auto-Snap on Hold" stylus/mouse interaction
-├── [ ] Browser Web Speech API command parser (tool selection, colors, actions)
+├── [ ] Browser Web Speech API command parser (tool selection, colors, page navigation)
 └── [ ] One-tap stroke beautification tool in canvas toolbar
 
-Phase 5: Gesture AI & Multimodal Diagram Synthesis
+Phase 5: Gesture AI, Diagram Synthesis & Desktop Packaging
 ├── [ ] "Circle to Ask / Modify / Change" closed-loop gesture detection
 ├── [ ] Spatial context extraction (enclosed shapes, sticky notes, text, connectors)
 ├── [ ] Multimodal LLM integration (Ask, Restyle, Transform, Wireframe-to-Diagram)
 ├── [ ] Non-destructive Ghost Preview overlay with Accept/Dismiss actions
+├── [ ] Tauri v2 native desktop app packaging for Windows, macOS, and Linux
+├── [ ] Native frameless window styling (macOS traffic lights & blur / Windows 11 Mica)
+├── [ ] Native OS top menu bar and local offline .graffiti file management
 └── [ ] Stress testing with 100+ concurrent simulated clients per room
 ```
 
@@ -882,6 +1001,7 @@ Phase 5: Gesture AI & Multimodal Diagram Synthesis
 | `PRESENCE_THROTTLE_MS` | Frontend | Cursor emission throttle (§7.3) | `30` |
 | `ENABLE_VOICE_COMMANDS` | Frontend | Toggle browser Web Speech recognition | `true` |
 | `ENABLE_LIVE_MATH_SOLVER` | AI/ML, Frontend | Toggle automatic math evaluation on `=` | `true` |
+| `ENABLE_GOOGLE_DRIVE_EXPORT` | Backend, Frontend | Toggle Google Drive cloud export | `true` |
 
 ---
 
@@ -904,17 +1024,32 @@ graffiti/
 │       ├── op/                     # Op entity, OpRequestDTO, OpType, OpRepository, OpService
 │       ├── snapshot/               # Snapshot entity, CompactionService, CompactionScheduler
 │       ├── room/                   # Room, RoomController, RoomMessageController, RoomService
-│       ├── presence/               # PresenceMessageDTO (ephemeral events)
+│       ├── page/                   # RoomPage entity, PageRepository, PageService (Notebook engine)
+│       ├── drive/                  # GoogleDriveService (PDF export & public link generator)
+│       ├── presence/               # PresenceMessageDTO (ephemeral events & teacher sync)
 │       ├── redis/                  # RedisConfig, RedisMessagePublisher, RedisMessageSubscriber
 │       ├── websocket/              # WebSocketConfig, WebSocketSecurityInterceptor
 │       ├── security/               # SecurityConfig, JwtTokenProvider, OAuth2SuccessHandler
 │       ├── user/                   # User entity, AuthController, UserService
 │       ├── roommember/             # RoomMember entity, Role, RoomMemberService
 │       └── ai/                     # AiStubController (internal AI suggestion endpoint)
-├── graffiti-frontend/              # React + Canvas UI application (progressive build)
-│   └── README.md                   # Frontend architecture & sync loop documentation
-├── graffiti-aiml/                  # Python FastAPI AI microservice (progressive build)
-│   └── README.md                   # AI/ML service endpoints & pipeline documentation
+├── graffiti-frontend/              # React 19 + Canvas UI application
+│   ├── src-tauri/                  # Tauri v2 native desktop configuration
+│   │   ├── Cargo.toml              # Rust desktop dependencies
+│   │   ├── tauri.conf.json         # Window framing, Mica/Vibrancy blur, OS menus
+│   │   └── src/main.rs             # Native desktop entrypoint & file association handler
+│   ├── README.md                   # Frontend & Desktop architecture documentation
+│   └── src/
+│       ├── canvas/                 # 2D renderer, paper templates (ruled/grid/Cornell), minimap
+│       ├── notebook/               # Multi-page manager, page bar, slide drawer
+│       ├── export/                 # Multi-page PDF, Markdown, and Google Drive upload
+│       ├── crdt/                   # Optimistic reconciliation & history
+│       ├── collab/                 # STOMP WebSocket client & presence
+│       ├── voice/                  # Web Speech API voice commander & HUD
+│       └── ai/                     # OCR search, beautifier, math solver, gesture AI
+├── graffiti-aiml/                  # Python FastAPI AI microservice
+│   ├── README.md                   # AI/ML service endpoints & pipeline documentation
+│   └── app/                        # OCR, beautify, math (sympy), gesture, diagram synthesis
 ├── README.md                       # Master repository overview & quickstart guide
 └── PROJECT_SPECIFICATION.md        # Master technical blueprint & engineering contract
 ```
