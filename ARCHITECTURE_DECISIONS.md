@@ -208,3 +208,30 @@ Graffiti solves this through a high-performance **Server-Authoritative CRDT Hybr
 * **Context:** Architectural documentation, codebase identifiers, and comments must maintain intellectual property cleanliness and adhere to generic technical terminology.
 * **Decision:** Never reference specific proprietary product names in source code, READMEs, or project specifications. Refer to reference systems using formal technical terms: *"2D vector canvas engine (in docs_archive)"*, *"Rough-style procedural vector renderer"*.
 * **Consequences:** Clean IP compliance and clear separation of reference materials from project deliverables.
+
+---
+
+### ADR-013: Hierarchical Workspace, Project, and Nested Folder Architecture
+
+* **Status:** Specified in `PROJECT_SPECIFICATION.md` (§2.5, §5.3, §6.1, §7.17)
+* **Context:** Whiteboards and note-taking tools that dump every document into a flat list become unmanageable for students and teachers organizing semester courses, lectures, and assignments.
+* **Decision:**
+  1. Introduce top-level `workspaces` entities for overarching domains (e.g., *"Computer Science Fall 2026"*).
+  2. Implement an adjacency-list self-referencing `folders` table (`parent_folder_id REFERENCES folders(id) ON DELETE CASCADE`) to support arbitrarily deep nested directory trees.
+  3. Associate `rooms` with `workspace_id` and `folder_id` foreign keys (`ON DELETE SET NULL`), maintaining full backward compatibility for standalone/public rooms.
+  4. Provide recursive hierarchical tree retrieval via `GET /workspaces/{id}/folders` and fast drag-and-drop moving via `PUT /rooms/{slug}/move`.
+  5. Enable folder-level permission inheritance: granting a student `VIEWER` access to a course folder automatically grants read access to all nested lectures and canvases.
+* **Consequences:** Clean, scalable information architecture for educational and enterprise workloads with instant sidebar tree navigation.
+
+---
+
+### ADR-014: Built-in Vector Iconography & Technical Architecture Diagramming Substrate (Eraser.io UX Model)
+
+* **Status:** Specified in `PROJECT_SPECIFICATION.md` (§2.6, §3.1, §5.2, §7.14–7.16)
+* **Context:** Traditional whiteboard engines force users to navigate away from the canvas to browse external community sites, download `.lib` files, and manually import icon packages just to build standard AWS or microservice architecture diagrams.
+* **Decision:**
+  1. **Zero-Download Vector Icon Engine (`I` shortcut)**: Bundle 1,400+ Lucide UI icons, 3,000+ Simple Icons tech logos, and official AWS/Azure/GCP cloud architecture SVGs directly in the client application with real-time fuzzy search (`🔍 Search icon`).
+  2. **Architecture Service Card Presets (`C` shortcut)**: Pre-styled composite container shapes with a distinct header bar, embedded tech icon badge, divider separator, and formatted bullet/step body text that resize and move as a single unified entity.
+  3. **Smart Orthogonal (Elbow) Arrow Routing (`Shift + A`)**: 90-degree right-angle turn connectors (`routing: "elbow"`) with collision-aware tangent calculations, preventing diagonal cross-cutting across intermediate components.
+  4. **Tri-State Split Mode (`Document | Both | Canvas` via `Ctrl + \`)**: Unified dual-pane interface enabling Markdown lecture/spec notes on the left and a live synchronized 2D vector whiteboard on the right.
+* **Consequences:** Eliminates external library import friction, elevating Graffiti from a basic sketching canvas to a presentation-grade technical architecture and engineering diagramming platform.

@@ -100,6 +100,36 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **OS File Association & Native Drag-and-Drop** | Double-clicking `.graffiti` files in Finder/Explorer opens Graffiti; dragging images/PDFs from desktop drops them onto canvas coordinates. |
 | **Local Offline File Mode** | Allows standalone offline usage with direct hard drive save/open via native OS file dialogs (`NSOpenPanel` / `IFileDialog`). |
 
+### 2.5 Workspaces, Projects & Hierarchical Folder Organization
+
+| Feature | Implementation Specification |
+| :--- | :--- |
+| **Workspaces & Project Sandboxes** | Top-level organizational units for schools, courses, semesters, or engineering teams (e.g., *"Computer Science Fall 2026"*, *"Distributed Systems Lab"*). |
+| **Hierarchical Nested Folders** | Unlimited multi-level folder trees (`parentFolderId` self-referencing hierarchy) with custom color-coding tags and folder icons. |
+| **Sidebar Tree & Breadcrumb Navigation** | Interactive collapsible folder hierarchy in the left navigation rail with instant path breadcrumbs (`📁 Workspace > 📁 CS101 > 📁 Lecture 3 > 📄 Graph Traversal`). |
+| **Canvas & Notebook Move / Drag-and-Drop** | Move whiteboards/notebooks between folders seamlessly via drag-and-drop or quick shortcut modal (`Shift + M`). |
+| **Folder-Level Access & Sharing** | Teachers can share entire subject folders with students with inherited permissions (`VIEWER` or `EDITOR`), granting bulk access to all contained canvases. |
+
+### 2.6 Technical Architecture Diagramming & Searchable Icon Engine (Eraser.io-Style)
+
+| Feature | Implementation Specification |
+| :--- | :--- |
+| **Searchable Vector Icon Engine (`I`)** | Instant popover search palette embedding 1,400+ Lucide UI icons, 3,000+ Simple Icons tech logos (Docker, Redis, React, Python, Postgres, Kubernetes), and official AWS/Azure/GCP cloud architecture icons without external library downloads. |
+| **Architecture Service Card Presets** | Structured composite card shapes featuring a dedicated header bar with embedded tech logo, divider separator, and formatted bullet/step body text that move and resize as a unified unit. |
+| **Orthogonal (Elbow) Arrow Connectors** | Smart 90-degree right-angle turn connectors (`routing: "elbow"`) with collision-aware tangent routing for clean, professional engineering architecture and sequence diagrams. |
+| **"Document \| Both \| Canvas" Split View** | Dual-pane interface with Markdown lecture/spec notes on the left and 2D canvas on the right (toggleable via `Ctrl+\`), enabling unified note-taking and diagramming. |
+
+### 2.7 Diagram as Code, Developer Blocks & Device Wireframing
+
+| Feature | Implementation Specification |
+| :--- | :--- |
+| **Global Slash Menu (`/`)** | Keyboard-first command palette (`/` or `+` toolbar button) allowing rapid fuzzy-search insertion of diagrams, shapes, icons, templates, code blocks, and AI chats. |
+| **Diagram as Code Presets** | Instant declarative generation of 6 core technical diagram families: Flow Charts, Cloud Architecture, BPMN (Swimlanes), Entity Relationship (ERD), Sequence Diagrams, and Freeform. |
+| **Syntax-Highlighted Code Blocks (`<>`)** | Embeddable, dark-mode code snippets on the canvas supporting syntax highlighting for 20+ languages (Java, Python, TypeScript, SQL, JSON) and line numbers. |
+| **Entity Relationship (ERD) Schema Tables** | Dedicated database table shapes with typed columns (`UUID PK`, `VARCHAR`, `INT`, `FK`), table headers, and crow's foot relational connectors. |
+| **Browser & Mobile Device Mockup Frames** | Framed wireframe containers (Desktop browser with URL bar/traffic lights, iPhone, iPad) integrating with Diagram-to-Code (`MagicFrame`) for live HTML rendering. |
+| **AI Assistant Chat Sidebar (`Ctrl + J`)** | Persistent slide-out AI conversation panel powered by Gemini 3.8 Flash for continuous iterative diagram generation and code assistance. |
+
 ---
 
 ## 3. Comprehensive Keyboard Shortcuts Specification
@@ -107,6 +137,8 @@ The system is architected to be built **progressively across distinct, verifiabl
 ### 3.1 Tools Shortcuts
 | Action | Keybinding |
 | :--- | :--- |
+| **Slash Command Palette (Quick Insert)** | `/` or `+` Toolbar Button |
+| **Open AI Chat Assistant Sidebar** | `Ctrl + J` |
 | **Hand (Panning tool)** | `H` |
 | **Selection tool** | `V` or `1` |
 | **Rectangle** | `R` or `2` |
@@ -116,6 +148,11 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Line** | `L` or `6` |
 | **Draw (Freedraw pen)** | `P` or `7` |
 | **Sticky Note** | `N` |
+| **Architecture Service Card** | `C` |
+| **Searchable Vector Icon Palette** | `I` |
+| **Syntax-Highlighted Code Block** | `Shift + C` or `<>` |
+| **Database Table (ERD) Shape** | `Shift + T` |
+| **Device Mockup Frame (Browser/Phone)** | `Shift + F` |
 | **Text tool** | `T` or `8` |
 | **Insert image** | `9` |
 | **Eraser** | `E` or `0` |
@@ -123,11 +160,12 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Laser pointer** | `K` |
 | **Bucket fill** | `B` |
 | **Voice Command Listening (Push to Talk)** | `M` or Mic Toolbar Button |
-| **Pick color from canvas** | `I` / `Shift+S` / `Shift+G` |
+| **Pick color from canvas** | `Shift + I` / `Alt + C` |
 | **Edit line/arrow points** | `Ctrl + Enter` |
 | **Edit text / add label** | `Enter` |
 | **Add new line (text editor)** | `Enter` or `Shift + Enter` |
 | **Finish editing (text editor)** | `Esc` or `Ctrl + Enter` |
+| **Toggle Arrow Routing (Straight / Curved / Elbow)** | `Shift + A` |
 | **Curved arrow** | `A` + click + click + click |
 | **Curved line** | `L` + click + click + click |
 | **Crop image** | `Double-click` or `Enter` |
@@ -136,6 +174,8 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Prevent arrow binding** | Hold `Ctrl` while drawing arrow |
 | **Add / Update link for selected shape** | `Ctrl + K` |
 | **Toggle shape type** | `Tab` or `Shift + Tab` |
+| **Toggle Split View (Document \| Both \| Canvas)** | `Ctrl + \` |
+| **Move to Folder / Workspace** | `Shift + M` |
 
 ### 3.2 View & Navigation Shortcuts
 | Action                                      | Keybinding                       |
@@ -327,9 +367,14 @@ All shape types share common base fields (`id`, `pageId`, `x`, `y`, `angle`, `st
 | Type | Required Additional Fields |
 | :--- | :--- |
 | `rectangle` / `diamond` / `ellipse` | `width`, `height`, `fillStyle`, `roundness` |
-| `arrow` / `line` | `points` (array of `[dx, dy]` relative to `x,y`), `startBinding`, `endBinding` (nullable `{elementId, focus, gap}`) |
+| `arrow` / `line` | `points` (array of `[dx, dy]` relative to `x,y`), `startBinding`, `endBinding` (nullable `{elementId, focus, gap}`), `routing` (`"straight" \| "curved" \| "elbow"`) |
 | `freedraw` | `points`, `pressures`, `simulatePressure`, `lastCommittedPoint` |
 | `text` | `text`, `fontSize`, `fontFamily`, `textAlign`, `verticalAlign`, `containerId` (nullable, for bound labels) |
+| `icon` | `iconFamily` (`"lucide" \| "simpleicons" \| "aws" \| "azure" \| "gcp" \| "custom"`), `iconName`, `width`, `height`, `svgPath` |
+| `card` | `title`, `iconName` (optional), `bodyText`, `width`, `height`, `cardTheme` (`"dark" \| "light" \| "accent"`) |
+| `code` | `code`, `language`, `fontSize`, `theme`, `showLineNumbers`, `width`, `height` |
+| `table` | `tableName`, `columns` (`[{name, type, isPk, isFk, isUnique}]`), `width`, `height` |
+| `deviceFrame` | `deviceType` (`"browser" \| "phone" \| "tablet"`), `title`, `url`, `width`, `height` |
 | `image` | `fileId`, `status` (`pending` \| `saved` \| `error`), `scale: [scaleX, scaleY]`, `mimeType` |
 | `frame` | `name`, `childrenIds` (array of contained element IDs) |
 | `embeddable` / `iframe` | `link`, `width`, `height` |
@@ -366,8 +411,44 @@ Structural canvas mutations (`CREATE_OR_UPDATE` and `DELETE`) are persisted into
 }
 ```
 
-#### Database Tables: `ops`, `pages`, and `snapshots`
+#### Database Tables: `workspaces`, `folders`, `rooms`, `pages`, `ops`, and `snapshots`
 ```sql
+CREATE TABLE workspaces (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE folders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    parent_folder_id UUID REFERENCES folders(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    color VARCHAR(32) DEFAULT '#4dabf7',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_folders_workspace_parent ON folders (workspace_id, parent_folder_id);
+
+CREATE TABLE rooms (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slug VARCHAR(64) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL DEFAULT 'Untitled Board',
+    owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL,
+    folder_id UUID REFERENCES folders(id) ON DELETE SET NULL,
+    is_public BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_rooms_slug ON rooms (slug);
+CREATE INDEX idx_rooms_folder ON rooms (folder_id);
+
 CREATE TABLE pages (
     id VARCHAR(64) PRIMARY KEY,
     room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
@@ -503,6 +584,11 @@ Mouse cursor movements, laser trails, selection bounds, and teacher page navigat
 | `POST` | `/rooms/{slug}/pages` | Required (Owner/Editor) | Create new notebook page | `{"title": "Lecture 2", "template": "ruled", "order": 1}` | `{"id": "page_02", "title": "Lecture 2", "template": "ruled", "order": 1}` |
 | `POST` | `/rooms/{slug}/export/google-drive` | Required | Export compiled PDF directly to Google Drive | `{"title": "Lecture Notes"}` | `{"driveFileId": "1a2b3c...", "shareableLink": "https://drive.google.com/file/d/1a2b3c/view?usp=sharing"}` |
 | `POST` | `/rooms/{slug}/claim` | Required | Claim ownership of an anonymous room | — | `{"id": "...", "slug": "...", "ownerId": "...", "createdAt": "..."}` |
+| `PUT` | `/rooms/{slug}/move` | Required (Owner) | Move room to a specific workspace or folder | `{"workspaceId": "uuid", "folderId": "uuid \| null"}` | `{"id": "...", "slug": "...", "workspaceId": "...", "folderId": "..."}` |
+| `POST` | `/workspaces` | Required | Create a new top-level workspace/project | `{"name": "CS Fall 2026", "description": "Course materials"}` | `{"id": "uuid", "name": "CS Fall 2026", "ownerId": "uuid"}` |
+| `GET` | `/workspaces` | Required | List user's workspaces | — | `[{"id": "uuid", "name": "...", "folderCount": 4, "roomCount": 12}]` |
+| `POST` | `/workspaces/{id}/folders` | Required | Create a folder (or nested subfolder) | `{"name": "CS101", "parentFolderId": "uuid \| null", "color": "#4dabf7"}` | `{"id": "uuid", "workspaceId": "...", "name": "CS101", "parentFolderId": null}` |
+| `GET` | `/workspaces/{id}/folders` | Required | Retrieve recursive folder tree with room counts | — | `{"workspace": {...}, "folders": [{"id": "...", "name": "...", "subfolders": [...], "rooms": [...]}]}` |
 | `POST` | `/internal/rooms/{slug}/ai-suggestion` | Internal | Ingest AI-proposed shape operations | `{"shapeId": "...", "opType": "CREATE_OR_UPDATE", "payload": {...}}` | `{"status": "STUBBED_ACCEPTED"}` |
 
 #### 6.1.1 Standard Error Envelope
@@ -742,6 +828,85 @@ When multiple elements ($N \ge 2$) are selected, clicking "Tidy Up" (`Ctrl+Alt+T
   - Pastel Orange: `#ffe8cc` (stroke: `#ff922b`)
 - **Instant Text Focus**: Placing a sticky note immediately opens an inline centered text editor with auto-scaling font size based on text volume.
 
+### 7.14 Searchable Vector Icon Engine & Palette Popover (Eraser.io UX)
+- **Zero External Library Downloads**: Solves the friction of manual library importing by natively packaging vector SVGs inside the application:
+  - **General Icons**: 1,400+ modern vector UI icons from Lucide / Feather.
+  - **Tech Logos**: 3,000+ developer and infrastructure logos from Simple Icons (Docker, Redis, React, Python, Java, Spring, Kubernetes, PostgreSQL, Kafka, Linux, GitHub).
+  - **Cloud Provider Architecture Icons**: Official architecture icon catalogs for **AWS**, **Azure**, and **Google Cloud** (S3, Lambda, EC2, RDS, DynamoDB, CloudFront, GKE, BigQuery, etc.).
+  - **Custom Team SVGs**: Drag-and-drop custom company SVGs directly into the team icon registry.
+- **Trigger & Interaction**:
+  - Activated via toolbar star/icon button or keyboard shortcut **`I`**.
+  - Renders a floating search modal featuring category pills and a real-time fuzzy search input (`🔍 Search icon`).
+  - Typing keywords like `"database"`, `"auth"`, `"cache"`, `"message"` automatically matches relevant logos (e.g., typing `"cache"` surfaces Redis and Memcached).
+  - Clicking any icon immediately places a scalable vector icon element on the canvas or embeds it as the badge icon of an Architecture Service Card.
+
+### 7.15 Architecture Service Card Presets & Smart Orthogonal (Elbow) Line Routing
+- **Architecture Service Card Shape (`C`)**:
+  - Designed specifically for system design, backend architectures, and sequence flows.
+  - A single composite entity consisting of:
+    - **Header Title Bar**: High-contrast service title (`Webhook Controller`, `Redis Queue`) with optional embedded tech logo.
+    - **Divider Line**: Subtle border separating header from payload.
+    - **Structured Body Section**: Formatted monospace or sans-serif text blocks supporting numbered steps, bullet points, and parameter lists.
+  - Moves, resizes, and duplicates as a unified unit, eliminating the need to manually group disparate rectangles and text boxes.
+- **Smart Orthogonal (Elbow) Arrow Routing (`Shift + A`)**:
+  - Connectors support 90-degree right-angle turns (`routing: "elbow"`).
+  - Automatically calculates orthogonal waypoint paths around obstacle bounds, preventing arrows from awkwardly slicing diagonally through intermediate cards and shapes.
+  - Recalculates attachment tangents dynamically when either terminal card is repositioned.
+
+### 7.16 "Document | Both | Canvas" Split Mode & Integrated Markdown Notes
+- **Tri-State View Mode Toggle**:
+  - Top header toggle buttons: **Document** | **Both** | **Canvas** (keyboard shortcut: `Ctrl + \`).
+  - **Document Only**: Clean full-page distraction-free Markdown notebook for lectures, meeting minutes, and architectural design docs.
+  - **Canvas Only**: Fullscreen infinite 2D whiteboard.
+  - **Both (Split Mode)**: Side-by-side view with a resizable divider:
+    - Left Pane: Markdown lecture notes and technical specifications.
+    - Right Pane: Live synchronized 2D vector whiteboard.
+  - Selecting a shape on the whiteboard can automatically jump to the corresponding linked Markdown heading in the document.
+
+### 7.17 Hierarchical Workspaces, Projects & Nested Folders System
+- **Workspaces / Projects**:
+  - High-level containers for teams, classes, and semesters (e.g., *"Distributed Systems Fall 2026"*, *"Physics 101"*, *"Backend Team"*).
+- **Infinite / Multi-Level Nested Folders**:
+  - Folders support self-referencing `parent_folder_id` trees (`📁 CS101 > 📁 Assignments > 📁 Week 3`).
+  - Each folder features customizable color coding and folder icons for visual scanning.
+- **Canvas Organization & Drag-and-Drop**:
+  - Left navigation rail displays a collapsible tree view of all folders and whiteboards.
+  - Users can drag whiteboards between folders or use the `Shift + M` ("Move to Folder") modal.
+- **Folder-Level Permissions for Educators & Teams**:
+  - Teachers can grant `VIEWER` or `EDITOR` permissions at the folder level; students automatically inherit access to all lecture notes and whiteboards placed inside that folder.
+
+### 7.18 Global Slash Command Palette (`/`) & Diagram as Code Engine
+- **Slash Menu Activation**: Pressing `/` anywhere on the canvas or clicking `+` in the toolbar summons a floating fuzzy-search command palette.
+- **Keyboard Navigation**: Uses `↑`/`↓` to browse and `Enter` to insert directly beneath the cursor.
+- **Supported Insertion Categories**:
+  - **AI Assistant (`Ctrl + J`)**: Activates side-panel conversational AI to generate, refactor, or explain diagrams.
+  - **Diagram as Code**: Instantly generates 6 core diagram families:
+    1. *Flow Chart*: Logic flows and decision trees.
+    2. *Cloud Architecture*: VPCs, subnets, and cloud infrastructure nodes.
+    3. *BPMN (Business Process)*: Multi-actor workflows using horizontal/vertical swimlanes.
+    4. *Entity Relationship (ERD)*: Relational database tables with typed columns.
+    5. *Sequence Diagram*: Actor lifelines and synchronous/asynchronous message exchanges.
+    6. *Freeform*: Flexible AI or manual sketch canvas.
+  - **Diagram Catalog**: Over 100+ production-grade templates (Microservices, Git workflows, System Design).
+  - **Shapes, Icons & Device Frames**: Immediate access to all primitives, vector icons, and frames.
+
+### 7.19 Database Entity Relationship (ERD) Tables & Syntax-Highlighted Code Blocks
+- **Database ERD Schema Tables (`Shift + T`)**:
+  - A structured table shape representing relational database schemas.
+  - Declares table name, columns, data types (`UUID`, `VARCHAR`, `INT`, `TIMESTAMP`), and key constraints (`PK`, `FK`, `UNIQUE`).
+  - Provides magnetic connector attachment points for each column row, allowing relational lines with crow's foot notation (`1:N`, `N:M`).
+- **Syntax-Highlighted Code Blocks (`Shift + C` or `<>`)**:
+  - Renders syntax-highlighted dark-mode code snippet boxes directly on the canvas using Prism/Shiki.
+  - Supports line numbers, syntax highlighting for 20+ languages (Java, Python, TypeScript, SQL, JSON, Go, Rust), and copy-to-clipboard button.
+
+### 7.20 Device Mockup Frames & Wireframe Containerization
+- **UI Wireframe Containers (`Shift + F`)**:
+  - **Browser Device Frame**: Includes a modern browser chrome bar with traffic lights (`🔴 🟡 🟢`), editable URL bar, and back/forward navigation buttons.
+  - **Mobile Phone Frame**: Realistic smartphone container with camera notch and rounded chassis.
+  - **Tablet Frame**: 4:3 aspect ratio tablet container.
+- **Direct Integration with Diagram-to-Code (`MagicFrame`)**:
+  - When users draw UI sketches inside a Device Mockup Frame, the Diagram-to-Code vision engine streams interactive HTML/CSS directly into that frame's viewport.
+
 ---
 
 ## 8. AI/ML Microservice & Multimodal Intelligence
@@ -865,19 +1030,17 @@ Synthesizes full diagrams from textual descriptions (e.g., *"Kubernetes deployme
 2. The AI service translates the graph nodes and edges into canvas JSON elements with automated coordinate layout (hierarchical Sugiyama layout).
 3. The generated elements are delivered to the canvas as a ghost preview group that can be placed and adjusted anywhere on the board.
 
----
-
 ### 8.6 AI Microservice REST API Contract
 
-| Method | Path                                        | Purpose                                                       | Request Body                                                                               | Response Body                                                            |             |                                                                    |
-| :-------| :--------------------------------------------| :--------------------------------------------------------------| :-------------------------------------------------------------------------------------------| :-------------------------------------------------------------------------| -------------| --------------------------------------------------------------------|
-| `POST` | `/ocr/extract`                              | Recognize text from a `freedraw` stroke                       | `{"roomId": "...", "shapeId": "...", "points": [...], "pressures": [...]}`                 | `{"shapeId": "...", "ocrText": "...", "confidence": 0.91}`               |             |                                                                    |
-| `POST` | `/beautify`                                 | Snap rough stroke to clean primitive/spline                   | `{"roomId": "...", "shapeId": "...", "points": [...]}`                                     | `{"shapeId": "...", "detectedType": "rectangle", "payload": {...}}`      |             |                                                                    |
-| `POST` | `/math/solve`                               | Evaluate mathematical expression                              | `{"roomId": "...", "equation": "45 * 2 + 10", "anchorPosition": {"x": 200, "y": 150}}`     | `{"equation": "45 * 2 + 10", "result": "100", "proposedElement": {...}}` |             |                                                                    |
-| `POST` | `/circle-query`                             | Handle "Circle to Ask/Modify" request                         | `{"roomId": "...", "circleBounds": {...}, "enclosedElements": [...], "userPrompt": "..."}` | `{"action": "restyle" \                                                  | "explain" \ | "transform", "proposedElements": [...], "explanationText": "..."}` |
-| `POST` | `/diagram/synthesize`                       | Generate diagram from text prompt                             | `{"roomId": "...", "prompt": "...", "anchorPosition": {"x": 0, "y": 0}}`                   | `{"proposedElements": [...]}`                                            |             |                                                                    |
-| `POST` | `/v1/ai/text-to-diagram/chat-streaming`     | Excalidraw-compatible chat streaming returning Mermaid syntax | `{"messages": [{"role": "user", "content": "..."}]}`                                       | `text/event-stream (StreamChunk SSE)`                                    |             |                                                                    |
-| `POST` | `/v1/ai/diagram-to-code/generate-streaming` | Excalidraw-compatible diagram-to-code streaming HTML/CSS      | `{"texts": [...], "image": "...", "theme": "light"}`                                       | `text/event-stream (StreamChunk SSE)`                                    |             |                                                                    |
+| Method | Path | Purpose | Request Body | Response Body |
+| :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/ocr/extract` | Recognize text from a `freedraw` stroke | `{"roomId": "...", "shapeId": "...", "points": [...], "pressures": [...]}` | `{"shapeId": "...", "ocrText": "...", "confidence": 0.91}` |
+| `POST` | `/beautify` | Snap rough stroke to clean primitive/spline | `{"roomId": "...", "shapeId": "...", "points": [...]}` | `{"shapeId": "...", "detectedType": "rectangle", "payload": {...}}` |
+| `POST` | `/math/solve` | Evaluate mathematical expression | `{"roomId": "...", "equation": "...", "anchorPosition": {...}}` | `{"equation": "...", "result": "...", "proposedElement": {...}}` |
+| `POST` | `/circle-query` | Handle "Circle to Ask/Modify" request | `{"roomId": "...", "circleBounds": {...}, "enclosedElements": [...], "userPrompt": "..."}` | `{"action": "...", "proposedElements": [...], "explanationText": "..."}` |
+| `POST` | `/diagram/synthesize` | Generate diagram from text prompt | `{"roomId": "...", "prompt": "...", "anchorPosition": {...}}` | `{"proposedElements": [...]}` |
+| `POST` | `/v1/ai/text-to-diagram/chat-streaming` | TTD chat streaming returning Mermaid | `{"messages": [{"role": "user", "content": "..."}]}` | `text/event-stream (StreamChunk SSE)` |
+| `POST` | `/v1/ai/diagram-to-code/generate-streaming` | Wireframe-to-code streaming HTML/CSS | `{"texts": [...], "image": "...", "theme": "light"}` | `text/event-stream (StreamChunk SSE)` |
 
 All AI endpoints are called **by the backend only**. On success, the backend takes `proposedElements` / `payload`, tags each with `customData.aiGenerated: true`, and forwards them to `POST /internal/rooms/{slug}/ai-suggestion` (§6.1) to be broadcast as ghost-preview ops (§8.7).
 
@@ -942,72 +1105,98 @@ Phase 1: Canvas Core, Notebook Engine & Single-Node State Sync
 ├── [✓] Java 25 & Spring Boot 4.1.0 backend setup with PostgreSQL 16 JSONB schema
 ├── [✓] STOMP WebSocket message broker (/app/rooms/{slug}/op, /app/rooms/{slug}/presence)
 ├── [✓] LWW-Element-Set CRDT Merge Service & JUnit 5 test suite
-├── [ ] React 19 + TypeScript canvas application (referencing docs_archive/)
+├── [✓] Write-behind asynchronous op buffer & scheduled micro-batching (saveAll)
+├── [✓] Incremental catch-up delta sync endpoint (GET /rooms/{slug}/sync?since={lamportTs})
+├── [✓] Java 25 Virtual Threads (Project Loom) & HikariCP connection pool configuration
+├── [ ] React 19 + TypeScript canvas application scaffold in graffiti-frontend/
+├── [ ] Procedural hand-drawn vector rendering engine (referencing docs_archive/)
 ├── [ ] Multi-page notebook manager (page bar, slide drawer, page reordering)
 ├── [ ] Paper background templates (Ruled 28px, Grid 20x20, Dotted, Cornell)
 ├── [ ] Sticky note preset engine (pastel color palette & auto-text binding)
 ├── [ ] Canvas navigation minimap (sub-canvas rendering & draggable viewport box)
 ├── [ ] "Tidy Up" auto-alignment grid layout algorithm
 ├── [ ] Complete keyboard shortcuts engine (Tools, View, Editor actions)
-└── [ ] Local-first optimistic reconciliation loop & fractional indexing
+├── [ ] Client-side 3-state queuing loop (Synchronized, AwaitingAck, Pending)
+├── [ ] Local-first optimistic reconciliation loop & fractional indexing
+└── [ ] Viewport frustum culling with spatial index (R-Tree) for 60 FPS scaling
 
 Phase 2: Distributed Scalability, Presence & Cloud Export
 ├── [✓] Redis 7 Pub/Sub channel relays (room:{slug}:op, room:{slug}:presence)
 ├── [✓] Redis distributed locking (SET NX PX) for snapshot compaction
+├── [✓] Redis RAM snapshot caching (cache:snapshot:{roomId}) for 1ms canvas rehydration
+├── [✓] Atomic Redis INCR for monotonic Lamport timestamp assignment
 ├── [✓] JWT Authentication, Google OAuth2, and room claiming API
+├── [ ] STOMP RBAC channel authorization (OWNER, EDITOR, VIEWER validation in interceptor)
 ├── [ ] Multi-user presence overlay (cursors, selection bounding boxes, avatars)
+├── [ ] Viewport presence throttling (60Hz visible screen vs 1Hz minimap)
 ├── [ ] Teacher "Follow-Me" presentation mode (TEACHER_PAGE_SYNC presence)
 ├── [ ] Multi-page PDF & Markdown document compilation exporter
 ├── [ ] 1-Click Google Drive upload & shareable link generator (POST /rooms/{slug}/export/google-drive)
 └── [ ] Local undo/redo stack integrated with remote op streams
 
 Phase 3: Handwriting OCR, Search & Live Math Solver
-├── [✓] Python FastAPI microservice setup for asynchronous vision tasks
-├── [✓] Background OCR extraction worker for freedraw strokes (populating customData.ocrText)
+├── [✓] Python FastAPI microservice setup with Dockerfile and environment configs
+├── [✓] Live Handwritten Math & Equation Solver via SymPy with implicit multiplication and powers (/math/solve)
+├── [ ] Production Vision OCR extraction worker (replace mock stub with real Gemini 3.8 Flash Vision / TrOCR)
+├── [ ] Client-side automatic math evaluation trigger on stroke ending in '='
 ├── [ ] Unified Canvas Search modal (Ctrl+F) covering text shapes and handwritten strokes
-├── [✓] Live Handwritten Math & Equation Solver via SymPy (/math/solve)
 └── [ ] Viewport auto-pan and smooth zoom to search results
 
 Phase 4: Stroke Beautification & Voice Commands
 ├── [✓] Douglas-Peucker point decimation & geometric primitive fitting (rect, ellipse, diamond, arrow)
-├── [✓] Catmull-Rom & cubic Bezier curve smoothing for irregular hand-drawn strokes
-├── [ ] "Auto-Snap on Hold" stylus/mouse interaction
+├── [ ] Triangle shape classification (num_vertices == 3) & line vs arrow discrimination
+├── [ ] Catmull-Rom & cubic Bezier curve smoothing for irregular hand-drawn contours
+├── [ ] "Auto-Snap on Hold" 400ms stylus/mouse interaction
 ├── [ ] Browser Web Speech API command parser (tool selection, colors, page navigation)
 └── [ ] One-tap stroke beautification tool in canvas toolbar
 
-Phase 5: Gesture AI, Diagram Synthesis & Desktop Packaging
-├── [✓] "Circle to Ask / Modify / Change" closed-loop gesture detection & prompt execution (/circle-query)
-├── [ ] Spatial context extraction (enclosed shapes, sticky notes, text, connectors)
-├── [✓] Natural language text-to-diagram synthesis (/diagram/synthesize)
-├── [✓] Conversational Text-to-Diagram (TTD) SSE chat streaming (/v1/ai/text-to-diagram/chat-streaming)
-├── [✓] Diagram-to-Code / Wireframe-to-Code SSE streaming (/v1/ai/diagram-to-code/generate-streaming)
-├── [ ] Non-destructive Ghost Preview overlay with Accept/Dismiss actions
+Phase 5: Multimodal AI & Desktop Packaging
+├── [✓] Gemini 3.8 Flash SSE streaming for Text-to-Diagram (/v1/ai/text-to-diagram/chat-streaming)
+├── [✓] Gemini 3.8 Flash SSE streaming for Diagram-to-Code (/v1/ai/diagram-to-code/generate-streaming)
+├── [✓] Bound text element generation & dynamic flow tangent calculations in element_builder.py
+├── [ ] Connect /circle-query to live Gemini 3.8 Flash LLM for intelligent transformations
+├── [ ] Connect non-streaming /diagram/synthesize to live Gemini 3.8 Flash LLM
+├── [ ] Spring Boot AI Gateway Controller relaying client requests to graffiti-aiml
+├── [ ] Backend ghost overlay broadcast over Redis Pub/Sub (/internal/rooms/{slug}/ai-suggestion)
+├── [ ] Non-destructive Ghost Preview overlay on canvas with Accept (Enter) / Dismiss (Esc)
 ├── [ ] Tauri v2 native desktop app packaging for Windows, macOS, and Linux
 ├── [ ] Native frameless window styling (macOS traffic lights & blur / Windows 11 Mica)
-├── [ ] Native OS top menu bar and local offline .graffiti file management
-└── [ ] Stress testing with 100+ concurrent simulated clients per room
+└── [ ] Native OS top menu bar and local offline .graffiti file management
+
+Phase 6: Workspaces, Projects & Eraser-Style Architecture Diagramming
+├── [ ] PostgreSQL JPA Entities & Flyway migrations for Workspaces and Folders (workspaces, folders, rooms)
+├── [ ] Workspace & Folder REST endpoints (/workspaces, /workspaces/{id}/folders, /rooms/{slug}/move)
+├── [ ] Collapsible Sidebar Folder Tree & breadcrumb navigation rail in frontend
+├── [ ] Global Slash Command Palette ('/' or '+') with real-time fuzzy search
+├── [ ] Searchable Vector Icon Engine ('I') bundling Lucide, Simple Icons & Cloud SVGs
+├── [ ] Architecture Service Card Presets ('C') with header, icon badge, divider & body text
+├── [ ] Smart Orthogonal (Elbow) Arrow Routing ('Shift + A') with 90-degree obstacle bypass
+├── [ ] Database Entity Relationship Diagram (ERD) Schema Table component ('Shift + T')
+├── [ ] Syntax-Highlighted Code Block component ('Shift + C' or '<>') on canvas
+├── [ ] Device Mockup Frames (Browser window & Mobile phone frames)
+└── [ ] 'Document | Both | Canvas' Split View Mode (Ctrl + \)
 ```
 
 ---
 
 ## 12. Environment & Configuration Reference
 
-| Variable | Used By | Description | Example / Default |
-| :--- | :--- | :--- | :--- |
-| `POSTGRES_URL` | Backend | JDBC connection string | `jdbc:postgresql://localhost:5432/graffiti` |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` | Backend, Docker | DB credentials | `graffiti` / `Ankit@1907` |
-| `REDIS_HOST` / `REDIS_PORT` | Backend | Redis connection for Pub/Sub + locks | `localhost` / `6379` |
-| `JWT_SECRET` | Backend | HMAC-SHA256 signing key (§9.1) | 256-bit secret key string |
-| `JWT_EXPIRATION_MS` | Backend | Access token TTL | `86400000` (24h) |
-| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Backend | Google OAuth2 credentials (§9.1) | Google console credentials |
-| `APP_COMPACTION_OP_THRESHOLD` | Backend | Ops-since-snapshot count that triggers compaction (§6.3) | `50` |
-| `APP_COMPACTION_LOCK_TTL_MS` | Backend | Redis distributed lock TTL for compaction (§6.3) | `30000` |
-| `AIML_SERVICE_URL` | Backend | Base URL for `graffiti-aiml` | `http://localhost:8000` |
-| `AIML_REQUEST_TIMEOUT_MS` | Backend | Timeout per AI service call (§8.6) | `8000` |
-| `PRESENCE_THROTTLE_MS` | Frontend | Cursor emission throttle (§7.3) | `30` |
-| `ENABLE_VOICE_COMMANDS` | Frontend | Toggle browser Web Speech recognition | `true` |
-| `ENABLE_LIVE_MATH_SOLVER` | AI/ML, Frontend | Toggle automatic math evaluation on `=` | `true` |
-| `ENABLE_GOOGLE_DRIVE_EXPORT` | Backend, Frontend | Toggle Google Drive cloud export | `true` |
+| Variable                                                | Used By           | Description                                              | Example / Default                           |
+| :--------------------------------------------------------| :------------------| :---------------------------------------------------------| :--------------------------------------------|
+| `POSTGRES_URL`                                          | Backend           | JDBC connection string                                   | `jdbc:postgresql://localhost:5432/graffiti` |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD`                   | Backend, Docker   | DB credentials                                           | `graffiti` / `Ankit@1907`                   |
+| `REDIS_HOST` / `REDIS_PORT`                             | Backend           | Redis connection for Pub/Sub + locks                     | `localhost` / `6379`                        |
+| `JWT_SECRET`                                            | Backend           | HMAC-SHA256 signing key (§9.1)                           | 256-bit secret key string                   |
+| `JWT_EXPIRATION_MS`                                     | Backend           | Access token TTL                                         | `86400000` (24h)                            |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Backend           | Google OAuth2 credentials (§9.1)                         | Google console credentials                  |
+| `APP_COMPACTION_OP_THRESHOLD`                           | Backend           | Ops-since-snapshot count that triggers compaction (§6.3) | `50`                                        |
+| `APP_COMPACTION_LOCK_TTL_MS`                            | Backend           | Redis distributed lock TTL for compaction (§6.3)         | `30000`                                     |
+| `AIML_SERVICE_URL`                                      | Backend           | Base URL for `graffiti-aiml`                             | `http://localhost:8000`                     |
+| `AIML_REQUEST_TIMEOUT_MS`                               | Backend           | Timeout per AI service call (§8.6)                       | `8000`                                      |
+| `PRESENCE_THROTTLE_MS`                                  | Frontend          | Cursor emission throttle (§7.3)                          | `30`                                        |
+| `ENABLE_VOICE_COMMANDS`                                 | Frontend          | Toggle browser Web Speech recognition                    | `true`                                      |
+| `ENABLE_LIVE_MATH_SOLVER`                               | AI/ML, Frontend   | Toggle automatic math evaluation on `=`                  | `true`                                      |
+| `ENABLE_GOOGLE_DRIVE_EXPORT`                            | Backend, Frontend | Toggle Google Drive cloud export                         | `true`                                      |
 
 ---
 
