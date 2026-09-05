@@ -10,7 +10,48 @@
 
 Graffiti is a high-performance, horizontally scalable real-time collaborative whiteboard and note-taking application for Web and native Desktop (Windows, macOS, Linux). Multiple distributed users, students, and educators can draw, write, manipulate shapes, organize complex diagrams, and take structured multi-page lecture notes concurrently on an infinite canvas with deterministic CRDT synchronization, ephemeral presence streaming, periodic snapshot compaction, multi-format/Google Drive export, and multimodal AI assistance.
 
-> 📖 **Master Blueprint & Architecture Contract:** For low-level JSON schemas, CRDT mathematical merge rules, keyboard shortcut maps, and REST/STOMP protocol specifications, see [**`PROJECT_SPECIFICATION.md`**](file:///e:/graffiti/PROJECT_SPECIFICATION.md). For scalability design decisions, distributed systems trade-offs, and benchmarks (Google Docs OT vs. Figma Spatial CRDT), see [**`ARCHITECTURE_DECISIONS.md`**](file:///e:/graffiti/ARCHITECTURE_DECISIONS.md).
+> **Master Blueprint & Architecture Contract:** For low-level JSON schemas, CRDT mathematical merge rules, keyboard shortcut maps, and REST/STOMP protocol specifications, see [**`PROJECT_SPECIFICATION.md`**](file:///e:/graffiti/PROJECT_SPECIFICATION.md). For scalability design decisions, distributed systems trade-offs, and benchmarks (Google Docs OT vs. Figma Spatial CRDT), see [**`ARCHITECTURE_DECISIONS.md`**](file:///e:/graffiti/ARCHITECTURE_DECISIONS.md).
+
+---
+
+## Desktop App & Offline-First (No Servers Required)
+
+Graffiti runs as a **fully self-contained, native desktop application** on Windows, macOS, and Linux.
+
+**Key Architecture Principle**:
+- You **do not** need to start Spring Boot, PostgreSQL, Redis, or Docker to run Graffiti on your desktop.
+- The desktop app functions **100% offline** out of the box with zero external dependencies.
+- All whiteboards, multi-page notebooks, paper background templates, workspaces, and folders are saved directly on your computer in your operating system's local AppData directory (`IndexedDB` / local storage).
+- Servers are only necessary when hosting real-time multiplayer collaborative rooms or using cloud AI services.
+
+### Download Desktop Releases
+
+| Platform | Format | Status & Download Link |
+| :--- | :--- | :--- |
+| **Windows 10 / 11 (x64)** | `.exe` Setup / Portable `.exe` | [Download Windows Release (v0.1.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
+| **macOS (Apple Silicon M-Series)** | `.dmg` Installer / `.app` | [Download macOS ARM64 Release (v0.1.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
+| **macOS (Intel x64)** | `.dmg` Installer / `.app` | [Download macOS Intel Release (v0.1.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
+| **Linux (x64)** | `.AppImage` / `.deb` | [Download Linux Release (v0.1.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
+
+### Direct Local Execution (From This Repository)
+
+If you have this repository locally, the compiled desktop application executable is ready to run immediately:
+
+- **Windows**: Run [`graffiti-frontend/src-tauri/target/debug/graffiti-desktop.exe`](file:///e:/graffiti/graffiti-frontend/src-tauri/target/debug/graffiti-desktop.exe) directly:
+  ```powershell
+  .\graffiti-frontend\src-tauri\target\debug\graffiti-desktop.exe
+  ```
+- **Development Mode** (with hot reloading):
+  ```bash
+  cd graffiti-frontend
+  npm run desktop:dev
+  ```
+- **Build Standalone Production Package**:
+  ```bash
+  cd graffiti-frontend
+  npm run desktop:build
+  ```
+  Installers will be generated in `graffiti-frontend/src-tauri/target/release/bundle/`.
 
 ---
 
@@ -73,8 +114,8 @@ Graffiti is a high-performance, horizontally scalable real-time collaborative wh
    - **Teacher Follow-Me Mode**: Synchronized page flipping (`TEACHER_PAGE_SYNC`) over Redis Pub/Sub.
 3. **Cloud Export & Sharing**: Multi-page PDF compilation (`.pdf`), Markdown lecture notes (`.md`), and 1-click Google Drive upload with instant public share link.
 4. **Native Cross-Platform Desktop (Tauri v2)**:
-   - Lightweight (~8MB) hardware-accelerated desktop binary for Windows (10/11), macOS, and Linux.
-   - Native frameless window with macOS traffic lights (`🔴 🟡 🟢`) & vibrancy glassmorphism / Windows 11 Mica material.
+   - Lightweight (~12MB) hardware-accelerated desktop binary for Windows (10/11), macOS, and Linux.
+   - Native frameless window with macOS traffic lights & vibrancy glassmorphism / Windows 11 Mica material.
    - Native OS system menu bar integration (`File`, `Edit`, `View`, `Tools`, `Help`) and local offline `.graffiti` file associations.
 5. **Layout & Productivity Superpowers**:
    - **Sticky Note Presets (`N`)**: Instant pastel brainstorm notes (`#fff3bf`, `#d0ebff`, `#d3f9d8`, `#ffdeeb`, `#f3d9fa`, `#ffe8cc`) with auto-centered text.
@@ -140,13 +181,16 @@ Run automated tests: `./mvnw test`
 cd graffiti-frontend
 npm install
 
-# Run Web Client
+# Run Web Client (Browser on http://localhost:5173)
 npm run dev
 
-# Run Native Desktop App (Tauri v2)
-npx tauri dev
+# Run Native Desktop App (Connects to running Vite dev server)
+npx tauri dev --no-dev-server
+
+# Or Launch Standalone Desktop App Executable (No servers or terminal needed)
+.\src-tauri\target\debug\graffiti-desktop.exe
 ```
-Web client runs on `http://localhost:5173`. Desktop launches in a native hardware-accelerated window.
+Web client runs on `http://localhost:5173`. Desktop launches in a native hardware-accelerated window and functions 100% offline.
 
 ### 4. Run AI/ML Microservice
 ```bash

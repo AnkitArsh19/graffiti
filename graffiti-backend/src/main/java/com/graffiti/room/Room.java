@@ -26,8 +26,23 @@ public class Room {
     @Column(name = "owner_id")
     private UUID ownerId;
 
+    @Column(nullable = false)
+    private String name = "Untitled Board";
+
+    @Column(name = "workspace_id")
+    private UUID workspaceId;
+
+    @Column(name = "folder_id")
+    private UUID folderId;
+
+    @Column(name = "is_public", nullable = false)
+    private boolean isPublic = true;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    @Column(name = "updated_at")
+    private Instant updatedAt;
 
     public Room() {
     }
@@ -35,7 +50,10 @@ public class Room {
     public Room(String slug, UUID ownerId) {
         this.slug = slug;
         this.ownerId = ownerId;
+        this.name = "Untitled Board";
+        this.isPublic = true;
         this.createdAt = Instant.now();
+        this.updatedAt = Instant.now();
     }
 
     @PrePersist
@@ -43,6 +61,17 @@ public class Room {
         if (this.createdAt == null) {
             this.createdAt = Instant.now();
         }
+        if (this.updatedAt == null) {
+            this.updatedAt = Instant.now();
+        }
+        if (this.name == null) {
+            this.name = "Untitled Board";
+        }
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updatedAt = Instant.now();
     }
 
     public UUID getId() {
@@ -75,5 +104,45 @@ public class Room {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public UUID getWorkspaceId() {
+        return workspaceId;
+    }
+
+    public void setWorkspaceId(UUID workspaceId) {
+        this.workspaceId = workspaceId;
+    }
+
+    public UUID getFolderId() {
+        return folderId;
+    }
+
+    public void setFolderId(UUID folderId) {
+        this.folderId = folderId;
+    }
+
+    public boolean isPublic() {
+        return isPublic;
+    }
+
+    public void setPublic(boolean isPublic) {
+        this.isPublic = isPublic;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

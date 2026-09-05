@@ -82,11 +82,12 @@ graffiti-frontend/
 - **1-Click Google Drive Upload**: Directly uploads the compiled PDF to the user's Google Drive via OAuth2 scope (`drive.file`) and displays an instant public share link.
 - **Markdown Lecture Notes**: Exports all typed text and OCR-extracted handwriting (`customData.ocrText`) into a clean `.md` document.
 
-### 3. Native Desktop Application (Tauri v2)
-- **Frameless Window Styling**: Embedded macOS traffic lights (`🔴 🟡 🟢`) with glassmorphism / Windows 11 Mica material.
+### 3. Native Desktop Application (Tauri v2 & 100% Offline Mode)
+- **Zero Server Requirement**: Functions completely standalone without any running backend servers, databases, or network connection. All notebooks, pages, whiteboards, workspaces, and folders persist locally in OS AppData (`IndexedDB`).
+- **Frameless Window Styling**: Embedded macOS traffic lights with glassmorphism / Windows 11 Mica material.
 - **OS System Menus**: Top menu bar (`File`, `Edit`, `View`, `Tools`, `Help`) with accelerator keybindings (`Cmd/Ctrl+S`, `Cmd/Ctrl+O`, `Cmd+,`).
 - **OS File Association**: Double-click `.graffiti` files in Finder/Explorer to open directly.
-- **Offline Local File Mode**: Open and save files directly to the local hard drive without an internet connection.
+- **Offline Local File Mode**: Open and save files directly to the local hard drive via native OS file dialogs.
 
 ### 4. Layout Superpowers & AI Workflows
 - **Sticky Note Presets (`N`)**: 200×200px square notes with pastel palettes (`#fff3bf`, `#d0ebff`, `#d3f9d8`, `#ffdeeb`, `#f3d9fa`, `#ffe8cc`) and auto-expanding centered text.
@@ -98,7 +99,7 @@ graffiti-frontend/
 
 ---
 
-## Development Setup
+## Development & Desktop Execution
 
 ```bash
 # 1. Install dependencies
@@ -107,10 +108,13 @@ npm install
 # 2. Run Web Development Server
 npm run dev
 
-# 3. Run Native Desktop App (Tauri v2)
-npx tauri dev
+# 3. Run Native Desktop App (Connects to running Vite dev server)
+npx tauri dev --no-dev-server
 
-# 4. Build Native Desktop Installers (.exe, .dmg, .AppImage)
-npx tauri build
+# 4. Or Run Compiled Desktop App Directly (No servers or terminal needed)
+.\src-tauri\target\debug\graffiti-desktop.exe
+
+# 5. Build Native Desktop Installers (.exe, .dmg, .AppImage)
+npm run desktop:build
 ```
-Web client runs on `http://localhost:5173`. Desktop launches in a native hardware-accelerated window.
+Web client runs on `http://localhost:5173`. Desktop launches in a native hardware-accelerated window and functions 100% offline.

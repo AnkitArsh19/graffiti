@@ -22,10 +22,10 @@ The system is architected to be built **progressively across distinct, verifiabl
    - **"Circle to Ask / Modify / Change" Gesture AI**: Drawing a closed loop around any canvas area to contextually query, restyle, or transform enclosed elements using multimodal LLMs.
    - **Natural Language Diagram Synthesis**: Generating complete structured flowcharts and system diagrams from text prompts.
 5. **Layer 5 (Native Cross-Platform Desktop Packaging via Tauri v2)**: Lightweight, hardware-accelerated desktop binary for Windows (10/11), macOS (Intel & Apple Silicon), and Linux:
-   - Native frameless window with macOS traffic lights (`🔴 🟡 🟢`) and vibrancy glassmorphism / Windows 11 Mica material.
+   - Native frameless window with macOS traffic lights and vibrancy glassmorphism / Windows 11 Mica material.
    - Full OS system menu bar integration (`File`, `Edit`, `View`, `Tools`, `Help`).
    - OS Drag-and-Drop file import from Finder / File Explorer and native `.graffiti` file associations.
-   - Dual Operation Mode: Cloud Collaborative (STOMP WebSocket) vs. Local Offline File Mode.
+   - Dual Operation Mode: Cloud Collaborative (STOMP WebSocket) vs. Local Offline AppData & File Mode (zero-server standalone runtime).
 
 ### 1.2 Core System Engineering Goals
 - **Real-Time Collaboration**: Sub-50ms sync latency with zero lost edits under high-concurrency editing.
@@ -95,10 +95,12 @@ The system is architected to be built **progressively across distinct, verifiabl
 | Feature | Implementation Specification |
 | :--- | :--- |
 | **Native Binaries for Windows / Mac / Linux** | Compiles to native `.exe`/`.msi` (Windows), `.dmg`/`.app` (macOS Intel & Apple Silicon), and `.AppImage`/`.deb` (Linux). |
-| **Frameless Window & Native OS Styling** | macOS: Embedded traffic lights (`🔴 🟡 🟢`) with translucent `vibrancy: "under-window"` glassmorphism; Windows 11: Native Mica / Acrylic material. |
+| **Frameless Window & Native OS Styling** | macOS: Embedded traffic lights with translucent `vibrancy: "under-window"` glassmorphism; Windows 11: Native Mica / Acrylic material. |
 | **Native System Menu Bar Integration** | Full OS menu bar (`File`, `Edit`, `View`, `Tools`, `Help`) with accelerator keybindings (`Cmd/Ctrl+S`, `Cmd/Ctrl+O`, `Cmd+,`). |
 | **OS File Association & Native Drag-and-Drop** | Double-clicking `.graffiti` files in Finder/Explorer opens Graffiti; dragging images/PDFs from desktop drops them onto canvas coordinates. |
 | **Local Offline File Mode** | Allows standalone offline usage with direct hard drive save/open via native OS file dialogs (`NSOpenPanel` / `IFileDialog`). |
+| **100% Offline Zero-Server Runtime** | Operates completely standalone without external servers, databases, or network connection. All canvases, notebooks, pages, workspaces, and folders persist locally in OS AppData. |
+| **Standalone Distribution Packages** | Self-contained single-executable and installer bundles that can be distributed directly to users without container runtimes or external prerequisites. |
 
 ### 2.5 Workspaces, Projects & Hierarchical Folder Organization
 
@@ -106,7 +108,7 @@ The system is architected to be built **progressively across distinct, verifiabl
 | :--- | :--- |
 | **Workspaces & Project Sandboxes** | Top-level organizational units for schools, courses, semesters, or engineering teams (e.g., *"Computer Science Fall 2026"*, *"Distributed Systems Lab"*). |
 | **Hierarchical Nested Folders** | Unlimited multi-level folder trees (`parentFolderId` self-referencing hierarchy) with custom color-coding tags and folder icons. |
-| **Sidebar Tree & Breadcrumb Navigation** | Interactive collapsible folder hierarchy in the left navigation rail with instant path breadcrumbs (`📁 Workspace > 📁 CS101 > 📁 Lecture 3 > 📄 Graph Traversal`). |
+| **Sidebar Tree & Breadcrumb Navigation** | Interactive collapsible folder hierarchy in the left navigation rail with instant path breadcrumbs (`Workspace > CS101 > Lecture 3 > Graph Traversal`). |
 | **Canvas & Notebook Move / Drag-and-Drop** | Move whiteboards/notebooks between folders seamlessly via drag-and-drop or quick shortcut modal (`Shift + M`). |
 | **Folder-Level Access & Sharing** | Teachers can share entire subject folders with students with inherited permissions (`VIEWER` or `EDITOR`), granting bulk access to all contained canvases. |
 
@@ -758,14 +760,21 @@ The frontend client implements a high-performance 2D vector canvas referencing t
 ### 7.5 Cross-Platform Native Desktop Architecture (Tauri v2)
 - **Unified Codebase**: 100% of React 19, TypeScript, Rough canvas, and CRDT sync code is shared between Web and Desktop.
 - **Native Frameless Window**:
-  - **macOS**: Titlebar is hidden; native traffic light controls (`🔴 🟡 🟢`) are embedded directly into the top canvas toolbar with `vibrancy: "under-window"` glassmorphic backdrop blur.
+  - **macOS**: Titlebar is hidden; native traffic light controls are embedded directly into the top canvas toolbar with `vibrancy: "under-window"` glassmorphic backdrop blur.
   - **Windows 11**: Integrates Windows Mica / Acrylic material matching the user's OS dark/light accent theme.
 - **Native OS System Menus**:
   - **macOS Menu Bar (`Cmd+S`, `Cmd+O`, `Cmd+N`, `Cmd+,`)**: Top menu bar with `File`, `Edit`, `View`, `Tools`, and `Help` options.
   - **Windows**: Standard native ribbon menu with accelerator shortcuts (`Alt+F`).
 - **OS Drag-and-Drop**: Users can drag images, PDFs, or `.graffiti` files directly from macOS Finder or Windows Explorer onto the canvas.
 - **Local File Association**: `.graffiti` file format is registered with the OS, enabling double-click to open.
-- **Local Offline File Mode**: Provides standalone offline capability using native file dialogs (`NSOpenPanel` / `IFileDialog`) to save and open whiteboard files directly on the local hard drive without a running server.
+- **Local Offline File Mode & Zero-Server Runtime**:
+  - Provides 100% standalone offline operation requiring zero external servers, databases, or container infrastructure.
+  - Native local persistence utilizes the local OS AppData storage (`IndexedDB` / embedded storage) for offline management of Workspaces, Folders, Whiteboards, Notes, Pages, and custom user color presets.
+  - Native file dialogs (`NSOpenPanel` / `IFileDialog`) enable direct file export and import of `.graffiti` format scene documents.
+- **Standalone Installer & Distribution Packages**:
+  - Windows: Self-contained installer (`.exe` via NSIS) and portable executable.
+  - macOS: Universal `.dmg` disk image and `.app` bundle for Apple Silicon (M1/M2/M3/M4) and Intel x64.
+  - Linux: Self-contained `.AppImage` and Debian package (`.deb`).
 
 ### 7.6 Local-First Optimistic Reconciliation (`reconcileElements`)
 - **Optimistic Local Mutations**: When a user drags, resizes, or draws a shape locally, the client immediately updates in-memory scene state, increments `element.version`, regenerates `element.versionNonce`, and sends the op to the backend.
@@ -1159,14 +1168,14 @@ Phase 5: Multimodal AI & Desktop Packaging
 ├── [ ] Spring Boot AI Gateway Controller relaying client requests to graffiti-aiml
 ├── [ ] Backend ghost overlay broadcast over Redis Pub/Sub (/internal/rooms/{slug}/ai-suggestion)
 ├── [ ] Non-destructive Ghost Preview overlay on canvas with Accept (Enter) / Dismiss (Esc)
-├── [ ] Tauri v2 native desktop app packaging for Windows, macOS, and Linux
-├── [ ] Native frameless window styling (macOS traffic lights & blur / Windows 11 Mica)
-└── [ ] Native OS top menu bar and local offline .graffiti file management
+├── [✓] Tauri v2 native desktop app packaging for Windows, macOS, and Linux
+├── [✓] Native frameless window styling (macOS traffic lights & blur / Windows 11 Mica)
+└── [✓] Native OS top menu bar and local offline .graffiti file management
 
 Phase 6: Workspaces, Projects & Eraser-Style Architecture Diagramming
-├── [ ] PostgreSQL JPA Entities & Flyway migrations for Workspaces and Folders (workspaces, folders, rooms)
-├── [ ] Workspace & Folder REST endpoints (/workspaces, /workspaces/{id}/folders, /rooms/{slug}/move)
-├── [ ] Collapsible Sidebar Folder Tree & breadcrumb navigation rail in frontend
+├── [✓] PostgreSQL JPA Entities & Flyway migrations for Workspaces and Folders (workspaces, folders, rooms)
+├── [✓] Workspace & Folder REST endpoints (/workspaces, /workspaces/{id}/folders, /rooms/{slug}/move)
+├── [✓] Collapsible Sidebar Folder Tree & breadcrumb navigation rail in frontend
 ├── [ ] Global Slash Command Palette ('/' or '+') with real-time fuzzy search
 ├── [ ] Searchable Vector Icon Engine ('I') bundling Lucide, Simple Icons & Cloud SVGs
 ├── [ ] Architecture Service Card Presets ('C') with header, icon badge, divider & body text

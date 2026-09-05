@@ -44,7 +44,7 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/rooms", "/rooms/*", "/ws/**", "/internal/**", "/oauth2/**", "/login/**").permitAll()
+                        .requestMatchers("/auth/**", "/rooms", "/rooms/*", "/workspaces/**", "/folders/**", "/ws/**", "/internal/**", "/oauth2/**", "/login/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2
