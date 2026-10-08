@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.graffiti.redis.RedisMessagePublisher;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Map;
 
@@ -20,6 +22,11 @@ import java.util.Map;
 public class AiStubController {
 
     private static final Logger log = LoggerFactory.getLogger(AiStubController.class);
+    private final RedisMessagePublisher redisPublisher;
+    private final ObjectMapper objectMapper;
+    public AiStubController(RedisMessagePublisher redisPublisher, ObjectMapper objectMapper) {
+        this.redisPublisher = redisPublisher; this.objectMapper = objectMapper;
+    }
 
     @Value("${app.internal.api-secret:graffiti_internal_ai_secret_key_1907}")
     private String internalSecret;
@@ -50,11 +57,17 @@ public class AiStubController {
             ));
         }
 
-        log.info("Received authenticated AI suggestion request for room slug: {}. Payload: {}", slug, payload);
+        log.info("Received authenticated AI suggestion for room slug: {}", slug);
+        try {
+            redisPublisher.publish("room:" + slug + ":op", objectMapper.writeValueAsString(Map.of(
+                    "type", "AI_GHOST_OP", "requestId", payload == null ? "" : String.valueOf(payload.getOrDefault("requestId", "")),
+                    "payload", payload == null ? Map.of("proposedElements", java.util.List.of(), "ghostPreview", true) : payload
+            )));
+        } catch (Exception e) { return ResponseEntity.internalServerError().body(Map.of("error", "Could not relay suggestion")); }
         return ResponseEntity.ok(Map.of(
-                "status", "STUBBED_ACCEPTED",
+                "status", "RELAYED",
                 "roomSlug", slug,
-                "message", "AI service integration is stubbed"
+                "message", "AI suggestion broadcast"
         ));
     }
 }

@@ -1,5 +1,7 @@
 package com.graffiti.op;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +27,7 @@ public class OpService {
 
     private final OpRepository opRepository;
     private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
 
     // High-concurrency lock-free write-behind buffer for coalesced database batch writes
     private final ConcurrentLinkedQueue<Op> writeBuffer = new ConcurrentLinkedQueue<>();
@@ -35,9 +38,10 @@ public class OpService {
     @Value("${app.ops.buffer.max-batch-size:200}")
     private int maxBatchSize;
 
-    public OpService(OpRepository opRepository, StringRedisTemplate redisTemplate) {
+    public OpService(OpRepository opRepository, StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
         this.opRepository = opRepository;
         this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -51,11 +55,29 @@ public class OpService {
      */
     public Op processAndSaveOp(UUID roomId, OpRequestDTO request) {
         Long nextLamportTs = getNextLamportTs(roomId, request.getLamportTs());
+
+        JsonNode nodePayload = null;
+        if (request.getPayload() != null) {
+            if (request.getPayload() instanceof JsonNode jn) {
+                nodePayload = jn;
+            } else {
+                try {
+                    String json = objectMapper.writeValueAsString(request.getPayload());
+                    nodePayload = objectMapper.readTree(json);
+                } catch (Exception e) {
+                    nodePayload = objectMapper.valueToTree(request.getPayload());
+                }
+            }
+        }
+        if (nodePayload == null) {
+            nodePayload = objectMapper.createObjectNode();
+        }
+
         Op op = new Op(
                 roomId,
                 request.getShapeId(),
                 request.getOpType(),
-                request.getPayload(),
+                nodePayload,
                 nextLamportTs,
                 (request.getAuthorId() != null) ? request.getAuthorId() : "anonymous"
         );

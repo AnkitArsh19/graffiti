@@ -24,6 +24,11 @@
    - [ADR-010: Bound Text Elements on Arrow Connectors & Bidirectional Layout Geometry](#adr-010-bound-text-elements-on-arrow-connectors--bidirectional-layout-geometry)
    - [ADR-011: Distributed Monotonic Lamport Clocks via Redis Atomic INCR](#adr-011-distributed-monotonic-lamport-clocks-via-redis-atomic-incr)
    - [ADR-012: Strict Brand Name Sanitization & Architectural Independence](#adr-012-strict-brand-name-sanitization--architectural-independence)
+   - [ADR-013: Hierarchical Workspace, Project, and Nested Folder Architecture](#adr-013-hierarchical-workspace-project-and-nested-folder-architecture)
+   - [ADR-014: Built-in Vector Iconography & Technical Architecture Diagramming Substrate](#adr-014-built-in-vector-iconography--technical-architecture-diagramming-substrate-eraserio-ux-model)
+   - [ADR-015: Low-Latency Ephemeral Stroke Streaming Protocol & Canvas Normalization](#adr-015-low-latency-ephemeral-stroke-streaming-protocol--canvas-normalization)
+   - [ADR-016: Resilient STOMP Watchdog, Dual-Layer Heartbeats & Multi-Threaded Redis Pub/Sub](#adr-016-resilient-stomp-watchdog-dual-layer-heartbeats--multi-threaded-redis-pubsub)
+   - [ADR-017: Automatic Room Ownership Handover & Graceful Leave Protocol](#adr-017-automatic-room-ownership-handover--graceful-leave-protocol)
 
 ---
 
@@ -235,3 +240,54 @@ Graffiti solves this through a high-performance **Server-Authoritative CRDT Hybr
   3. **Smart Orthogonal (Elbow) Arrow Routing (`Shift + A`)**: 90-degree right-angle turn connectors (`routing: "elbow"`) with collision-aware tangent calculations, preventing diagonal cross-cutting across intermediate components.
   4. **Tri-State Split Mode (`Document | Both | Canvas` via `Ctrl + \`)**: Unified dual-pane interface enabling Markdown lecture/spec notes on the left and a live synchronized 2D vector whiteboard on the right.
 * **Consequences:** Eliminates external library import friction, elevating Graffiti from a basic sketching canvas to a presentation-grade technical architecture and engineering diagramming platform.
+
+---
+
+### ADR-015: Low-Latency Ephemeral Stroke Streaming Protocol & Canvas Normalization
+
+* **Status:** Implemented in `WhiteboardCanvas.tsx`, `useCollaboration.ts`, and `canvasRenderer.ts`
+* **Context:** In standard collaborative canvases, shapes and pen ink only appear after a collaborator finishes their gesture (`pointerup`). During live tutoring or pair design, collaborators cannot see in-progress strokes, handwriting flow, or expanding shape boundaries, degrading presence and immediacy.
+* **Decision:**
+  1. **Dual-Tier Streaming Pipeline**:
+     - *In-Progress (Ephemeral)*: On every `pointermove`, the active drawing draft is emitted via STOMP `/app/rooms/{slug}/presence` as `IN_PROGRESS_SHAPE` with `{ element, pageId, name }`. This message is broadcast via Redis Pub/Sub directly to collaborators without touching PostgreSQL.
+     - *Final Commit (Durable)*: On `pointerup`, the draft is cleared with `IN_PROGRESS_SHAPE_CLEAR` while the final normalized shape is committed as a permanent `CREATE_OR_UPDATE` op with a monotonic Lamport timestamp.
+  2. **Client-Side Draft Normalization**:
+     - Pen drafts have their points and bounds normalized to canvas coordinate space (`normalizePenElement`) before rendering.
+     - Canvas rendering context safely guards opacity (`(element.opacity ?? 100) / 100`), preventing `NaN` from stalling 2D context rendering.
+  3. **Resilient Multi-Page Draft Scoping**:
+     - Remote drafts are only suppressed if the room has multiple distinct pages and the draft's `pageId` explicitly targets another known page in the document.
+* **Consequences:** Collaborators see ink flowing and shapes expanding in real time with zero database I/O overhead.
+
+---
+
+### ADR-016: Resilient STOMP Watchdog, Dual-Layer Heartbeats & Multi-Threaded Redis Pub/Sub
+
+* **Status:** Implemented in `StompClient.ts`, `useCollaboration.ts`, and `RedisConfig.java`
+* **Context:** Collaborative WebSocket connections suffer from silent disconnections, browser background throttling, and connection flapping (flickering between "Live" and "Connecting"). Furthermore, bursts of mouse movements can saturate single-threaded Redis Pub/Sub message dispatchers.
+* **Decision:**
+  1. **Dual-Layer Heartbeats**:
+     - Protocol layer: STOMP 20s incoming/outgoing keepalive frames (`heartbeatIncoming: 20000`, `heartbeatOutgoing: 20000`).
+     - Application layer: 4s background presence heartbeat (`HEARTBEAT`) maintaining active user counts even when hands are resting.
+  2. **Active Watchdog & Offline Op Buffering**:
+     - A 4s watchdog timer inspects STOMP client connectivity and immediately re-establishes dropped connections.
+     - Any operations created while disconnected are queued in memory and flushed automatically upon reconnection.
+  3. **Multi-Threaded Redis Listener Container**:
+     - Configured Spring's `RedisMessageListenerContainer` with a dedicated `ThreadPoolTaskExecutor` (16 core, 64 max threads) with `setDaemon(true)` to prevent thread starvation during concurrent cursor and stroke bursts.
+* **Consequences:** Zero connection flapping, accurate participant counts, and zero lost operations under fluctuating network conditions.
+
+---
+
+### ADR-017: Automatic Room Ownership Handover & Graceful Leave Protocol
+
+* **Status:** Implemented in `RoomController.java`, `RoomService.java`, and `App.tsx`
+* **Context:** When a room owner leaves a collaborative session or closes their browser, the room either becomes orphaned or collaborators are blocked from managing permissions and settings.
+* **Decision:**
+  1. Expose `POST /rooms/{slug}/leave` accepting optional `candidateNewOwnerId`.
+  2. If the departing user is the room `OWNER`, the backend automatically elects a new owner:
+     - Prefers an active collaborator or remaining member with role `EDITOR`.
+     - Promotes the elected candidate to `OWNER` in `RoomMember` records and updates `room.ownerId`.
+  3. The server broadcasts `OWNER_CHANGED` and `USER_LEFT` presence events over Redis Pub/Sub to inform all connected clients in real time.
+  4. If no members or active collaborators remain, unowned temporary rooms can be safely retired.
+  5. The client UI provides an interactive "Live" dropdown displaying the room code, collaborator list with `OWNER` badges, and a direct "Leave Room" action.
+* **Consequences:** Clean lifecycle transitions, prevent orphaned sessions, and provide seamless host handoff.
+

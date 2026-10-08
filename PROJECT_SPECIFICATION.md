@@ -72,9 +72,12 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Role-Based Access Control (RBAC)**    | 3-tier room permissions: `OWNER` (teacher/admin/claim), `EDITOR` (student/editor), `VIEWER` (read-only canvas).                                                      |
 | **Teacher Follow-Me Presentation Mode** | Teacher (`OWNER`) page navigation and viewport zoom broadcasts `TEACHER_PAGE_SYNC` over Redis Pub/Sub, automatically flipping all student canvases to the same page. |
 | **Ephemeral Presence & Cursors**        | Live multiplayer cursors, laser trails, and selection bounds over Redis Pub/Sub without database bloat.                                                              |
+| **Live In-Progress Shape & Ink Streaming** | Ephemeral `IN_PROGRESS_SHAPE` streaming over Redis Pub/Sub rendering ink flow and expanding shapes in real time before permanent `CREATE_OR_UPDATE` commit.       |
+| **Connection Watchdog & Dual Heartbeats**| 20s STOMP keepalives, 4s presence heartbeats, 4s connection watchdog with offline op queue buffering, and multi-threaded Redis Pub/Sub executor.                  |
 | **Append-Only History & Compaction**    | PostgreSQL immutable op log + periodic background JSONB snapshot compaction with Redis distributed locks.                                                            |
 | **User Accounts & Google OAuth2**       | Email/password registration, stateless JWT bearer tokens, and Google OAuth2 login with Drive export scope.                                                           |
 | **Room Ownership Claiming**             | Logged-in users can claim anonymous rooms (`POST /rooms/{slug}/claim`).                                                                                              |
+| **Room Code Quick-Join & Leave Protocol**| Join rooms via code/URL modal (`JoinRoomModal`), interactive Live status menu with collaborator list, and `POST /rooms/{slug}/leave` with automatic owner election.  |
 
 ### 2.3 Intelligent AI/ML Multimodal Capabilities
 
@@ -101,6 +104,11 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Local Offline File Mode** | Allows standalone offline usage with direct hard drive save/open via native OS file dialogs (`NSOpenPanel` / `IFileDialog`). |
 | **100% Offline Zero-Server Runtime** | Operates completely standalone without external servers, databases, or network connection. All canvases, notebooks, pages, workspaces, and folders persist locally in OS AppData. |
 | **Standalone Distribution Packages** | Self-contained single-executable and installer bundles that can be distributed directly to users without container runtimes or external prerequisites. |
+| **Transparent Desktop Screen Overlay Mode** | Global shortcut `F6` or `Ctrl+Shift+O` opens fullscreen transparent overlay; Win32 cursor tracking allows seamless click-through to underlying apps while annotating on-screen with real-time room sync. |
+| **Deep-linking & Desktop Browser Handoff** | Registered `graffiti://` custom protocol handler and backend `DesktopHandoffCode` session polling for zero-friction sign-in via default browser without exposing secrets. |
+| **Multi-Format Document Presentation Studio** | Built-in viewer for PDF (`pdfjs-dist`), Word (`docx-preview`), PPTX (`pptxgenjs`), Markdown, Code, and Images with live drawing markup and export back to annotated PDF, PPTX, or Images. |
+| **Google Drive Multi-Account Cloud Integration** | Multi-account Google Drive connector with folder browsing, search, direct import of documents, and export of canvases as PDF/Markdown/JSON with instant public shareable links. |
+| **Customizable Shortcuts Engine** | User-configurable keyboard shortcuts and mouse button bindings (including M4/M5) across whiteboard, overlay, document, and general workflows via `ShortcutsContext` and `SettingsModal`. |
 
 ### 2.5 Workspaces, Projects & Hierarchical Folder Organization
 

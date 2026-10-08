@@ -16,6 +16,7 @@ import java.util.UUID;
 public class RoomDetailResponse {
     private UUID id;
     private String slug;
+    private String name;
     private UUID ownerId;
     private Instant createdAt;
     private JsonNode snapshotState;
@@ -27,8 +28,14 @@ public class RoomDetailResponse {
 
     public RoomDetailResponse(UUID id, String slug, UUID ownerId, Instant createdAt,
                               JsonNode snapshotState, Long upToLamportTs, List<Op> opsSinceSnapshot) {
+        this(id, slug, null, ownerId, createdAt, snapshotState, upToLamportTs, opsSinceSnapshot);
+    }
+
+    public RoomDetailResponse(UUID id, String slug, String name, UUID ownerId, Instant createdAt,
+                              JsonNode snapshotState, Long upToLamportTs, List<Op> opsSinceSnapshot) {
         this.id = id;
         this.slug = slug;
+        this.name = name;
         this.ownerId = ownerId;
         this.createdAt = createdAt;
         this.snapshotState = snapshotState;
@@ -50,6 +57,14 @@ public class RoomDetailResponse {
 
     public void setSlug(String slug) {
         this.slug = slug;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public UUID getOwnerId() {

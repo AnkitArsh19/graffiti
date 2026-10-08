@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   ArrowRight,
   Circle,
   Diamond,
   Eraser,
   GripVertical,
+  GripHorizontal,
   Hand,
   LayoutGrid,
   Lock,
@@ -16,6 +17,7 @@ import {
   PanelRight,
   PanelTop,
   PenLine,
+  RotateCw,
   Square,
   StickyNote,
   Type,
@@ -27,11 +29,35 @@ import type { DockPosition, ToolId } from "../types";
 interface ToolbarProps {
   activeTool: ToolId;
   dockPosition: DockPosition;
+  mode?: "whiteboard" | "document";
   isToolLocked?: boolean;
   onToggleLock?: () => void;
   onToolChange: (tool: ToolId) => void;
   onDockChange: (dock: DockPosition) => void;
 }
+
+import { useShortcuts } from "../contexts/ShortcutsContext";
+
+const WB_SHORTCUT_IDS: Partial<Record<ToolId, string>> = {
+  select: "wb_select",
+  hand: "wb_hand",
+  pen: "wb_pen",
+  rectangle: "wb_rectangle",
+  ellipse: "wb_ellipse",
+  diamond: "wb_diamond",
+  line: "wb_line",
+  arrow: "wb_arrow",
+  text: "wb_text",
+  sticky: "wb_sticky",
+  eraser: "wb_eraser",
+};
+
+const DOC_SHORTCUT_IDS: Partial<Record<ToolId, string>> = {
+  select: "doc_select",
+  pen: "doc_pen",
+  eraser: "doc_eraser",
+  text: "doc_text",
+};
 
 const tools: Array<{ id: ToolId; label: string; shortcut: string; icon: LucideIcon }> = [
   { id: "select", label: "Select", shortcut: "V", icon: MousePointer2 },
@@ -58,16 +84,28 @@ const dockOptions: Array<{ id: DockPosition; label: string; icon: LucideIcon }> 
 export function Toolbar({
   activeTool,
   dockPosition,
+  mode = "whiteboard",
   isToolLocked = false,
   onToggleLock,
   onToolChange,
   onDockChange,
 }: ToolbarProps) {
+  const { getShortcut } = useShortcuts();
   const [isDockMenuOpen, setIsDockMenuOpen] = useState(false);
   const railRef = useRef<HTMLElement>(null);
   const dockMenuRef = useRef<HTMLDivElement>(null);
 
-  // Free-floating draggable toolbar state
+  // Floating orientation state (preserves vertical when dragged from left/right)
+  const [floatingOrientation, setFloatingOrientation] = useState<"horizontal" | "vertical">(() => {
+    if (dockPosition === "left" || dockPosition === "right") return "vertical";
+    try {
+      const saved = localStorage.getItem("graffiti:dock_orient:v1");
+      if (saved === "vertical" || saved === "horizontal") return saved;
+    } catch {}
+    return "horizontal";
+  });
+
+  // Free-floating draggable toolbar coordinates
   const [floatingPos, setFloatingPos] = useState<{ x: number; y: number } | null>(() => {
     try {
       const saved = localStorage.getItem("graffiti:dock_pos:v1");
@@ -75,7 +113,24 @@ export function Toolbar({
     } catch {}
     return null;
   });
-  const dragStartRef = useRef<{ mouseX: number; mouseY: number; posX: number; posY: number } | null>(null);
+
+  const [isDragging, setIsDragging] = useState(false);
+  const [snapTarget, setSnapTarget] = useState<"top" | "bottom" | "left" | "right" | null>(null);
+
+  const dragStartRef = useRef<{
+    mouseX: number;
+    mouseY: number;
+    startLeft: number;
+    startTop: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  // Determine current active orientation
+  const isVertical =
+    dockPosition === "left" ||
+    dockPosition === "right" ||
+    (dockPosition === "floating" && floatingOrientation === "vertical");
 
   useEffect(() => {
     if (floatingPos && dockPosition === "floating") {
@@ -86,6 +141,12 @@ export function Toolbar({
       localStorage.removeItem("graffiti:dock_pos:v1");
     }
   }, [floatingPos, dockPosition]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("graffiti:dock_orient:v1", floatingOrientation);
+    } catch {}
+  }, [floatingOrientation]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -102,170 +163,270 @@ export function Toolbar({
   }, [isDockMenuOpen]);
 
   const handlePointerDownGrip = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
     const rect = railRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const curX = floatingPos ? floatingPos.x : rect.left;
-    const curY = floatingPos ? floatingPos.y : rect.top;
+
+    // Preserve orientation based on current dock position
+    const orient = (dockPosition === "left" || dockPosition === "right") ? "vertical" : "horizontal";
+    setFloatingOrientation(orient);
+
+    setIsDragging(true);
+    setSnapTarget(null);
 
     dragStartRef.current = {
       mouseX: e.clientX,
       mouseY: e.clientY,
-      posX: curX,
-      posY: curY,
+      startLeft: rect.left,
+      startTop: rect.top,
+      width: rect.width,
+      height: rect.height,
     };
-    // Immediately set position so it does NOT jump to top-left corner
-    setFloatingPos({ x: curX, y: curY });
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+
+    setFloatingPos({ x: rect.left, y: rect.top });
     if (dockPosition !== "floating") {
       onDockChange("floating");
     }
-  };
 
-  const handlePointerMoveGrip = (e: React.PointerEvent) => {
-    if (!dragStartRef.current) return;
-    const dx = e.clientX - dragStartRef.current.mouseX;
-    const dy = e.clientY - dragStartRef.current.mouseY;
-    const rect = railRef.current?.getBoundingClientRect();
-    const width = rect?.width || 380;
-    const height = rect?.height || 50;
-    const newX = Math.max(10, Math.min(window.innerWidth - width - 10, dragStartRef.current.posX + dx));
-    const newY = Math.max(10, Math.min(window.innerHeight - height - 10, dragStartRef.current.posY + dy));
-    setFloatingPos({ x: newX, y: newY });
-  };
-
-  const handlePointerUpGrip = (e: React.PointerEvent) => {
-    dragStartRef.current = null;
     try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {}
   };
 
-  return (
-    <nav
-      ref={railRef}
-      className="tool-rail"
-      data-dock={dockPosition}
-      style={
-        dockPosition === "floating"
-          ? {
-              position: "fixed",
-              left: `${floatingPos?.x ?? (railRef.current?.getBoundingClientRect().left || 100)}px`,
-              top: `${floatingPos?.y ?? (railRef.current?.getBoundingClientRect().top || 60)}px`,
-              transform: "none",
-              zIndex: 50,
-              transition: "none",
-            }
-          : undefined
+  const handlePointerMoveGrip = (e: React.PointerEvent) => {
+    if (!dragStartRef.current || !isDragging) return;
+    const dx = e.clientX - dragStartRef.current.mouseX;
+    const dy = e.clientY - dragStartRef.current.mouseY;
+
+    const width = dragStartRef.current.width || 380;
+    const height = dragStartRef.current.height || 50;
+
+    const rawX = dragStartRef.current.startLeft + dx;
+    const rawY = dragStartRef.current.startTop + dy;
+
+    const clampedX = Math.max(8, Math.min(window.innerWidth - width - 8, rawX));
+    const clampedY = Math.max(8, Math.min(window.innerHeight - height - 8, rawY));
+
+    setFloatingPos({ x: clampedX, y: clampedY });
+
+    // Edge snapping thresholds
+    if (e.clientY < 65) {
+      setSnapTarget("top");
+    } else if (e.clientY > window.innerHeight - 80) {
+      setSnapTarget("bottom");
+    } else if (e.clientX < 80) {
+      setSnapTarget("left");
+    } else if (e.clientX > window.innerWidth - 80) {
+      setSnapTarget("right");
+    } else {
+      setSnapTarget(null);
+    }
+  };
+
+  const handlePointerUpGrip = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    setIsDragging(false);
+
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+
+    if (snapTarget) {
+      setFloatingPos(null);
+      onDockChange(snapTarget);
+      if (snapTarget === "left" || snapTarget === "right") {
+        setFloatingOrientation("vertical");
+      } else {
+        setFloatingOrientation("horizontal");
       }
-      aria-label="Drawing tools rail"
-    >
-      {/* Draggable Grip Handle */}
-      <div
-        className="tool-rail-drag-handle"
-        title="Drag toolbar anywhere (Double-click to reset to top)"
-        onPointerDown={handlePointerDownGrip}
-        onPointerMove={handlePointerMoveGrip}
-        onPointerUp={handlePointerUpGrip}
-        onDoubleClick={() => {
-          setFloatingPos(null);
-          onDockChange("top");
-        }}
+    }
+
+    dragStartRef.current = null;
+    setSnapTarget(null);
+  };
+
+  const toggleOrientation = useCallback(() => {
+    setFloatingOrientation((prev) => (prev === "vertical" ? "horizontal" : "vertical"));
+  }, []);
+
+  return (
+    <>
+      {/* Snap Preview Glowing Guideline */}
+      {isDragging && snapTarget && (
+        <div
+          className={`dock-snap-indicator dock-snap-${snapTarget}`}
+          aria-hidden="true"
+        />
+      )}
+
+      <nav
+        ref={railRef}
+        className="tool-rail"
+        data-dock={dockPosition}
+        data-orientation={isVertical ? "vertical" : "horizontal"}
+        data-dragging={isDragging ? "true" : "false"}
+        style={
+          dockPosition === "floating" && floatingPos
+            ? {
+                position: "fixed",
+                left: `${floatingPos.x}px`,
+                top: `${floatingPos.y}px`,
+                transform: "none",
+                zIndex: 35,
+              }
+            : undefined
+        }
+        aria-label="Drawing tools rail"
       >
-        <GripVertical size={14} />
-      </div>
+        {/* Draggable Grip Handle */}
+        <div
+          className="tool-rail-drag-handle"
+          title="Drag toolbar to float or snap to screen edges (Double-click to reset)"
+          onPointerDown={handlePointerDownGrip}
+          onPointerMove={handlePointerMoveGrip}
+          onPointerUp={handlePointerUpGrip}
+          onDoubleClick={() => {
+            if (dockPosition === "floating") {
+              setFloatingPos(null);
+              onDockChange("top");
+              setFloatingOrientation("horizontal");
+            } else if (dockPosition === "top" || dockPosition === "bottom") {
+              onDockChange("left");
+              setFloatingOrientation("vertical");
+            } else {
+              onDockChange("top");
+              setFloatingOrientation("horizontal");
+            }
+          }}
+        >
+          {isVertical ? <GripHorizontal size={14} /> : <GripVertical size={14} />}
+        </div>
 
-      {/* Tool Lock Button (keep tool active after drawing) */}
-      <button
-        type="button"
-        className="tool-button"
-        data-active={isToolLocked}
-        aria-label={`Keep selected tool active after drawing (${isToolLocked ? "Locked" : "Unlocked"}) (Q)`}
-        aria-pressed={isToolLocked}
-        title={`Keep selected tool active after drawing (${isToolLocked ? "Locked" : "Unlocked"}) (Q)`}
-        onClick={onToggleLock}
-      >
-        {isToolLocked ? (
-          <Lock aria-hidden="true" size={16} strokeWidth={2.2} />
-        ) : (
-          <Unlock aria-hidden="true" size={16} strokeWidth={1.8} />
-        )}
-        <span className="tool-tooltip">
-          {isToolLocked ? "Tool locked (Q)" : "Keep tool active (Q)"}
-        </span>
-      </button>
-
-      <div className="tool-rail-divider" aria-hidden="true" />
-
-      {tools.map(({ id, label, shortcut, icon: Icon }) => {
-        const isActive = activeTool === id;
-        return (
-          <button
-            key={id}
-            type="button"
-            className="tool-button"
-            data-active={isActive}
-            aria-label={`${label} tool (${shortcut})`}
-            aria-pressed={isActive}
-            onClick={() => onToolChange(id)}
-          >
-            <Icon aria-hidden="true" size={18} strokeWidth={isActive ? 2.2 : 1.8} />
-            <span className="tool-tooltip">
-              {label} ({shortcut})
-            </span>
-          </button>
-        );
-      })}
-
-      <div className="tool-rail-divider" aria-hidden="true" />
-
-      {/* Dock Position Switcher */}
-      <div className="dock-changer-container" ref={dockMenuRef}>
+        {/* Tool Lock Button (keep tool active after drawing) */}
         <button
           type="button"
-          className="dock-changer-btn"
-          aria-label="Change toolbar dock position"
-          title="Change dock position"
-          aria-expanded={isDockMenuOpen}
-          onClick={() => setIsDockMenuOpen((prev) => !prev)}
+          className="tool-button"
+          data-active={isToolLocked}
+          aria-label={`Keep selected tool active after drawing (${isToolLocked ? "Locked" : "Unlocked"}) (Q)`}
+          aria-pressed={isToolLocked}
+          onClick={onToggleLock}
         >
-          <LayoutGrid size={16} strokeWidth={1.8} />
-          <span className="tool-tooltip">Dock position</span>
+          {isToolLocked ? (
+            <Lock aria-hidden="true" size={16} strokeWidth={2.2} />
+          ) : (
+            <Unlock aria-hidden="true" size={16} strokeWidth={1.8} />
+          )}
+          <span className="tool-tooltip">
+            {isToolLocked ? "Tool locked (Q)" : "Keep tool active (Q)"}
+          </span>
         </button>
 
-        {isDockMenuOpen ? (
-          <div className="dock-popover" role="menu" aria-label="Dock positions">
-            <div className="dock-popover-title">Dock Position</div>
-            <div className="dock-options-grid">
-              {dockOptions.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  type="button"
-                  className="dock-option-btn"
-                  data-active={dockPosition === id}
-                  role="menuitem"
-                  onClick={() => {
-                    if (id === "floating") {
-                      if (!floatingPos) {
-                        const rect = railRef.current?.getBoundingClientRect();
-                        if (rect) {
-                          setFloatingPos({ x: rect.left, y: rect.top });
+        <div className="tool-rail-divider" aria-hidden="true" />
+
+        {/* Main Drawing Tools */}
+        {tools.map(({ id, label, shortcut, icon: Icon }) => {
+          const isActive = activeTool === id;
+          const shortcutKey = (mode === "document" && DOC_SHORTCUT_IDS[id] ? DOC_SHORTCUT_IDS[id] : WB_SHORTCUT_IDS[id]) || "";
+          const currentShortcut = (shortcutKey ? getShortcut(shortcutKey) : "") || shortcut;
+          return (
+            <button
+              key={id}
+              type="button"
+              className="tool-button"
+              data-active={isActive}
+              aria-label={`${label} tool (${currentShortcut})`}
+              aria-pressed={isActive}
+              onClick={() => onToolChange(id)}
+            >
+              <Icon aria-hidden="true" size={17} strokeWidth={isActive ? 2.2 : 1.8} />
+              <span className="tool-shortcut-badge" aria-hidden="true">
+                {currentShortcut}
+              </span>
+              <span className="tool-tooltip">
+                {label} ({currentShortcut})
+              </span>
+            </button>
+          );
+        })}
+
+        <div className="tool-rail-divider" aria-hidden="true" />
+
+        {/* Dock Position Switcher & Popover */}
+        <div className="dock-changer-container" ref={dockMenuRef}>
+          <button
+            type="button"
+            className="dock-changer-btn"
+            aria-label="Change toolbar dock position"
+            aria-expanded={isDockMenuOpen}
+            onClick={() => setIsDockMenuOpen((prev) => !prev)}
+          >
+            <LayoutGrid size={16} strokeWidth={1.8} />
+            <span className="tool-tooltip">Dock position</span>
+          </button>
+
+          {isDockMenuOpen ? (
+            <div className="dock-popover" role="menu" aria-label="Dock positions">
+              <div className="dock-popover-title">Dock Position</div>
+              <div className="dock-options-grid">
+                {dockOptions.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className="dock-option-btn"
+                    data-active={dockPosition === id}
+                    role="menuitem"
+                    onClick={() => {
+                      if (id === "floating") {
+                        if (!floatingPos) {
+                          const rect = railRef.current?.getBoundingClientRect();
+                          if (rect) {
+                            setFloatingPos({ x: rect.left, y: rect.top });
+                          }
+                        }
+                      } else {
+                        setFloatingPos(null);
+                        if (id === "left" || id === "right") {
+                          setFloatingOrientation("vertical");
+                        } else {
+                          setFloatingOrientation("horizontal");
                         }
                       }
-                    } else {
-                      setFloatingPos(null);
-                    }
-                    onDockChange(id);
-                    setIsDockMenuOpen(false);
+                      onDockChange(id);
+                      setIsDockMenuOpen(false);
+                    }}
+                  >
+                    <Icon size={14} />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Rotate Orientation Toggle (available when floating) */}
+              {dockPosition === "floating" && (
+                <button
+                  type="button"
+                  className="dock-option-btn"
+                  onClick={toggleOrientation}
+                  style={{
+                    width: "100%",
+                    marginTop: 4,
+                    gridColumn: "span 2",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 11,
+                    justifyContent: "center",
                   }}
+                  title="Toggle between horizontal and vertical layout"
                 >
-                  <Icon size={14} />
-                  <span>{label}</span>
+                  <RotateCw size={13} />
+                  <span>Rotate: {floatingOrientation === "vertical" ? "Vertical" : "Horizontal"}</span>
                 </button>
-              ))}
+              )}
             </div>
-          </div>
-        ) : null}
-      </div>
-    </nav>
+          ) : null}
+        </div>
+      </nav>
+    </>
   );
 }

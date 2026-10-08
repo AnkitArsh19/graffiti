@@ -20,13 +20,19 @@ spring.data.redis.password=${REDIS_PASSWORD:your_redis_password_here}
 # Google OAuth2 Client Configuration
 spring.security.oauth2.client.registration.google.client-id=${GOOGLE_CLIENT_ID:google-client-id-placeholder}
 spring.security.oauth2.client.registration.google.client-secret=${GOOGLE_CLIENT_SECRET:google-client-secret-placeholder}
-spring.security.oauth2.client.registration.google.scope=email,profile
+spring.security.oauth2.client.registration.google.scope=email,profile,https://www.googleapis.com/auth/drive.file
 
 # Server & App Properties
 server.port=8080
+# Trust reverse proxy headers (e.g. Cloudflare Tunnel) to correctly generate HTTPS redirect URIs
+server.forward-headers-strategy=framework
 
 app.jwt.secret=${JWT_SECRET:your_jwt_secret_key_at_least_256_bits_long_here}
 app.jwt.expiration-ms=86400000
+app.aiml.url=${AIML_SERVICE_URL:http://localhost:8000}
+app.aiml.timeout-ms=${AIML_REQUEST_TIMEOUT_MS:8000}
+app.upload.dir=${UPLOAD_DIR:./uploads}
+app.drive.enabled=${ENABLE_GOOGLE_DRIVE_EXPORT:false}
 
 app.compaction.op-threshold=50
 app.compaction.redis-lock-ttl-ms=30000

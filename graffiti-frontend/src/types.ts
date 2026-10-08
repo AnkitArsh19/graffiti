@@ -9,6 +9,13 @@ export type ToolId =
   | "arrow"
   | "text"
   | "sticky"
+  | "frame"
+  | "icon"
+  | "card"
+  | "code"
+  | "table"
+  | "deviceFrame"
+  | "image"
   | "eraser";
 
 export type ElementType = Exclude<ToolId, "select" | "hand" | "eraser">;
@@ -17,7 +24,7 @@ export type PaperTemplate = "blank" | "ruled" | "grid" | "dotted" | "cornell";
 export type DockPosition = "top" | "bottom" | "left" | "right" | "floating";
 export type ThemeMode = "dark" | "light" | "system";
 export type StrokeStyle = "solid" | "dashed" | "dotted";
-export type FillStyle = "solid" | "semi" | "hachure" | "cross-hatch" | "transparent";
+export type FillStyle = "solid" | "semi" | "hachure" | "cross-hatch" | "zigzag" | "dots" | "transparent";
 export type FontSize = "small" | "medium" | "large" | "xlarge";
 export type FontFamily = "rough" | "clean" | "mono";
 export type TextAlign = "left" | "center" | "right";
@@ -65,6 +72,17 @@ export interface CanvasElement {
   seed: number;
   startBinding?: PointBinding;
   endBinding?: PointBinding;
+  childrenIds?: string[];
+  iconFamily?: string;
+  svgPath?: string;
+  title?: string;
+  bodyText?: string;
+  cardTheme?: string;
+  language?: string;
+  columns?: Array<{ name: string; type?: string; key?: "pk" | "fk" | "" }>;
+  deviceType?: "browser" | "phone" | "tablet";
+  fileId?: string;
+  customData?: Record<string, unknown>;
 }
 
 export interface NotebookPage {
@@ -95,4 +113,5 @@ export interface ElementStyle {
   customFontSize?: number;
   fontFamily?: FontFamily;
   textAlign?: TextAlign;
+  opacity?: number;
 }

@@ -73,7 +73,7 @@ export const MoveModal: React.FC<MoveModalProps> = ({
                     setSelectedFolderId(null);
                   }}
                 >
-                  <Layers size={14} color={ws.color || "#4dabf7"} />
+                  <Layers size={14} color={ws.color || "#d4a359"} />
                   <span>{ws.name}</span>
                   {ws.id === selectedWorkspaceId && <Check size={14} className="check" />}
                 </button>
@@ -102,7 +102,7 @@ export const MoveModal: React.FC<MoveModalProps> = ({
                   className={`move-option-btn ${folder.id === selectedFolderId ? "active" : ""}`}
                   onClick={() => setSelectedFolderId(folder.id)}
                 >
-                  <FolderIcon size={14} color={folder.color || "#4dabf7"} />
+                  <FolderIcon size={14} color={folder.color || "#d4a359"} />
                   <span>{folder.name}</span>
                   {folder.id === selectedFolderId && <Check size={14} className="check" />}
                 </button>

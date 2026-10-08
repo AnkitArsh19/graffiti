@@ -37,6 +37,20 @@ public class FolderController {
         return ResponseEntity.ok(saved);
     }
 
+    @PatchMapping("/folders/{id}")
+    public ResponseEntity<Folder> updateFolder(@PathVariable("id") UUID id,
+                                               @RequestBody Map<String, String> body) {
+        return folderRepository.findById(id).map(f -> {
+            if (body.containsKey("name")) f.setName(body.get("name"));
+            if (body.containsKey("color")) f.setColor(body.get("color"));
+            if (body.containsKey("parentFolderId")) {
+                String p = body.get("parentFolderId");
+                f.setParentFolderId(p != null && !p.isBlank() ? UUID.fromString(p) : null);
+            }
+            return ResponseEntity.ok(folderRepository.save(f));
+        }).orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @DeleteMapping("/folders/{id}")
     public ResponseEntity<Void> deleteFolder(@PathVariable("id") UUID id) {
         folderRepository.deleteById(id);

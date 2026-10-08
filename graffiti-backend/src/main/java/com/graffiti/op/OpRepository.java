@@ -21,4 +21,5 @@ public interface OpRepository extends JpaRepository<Op, UUID> {
     Optional<Long> findMaxLamportTsByRoomId(@Param("roomId") UUID roomId);
 
     long countByRoomIdAndLamportTsGreaterThan(UUID roomId, Long lamportTs);
+    void deleteByRoomId(UUID roomId);
 }

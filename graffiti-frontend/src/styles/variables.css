@@ -1,0 +1,124 @@
+@font-face {
+  font-family: "Montserrat";
+  src: url("/fonts/Montserrat-VariableFont_wght.ttf") format("truetype-variations"),
+       url("/fonts/Montserrat-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("/fonts/Montserrat-Italic-VariableFont_wght.ttf") format("truetype-variations"),
+       url("/fonts/Montserrat-Italic-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Fallback aliases to ensure any saved elements referencing previous fonts render seamlessly with Montserrat */
+@font-face {
+  font-family: "Comic Relief";
+  src: url("/fonts/Montserrat-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Valley Sans";
+  src: url("/fonts/Montserrat-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fertigo 18";
+  src: url("/fonts/Montserrat-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ==========================================================================
+   Design System & Theme Tokens: Pure Pitch-Black Dark & Crisp Studio Light
+   Monochromatic black/white base with refined luxury golden accent
+   ========================================================================== */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-app: #09090b;
+  --bg-canvas: #09090b;
+  --bg-panel: rgba(18, 18, 20, 0.96);
+  --bg-panel-solid: #121214;
+  --bg-panel-hover: #1c1c1f;
+  --bg-subtle: rgba(255, 255, 255, 0.05);
+  --bg-surface: #18181b;
+  --bg-popover: #121214;
+
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-default: #27272a;
+  --border-strong: #3f3f46;
+
+  /* Refined warm gold accent */
+  --accent-primary: #d4a359;
+  --accent-hover: #c49246;
+  --accent-text: #09090b;
+  --accent-subtle: rgba(212, 163, 89, 0.15);
+  --accent-ring: rgba(212, 163, 89, 0.35);
+
+  --color-success: #22c55e;
+  --color-danger: #ef4444;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.65);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.85);
+
+  --selection-color: #d4a359;
+  --tooltip-bg: #18181b;
+  --tooltip-color: #f4f4f5;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-app: #ffffff;
+  --bg-canvas: #ffffff;
+  --bg-panel: rgba(255, 255, 255, 0.98);
+  --bg-panel-solid: #ffffff;
+  --bg-panel-hover: #f4f4f5;
+  --bg-subtle: #f4f4f5;
+  --bg-surface: #f4f4f5;
+  --bg-popover: #ffffff;
+
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
+
+  --border-subtle: #f4f4f5;
+  --border-default: #e4e4e7;
+  --border-strong: #d4d4d8;
+
+  /* Crisp high-contrast gold accent for light mode */
+  --accent-primary: #b47b18;
+  --accent-hover: #96640e;
+  --accent-text: #ffffff;
+  --accent-subtle: rgba(180, 123, 24, 0.12);
+  --accent-ring: rgba(180, 123, 24, 0.3);
+
+  --color-success: #16a34a;
+  --color-danger: #dc2626;
+
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 16px 36px rgba(0, 0, 0, 0.12);
+
+  --selection-color: #b47b18;
+  --tooltip-bg: #18181b;
+  --tooltip-color: #ffffff;
+}

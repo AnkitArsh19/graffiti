@@ -9,7 +9,7 @@ import {
 } from "../lib/colors";
 
 const STORAGE_CUSTOM_COLORS = "graffiti:custom_colors:v1";
-const DEFAULT_TOP_PICKS = ["#087f5b", "#182a4d", "#c92a2a", "#0c8599", "#ffffff"];
+const DEFAULT_TOP_PICKS = ["#d4a359", "#22c55e", "#ef4444", "#18181b", "#ffffff"];
 
 function loadRecentColors(): string[] {
   try {

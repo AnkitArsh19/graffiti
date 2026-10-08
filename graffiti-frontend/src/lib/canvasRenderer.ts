@@ -176,9 +176,9 @@ function getRoughOptions(
   const roughness = element.roughness ?? 0;
 
   const options: Options = {
-    seed: element.seed,
+    seed: element.seed || 1,
     stroke: strokeColor,
-    strokeWidth: element.strokeStyle !== "solid" ? element.strokeWidth + 0.5 : element.strokeWidth,
+    strokeWidth: element.strokeStyle !== "solid" ? (element.strokeWidth ?? 2) + 0.5 : (element.strokeWidth ?? 2),
     strokeLineDash,
     disableMultiStroke: element.strokeStyle !== "solid" || roughness === 0,
     roughness,
@@ -186,7 +186,7 @@ function getRoughOptions(
     preserveVertices: continuousPath || roughness < 2,
     fill: fillColor,
     fillStyle:
-      element.fillStyle === "hachure" || element.fillStyle === "cross-hatch"
+      element.fillStyle === "hachure" || element.fillStyle === "cross-hatch" || element.fillStyle === "zigzag" || element.fillStyle === "dots"
         ? element.fillStyle
         : "solid",
     fillWeight: Math.max(1, element.strokeWidth / 2),
@@ -296,7 +296,7 @@ export function drawShapeOnCanvas(
   isDarkMode: boolean,
 ) {
   const rc = rough.canvas(canvas);
-  const strokeColor = applyDarkModeFilter(element.strokeColor, isDarkMode, false);
+  const strokeColor = applyDarkModeFilter(element.strokeColor || (isDarkMode ? "#ffffff" : "#1e1e1e"), isDarkMode, false);
   const isSemi = element.fillStyle === "semi";
 
   context.save();
@@ -304,7 +304,7 @@ export function drawShapeOnCanvas(
   context.lineCap = "round";
 
   if (isSemi && element.backgroundColor && element.backgroundColor !== "transparent") {
-    context.globalAlpha = Math.max(0.05, (element.opacity / 100) * 0.45);
+    context.globalAlpha = Math.max(0.05, ((element.opacity ?? 100) / 100) * 0.45);
   }
 
   const options = getRoughOptions(element, isDarkMode);
@@ -324,6 +324,48 @@ export function drawShapeOnCanvas(
       } else {
         rc.draw(generator.rectangle(0, 0, w, h, options));
       }
+      break;
+    }
+    case "frame": {
+      const frameOptions = { ...options, fill: undefined, strokeLineDash: [8, 5] };
+      rc.draw(generator.rectangle(0, 0, element.width, element.height, frameOptions));
+      context.fillStyle = strokeColor;
+      context.font = "600 12px Inter, sans-serif";
+      context.fillText(element.title || "Frame", 8, 8);
+      break;
+    }
+    case "card":
+    case "code":
+    case "table":
+    case "deviceFrame": {
+      rc.draw(generator.rectangle(0, 0, element.width, element.height, options));
+      const header = element.type === "code" ? element.language || "code" : element.type === "table" ? element.title || "Table" : element.type === "deviceFrame" ? element.deviceType || "browser" : element.title || "Card";
+      context.save();
+      context.fillStyle = isDarkMode ? "rgba(255,255,255,.09)" : "rgba(15,23,42,.08)";
+      context.fillRect(0, 0, element.width, Math.min(30, element.height));
+      context.fillStyle = strokeColor;
+      context.font = element.type === "code" ? "12px monospace" : "600 13px Inter, sans-serif";
+      context.fillText(header, 10, 9);
+      if (element.type === "table") {
+        (element.columns || []).forEach((column, index) => {
+          const y = 42 + index * 20;
+          context.strokeStyle = isDarkMode ? "#444" : "#cbd5e1";
+          context.beginPath(); context.moveTo(0, y + 14); context.lineTo(element.width, y + 14); context.stroke();
+          context.fillText(`${column.key ? column.key.toUpperCase() + " " : ""}${column.name}${column.type ? ": " + column.type : ""}`, 10, y);
+        });
+      }
+      context.restore();
+      break;
+    }
+    case "icon": {
+      context.strokeStyle = strokeColor; context.fillStyle = strokeColor; context.lineWidth = element.strokeWidth;
+      if (element.svgPath) { try { context.fill(new Path2D(element.svgPath)); } catch { /* malformed imported SVG path */ } }
+      else { context.beginPath(); context.arc(element.width / 2, element.height / 2, Math.min(element.width, element.height) / 3, 0, Math.PI * 2); context.fill(); }
+      break;
+    }
+    case "image": {
+      context.strokeStyle = strokeColor; context.setLineDash([6, 4]); context.strokeRect(0, 0, element.width, element.height); context.setLineDash([]);
+      context.fillStyle = strokeColor; context.font = "12px Inter, sans-serif"; context.fillText("Image", 8, 8);
       break;
     }
     case "ellipse": {
@@ -556,21 +598,24 @@ export function renderCanvasElement(
   element: CanvasElement,
   isDarkMode: boolean,
 ) {
+  if (!element) return;
   context.save();
-  context.globalAlpha = Math.max(0.05, element.opacity / 100);
+  context.globalAlpha = Math.max(0.05, ((element.opacity ?? 100) / 100));
 
   if (element.type === "line" || element.type === "arrow" || element.type === "pen") {
-    context.translate(element.x, element.y);
+    context.translate(element.x ?? 0, element.y ?? 0);
     drawShapeOnCanvas(context, canvas, element, isDarkMode);
   } else {
     // 2D shapes: rotate around center!
-    const cx = element.x + element.width / 2;
-    const cy = element.y + element.height / 2;
+    const width = element.width ?? 1;
+    const height = element.height ?? 1;
+    const cx = (element.x ?? 0) + width / 2;
+    const cy = (element.y ?? 0) + height / 2;
     context.translate(cx, cy);
     if (element.angle) {
       context.rotate(element.angle);
     }
-    context.translate(-element.width / 2, -element.height / 2);
+    context.translate(-width / 2, -height / 2);
     drawShapeOnCanvas(context, canvas, element, isDarkMode);
   }
 
@@ -589,8 +634,8 @@ export function renderSelectionBox(
   theme: "dark" | "light",
 ) {
   context.save();
-  const selectionColor = theme === "dark" ? "#38bdf8" : "#2563eb";
-  const handleFill = theme === "dark" ? "#121212" : "#ffffff";
+  const selectionColor = theme === "dark" ? "#d4a359" : "#b47b18";
+  const handleFill = theme === "dark" ? "#09090b" : "#ffffff";
   const handles = getElementTransformHandles(element, zoom);
 
   // For line or arrow: render start, middle (curve), and end circle handles
@@ -605,8 +650,8 @@ export function renderSelectionBox(
       context.beginPath();
       context.arc(hx, hy, circleRadius, 0, Math.PI * 2);
       if (key === "pMid") {
-        context.fillStyle = theme === "dark" ? "#818cf8" : "#a5b4fc";
-        context.strokeStyle = theme === "dark" ? "#c7d2fe" : "#4f46e5";
+        context.fillStyle = theme === "dark" ? "#d4a359" : "#b47b18";
+        context.strokeStyle = selectionColor;
       } else {
         context.fillStyle = handleFill;
         context.strokeStyle = selectionColor;

@@ -2,8 +2,12 @@ package com.graffiti.redis;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.connection.Message;
+import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+
+import java.nio.charset.StandardCharsets;
 
 /**
  * Subscriber listening for Redis Pub/Sub messages across room channels.
@@ -13,7 +17,7 @@ import org.springframework.stereotype.Service;
  * connected at destination "/topic/rooms/{slug}".
  */
 @Service
-public class RedisMessageSubscriber {
+public class RedisMessageSubscriber implements MessageListener {
 
     private static final Logger log = LoggerFactory.getLogger(RedisMessageSubscriber.class);
     private final SimpMessagingTemplate messagingTemplate;
@@ -23,12 +27,26 @@ public class RedisMessageSubscriber {
     }
 
     /**
-     * Callback method invoked when a message is published onto a subscribed Redis topic.
-     *
-     * @param message Message payload string
-     * @param channel Source Redis channel name
+     * Native Redis MessageListener callback parsing raw byte arrays without serializer overhead.
+     */
+    @Override
+    public void onMessage(Message message, byte[] pattern) {
+        if (message == null || message.getBody() == null || message.getChannel() == null) {
+            return;
+        }
+        String body = new String(message.getBody(), StandardCharsets.UTF_8);
+        String channel = new String(message.getChannel(), StandardCharsets.UTF_8);
+        forwardMessage(body, channel);
+    }
+
+    /**
+     * Fallback method if called via String reflection.
      */
     public void onMessage(String message, String channel) {
+        forwardMessage(message, channel);
+    }
+
+    private void forwardMessage(String message, String channel) {
         log.debug("Received Redis message on channel {}: {}", channel, message);
         if (channel != null && channel.startsWith("room:")) {
             String[] parts = channel.split(":");

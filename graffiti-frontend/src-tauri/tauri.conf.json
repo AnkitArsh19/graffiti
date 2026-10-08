@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Graffiti",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "app.graffiti.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -11,8 +11,10 @@
   },
   "app": {
     "withGlobalTauri": true,
+    "macOSPrivateApi": true,
     "windows": [
       {
+        "label": "main",
         "title": "Graffiti",
         "width": 1440,
         "height": 900,
@@ -21,6 +23,19 @@
         "resizable": true,
         "fullscreen": false,
         "center": true
+      },
+      {
+        "label": "overlay",
+        "title": "Graffiti Overlay",
+        "url": "overlay.html",
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "fullscreen": true,
+        "visible": false,
+        "shadow": false
       }
     ],
     "security": {

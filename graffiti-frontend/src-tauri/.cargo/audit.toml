@@ -1,0 +1,10 @@
+# Configuration for cargo-audit / RustSec security advisories
+
+[advisories]
+ignore = [
+    # RUSTSEC-2024-0429 / GHSA-wrw7-89jp-8q8g: Unsound VariantStrIter::impl_get in glib < 0.20.0
+    # Transitive dependency via Tauri's Linux GTK3 backend (tauri -> gtk 0.18 -> glib 0.18.5).
+    # On Windows (WebView2) and macOS (WKWebView), glib is never compiled or executed.
+    # On Linux, the affected VariantStrIter iteration method is unreachable in Tauri/Graffiti.
+    "RUSTSEC-2024-0429",
+]

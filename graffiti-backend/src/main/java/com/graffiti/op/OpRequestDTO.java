@@ -1,21 +1,19 @@
 package com.graffiti.op;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
 /**
  * Data Transfer Object sent by clients over WebSocket mapping SEND /app/rooms/{slug}/op.
  */
 public class OpRequestDTO {
     private String shapeId;
     private OpType opType;
-    private JsonNode payload;
+    private Object payload;
     private Long lamportTs;
     private String authorId;
 
     public OpRequestDTO() {
     }
 
-    public OpRequestDTO(String shapeId, OpType opType, JsonNode payload, Long lamportTs, String authorId) {
+    public OpRequestDTO(String shapeId, OpType opType, Object payload, Long lamportTs, String authorId) {
         this.shapeId = shapeId;
         this.opType = opType;
         this.payload = payload;
@@ -39,11 +37,11 @@ public class OpRequestDTO {
         this.opType = opType;
     }
 
-    public JsonNode getPayload() {
+    public Object getPayload() {
         return payload;
     }
 
-    public void setPayload(JsonNode payload) {
+    public void setPayload(Object payload) {
         this.payload = payload;
     }
 

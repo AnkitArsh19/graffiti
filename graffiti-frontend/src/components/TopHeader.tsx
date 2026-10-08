@@ -10,9 +10,21 @@ import {
   X,
   Layers,
   Folder as FolderIcon,
-  Info,
+  FileText,
+  LogOut,
+  User,
+  Share2,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { Folder, Workspace } from "../storage/types";
+import { getFolderColor } from "./WorkspaceSidebar";
+
+interface CollaboratorCursor {
+  authorId: string;
+  name: string;
+  color: string;
+}
 
 interface TopHeaderProps {
   isSidebarOpen: boolean;
@@ -22,6 +34,15 @@ interface TopHeaderProps {
   whiteboardName: string;
   onRenameWhiteboard: (name: string) => void;
   isOnline: boolean;
+  onOpenOverlay?: () => void;
+  onAnnotateDocument?: () => void;
+  // Auth and collab props
+  user?: { name: string | null; email: string; avatarUrl: string | null } | null;
+  onLogout?: () => void;
+  isCollabConnected?: boolean;
+  collaborators?: CollaboratorCursor[];
+  onShareRoom?: () => void;
+  roomSlug?: string | null;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
@@ -32,10 +53,19 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   whiteboardName,
   onRenameWhiteboard,
   isOnline,
+  onOpenOverlay,
+  onAnnotateDocument,
+  user,
+  onLogout,
+  isCollabConnected,
+  collaborators = [],
+  onShareRoom,
+  roomSlug,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(whiteboardName);
   const [showAiPopover, setShowAiPopover] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   const handleSaveTitle = () => {
     if (tempTitle.trim()) {
@@ -54,6 +84,10 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       setIsEditingTitle(false);
     }
   };
+
+  const initials = user?.name
+    ? user.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
+    : user?.email?.slice(0, 2).toUpperCase() || "";
 
   return (
     <header className="top-header-bar">
@@ -83,7 +117,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 <FolderIcon
                   size={14}
                   className="breadcrumb-icon"
-                  color={activeFolder.color || "#4dabf7"}
+                  color={getFolderColor(activeFolder.color)}
                 />
                 <span className="breadcrumb-text">{activeFolder.name}</span>
               </div>
@@ -131,71 +165,120 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: Storage & Connectivity Status */}
+      {/* Right: Actions & Status */}
       <div className="header-right">
-        {/* Local Storage Indicator */}
-        <div
-          className="header-status-pill storage"
-          title="All changes are saved automatically to your device's local AppData"
-        >
-          <HardDrive size={13} />
-          <span>Local AppData</span>
-        </div>
+        {/* Collaborator Presence Strip */}
+        {collaborators.length > 0 && (
+          <div className="header-collab-strip">
+            {collaborators.slice(0, 5).map((c) => (
+              <div
+                key={c.authorId}
+                className="collab-avatar"
+                style={{ backgroundColor: c.color }}
+                title={c.name}
+              >
+                {c.name.charAt(0).toUpperCase()}
+              </div>
+            ))}
+            {collaborators.length > 5 && (
+              <div className="collab-avatar overflow">+{collaborators.length - 5}</div>
+            )}
+          </div>
+        )}
 
-        {/* Cloud Status */}
-        <div
-          className={`header-status-pill cloud ${isOnline ? "online" : "offline"}`}
-          title={
-            isOnline
-              ? "Online: Collaborative sync ready"
-              : "Offline: Zero cloud dependency, drawings remain private on your computer"
-          }
-        >
-          <Cloud size={13} />
-          <span>{isOnline ? "Cloud Sync Ready" : "Offline Mode"}</span>
-        </div>
+        {/* Share Button (for collab rooms) */}
+        {roomSlug && onShareRoom && (
+          <button type="button" className="header-status-btn share-btn" onClick={onShareRoom} title="Share this board">
+            <Share2 size={13} />
+            <span>Share</span>
+          </button>
+        )}
 
-        {/* AI Assist Gating Info */}
+        {onAnnotateDocument && (
+          <button type="button" className="header-status-btn" onClick={onAnnotateDocument} title="Annotate PDF, DOCX, or PPTX file">
+            <FileText size={13} />
+            <span>Annotate Doc</span>
+          </button>
+        )}
+
+        {onOpenOverlay && (
+          <button type="button" className="header-status-btn overlay-btn" onClick={onOpenOverlay} title="Toggle Transparent Screen Overlay (Ctrl+Shift+D)">
+            <Layers size={13} />
+            <span>Screen Overlay</span>
+          </button>
+        )}
+
+        {/* Connection Status */}
+        {roomSlug && (
+          <div className={`header-status-pill cloud ${isCollabConnected ? "online" : "offline"}`} title={isCollabConnected ? "Connected to collaboration server" : "Disconnected from server"}>
+            {isCollabConnected ? <Wifi size={13} /> : <WifiOff size={13} />}
+            <span>{isCollabConnected ? "Live" : "Offline"}</span>
+          </div>
+        )}
+
+        {!roomSlug && (
+          user ? (
+            <div className="header-status-pill cloud online" title={`Saved to Graffiti cloud servers (${user.email})`}>
+              <Cloud size={13} style={{ color: "#22c55e" }} />
+              <span>Saved to Server</span>
+            </div>
+          ) : (
+            <div className="header-status-pill storage" title="All changes are saved locally">
+              <HardDrive size={13} />
+              <span>Local AppData</span>
+            </div>
+          )
+        )}
+
+        {/* AI Assist */}
         <div className="ai-status-container">
-          <button
-            type="button"
-            className="header-status-pill ai-assist"
-            onClick={() => setShowAiPopover((prev) => !prev)}
-            title="AI Features & Offline Availability"
-          >
+          <button type="button" className="header-status-pill ai-assist" onClick={() => setShowAiPopover((prev) => !prev)} title="AI Features">
             <Sparkles size={13} />
             <span>AI Assist</span>
           </button>
-
           {showAiPopover && (
             <div className="ai-info-popover">
               <div className="ai-info-header">
                 <Sparkles size={15} />
                 <span>AI & Offline Features</span>
-                <button
-                  type="button"
-                  className="ai-info-close"
-                  onClick={() => setShowAiPopover(false)}
-                >
-                  <X size={14} />
-                </button>
+                <button type="button" className="ai-info-close" onClick={() => setShowAiPopover(false)}><X size={14} /></button>
               </div>
               <div className="ai-info-body">
-                <p>
-                  <strong>100% Offline:</strong> Infinite canvas, rough shapes, freehand drawing,
-                  sticky notes, multi-page notebooks, templates, and local exports require no
-                  internet.
-                </p>
+                <p><strong>100% Offline:</strong> Canvas drawing, notebooks, templates, and local exports require no internet.</p>
                 <div className="ai-info-divider" />
-                <p>
-                  <strong>Internet Required:</strong> Handwritten Math Solver (<code>=</code>),
-                  Canvas OCR Search (<code>Ctrl+F</code>), Circle-to-Edit, and Diagram Synthesis
-                  connect to the AI microservice when online.
-                </p>
+                <p><strong>Internet Required:</strong> Math Solver, Canvas OCR Search, Circle-to-Edit, and Diagram Synthesis connect to the AI microservice when online.</p>
               </div>
             </div>
           )}
         </div>
+
+        {/* User Avatar */}
+        {user && (
+          <div className="dashboard-user-menu-wrap">
+            <button type="button" className="dashboard-avatar-btn" onClick={() => setShowUserMenu((p) => !p)}>
+              {user.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" className="dashboard-avatar-img" />
+              ) : (
+                <span className="dashboard-avatar-initials">{initials}</span>
+              )}
+            </button>
+            {showUserMenu && (
+              <div className="dashboard-user-dropdown">
+                <div className="dropdown-user-info">
+                  <span className="dropdown-user-name">{user.name || "User"}</span>
+                  <span className="dropdown-user-email">{user.email}</span>
+                </div>
+                <div className="dropdown-divider" />
+                {onLogout && (
+                  <button type="button" className="dropdown-item" onClick={onLogout}>
+                    <LogOut size={14} />
+                    <span>Sign Out</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

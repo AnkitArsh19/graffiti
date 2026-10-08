@@ -35,6 +35,7 @@ import {
   screenToWorld,
   updateBoundArrows,
 } from "../lib/geometry";
+import type { CursorInfo } from "../collab/useCollaboration";
 import type {
   CanvasElement,
   ElementStyle,
@@ -78,6 +79,9 @@ interface EditingTextState {
 
 export interface WhiteboardCanvasHandle {
   exportPng: () => void;
+  getCanvas: () => HTMLCanvasElement | null;
+  getViewport: () => Viewport;
+  panTo: (worldX: number, worldY: number) => void;
   resetView: () => void;
   centerContent: () => void;
   zoomIn: () => void;
@@ -89,6 +93,7 @@ interface WhiteboardCanvasProps {
   pageTitle: string;
   template: PaperTemplate;
   elements: CanvasElement[];
+  pages?: Array<{ id: string; title?: string }>;
   activeTool: ToolId;
   selectedId: string | null;
   selectedIds?: string[];
@@ -102,8 +107,20 @@ interface WhiteboardCanvasProps {
   onDelete: (elementId: string) => void;
   onToolChange: (tool: ToolId) => void;
   onZoomChange?: (zoom: number) => void;
+  onViewportChange?: (viewport: Viewport) => void;
   onEditingTextChange?: (isEditing: boolean) => void;
   onStyleChange?: (style: Partial<ElementStyle>) => void;
+  cursors?: CursorInfo[];
+  onPointerWorldMove?: (worldX: number, worldY: number) => void;
+  ghostElements?: CanvasElement[];
+  remoteDrafts?: Array<{
+    authorId: string;
+    authorName: string;
+    color: string;
+    pageId?: string;
+    element: CanvasElement;
+  }>;
+  onStreamDraft?: (draft: CanvasElement | null) => void;
 }
 
 type PointerAction =
@@ -128,6 +145,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       pageTitle,
       template,
       elements,
+      pages = [],
       activeTool,
       selectedId,
       selectedIds: propSelectedIds,
@@ -141,8 +159,14 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       onDelete,
       onToolChange,
       onZoomChange,
+      onViewportChange,
       onEditingTextChange,
       onStyleChange,
+      cursors,
+      onPointerWorldMove,
+      ghostElements = [],
+      remoteDrafts = [],
+      onStreamDraft,
     },
     ref,
   ) {
@@ -150,13 +174,48 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const actionRef = useRef<PointerAction | null>(null);
 
-    const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
+    const [viewport, setViewport] = useState<Viewport>(() => {
+      try {
+        if (typeof window !== "undefined") {
+          const pageSaved = localStorage.getItem(`graffiti:viewport:${pageId}`);
+          if (pageSaved) {
+            const parsed = JSON.parse(pageSaved);
+            if (
+              typeof parsed.zoom === "number" &&
+              typeof parsed.scrollX === "number" &&
+              typeof parsed.scrollY === "number"
+            ) {
+              return parsed;
+            }
+          }
+          const globalSaved = localStorage.getItem("graffiti:viewport");
+          if (globalSaved) {
+            const parsed = JSON.parse(globalSaved);
+            if (
+              typeof parsed.zoom === "number" &&
+              typeof parsed.scrollX === "number" &&
+              typeof parsed.scrollY === "number"
+            ) {
+              return parsed;
+            }
+          }
+        }
+      } catch {}
+      return DEFAULT_VIEWPORT;
+    });
 
-    // Keep parent informed of zoom level
+    // Keep parent informed of zoom level & viewport and persist to local cache
     useEffect(() => {
       onZoomChange?.(viewport.zoom);
-    }, [viewport.zoom, onZoomChange]);
+      onViewportChange?.(viewport);
+      try {
+        const serialized = JSON.stringify(viewport);
+        localStorage.setItem(`graffiti:viewport:${pageId}`, serialized);
+        localStorage.setItem("graffiti:viewport", serialized);
+      } catch {}
+    }, [viewport, pageId, onZoomChange, onViewportChange]);
 
+    const draftRef = useRef<CanvasElement | null>(null);
     const [draft, setDraft] = useState<CanvasElement | null>(null);
     const [moving, setMoving] = useState<CanvasElement | null>(null);
     const [movingMap, setMovingMap] = useState<Map<string, CanvasElement> | null>(null);
@@ -318,6 +377,21 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
     useImperativeHandle(
       ref,
       () => ({
+        getCanvas() {
+          return canvasRef.current;
+        },
+        getViewport() {
+          return viewport;
+        },
+        panTo(worldX: number, worldY: number) {
+          const cx = canvasSize.width / 2;
+          const cy = canvasSize.height / 2;
+          setViewport((prev) => ({
+            ...prev,
+            scrollX: cx / prev.zoom - worldX,
+            scrollY: cy / prev.zoom - worldY,
+          }));
+        },
         exportPng() {
           const canvas = canvasRef.current;
           if (!canvas) return;
@@ -527,6 +601,33 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         renderCanvasElement(context, canvas, normalized, theme === "dark");
       }
 
+      // Real-time collaborator streaming drafts (live strokes & dragging shapes)
+      if (remoteDrafts && remoteDrafts.length > 0) {
+        remoteDrafts.forEach((rd) => {
+          if (!rd?.element) return;
+          // If the board has multiple distinct pages, only skip if rd.pageId explicitly points to a different known page
+          const isOtherKnownPage = Boolean(
+            pages &&
+              pages.length > 1 &&
+              rd.pageId &&
+              pageId &&
+              rd.pageId !== pageId &&
+              pages.some((p) => p.id === rd.pageId),
+          );
+          if (isOtherKnownPage) return;
+          const normalized = rd.element.type === "pen" ? normalizePenElement(rd.element) : rd.element;
+          renderCanvasElement(context, canvas, normalized, theme === "dark");
+        });
+      }
+
+      ghostElements.forEach((ghost) => {
+        context.save();
+        context.globalAlpha = 0.4;
+        const normalized = ghost.type === "pen" ? normalizePenElement(ghost) : ghost;
+        renderCanvasElement(context, canvas, normalized, theme === "dark");
+        context.restore();
+      });
+
       // Multi-selection box or single element selection box with transform handles
       if (selectedIds.length > 1 && activeTool === "select") {
         const selectedElements = elements
@@ -542,7 +643,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           const maxY = Math.max(...ys) + 8;
 
           context.save();
-          context.strokeStyle = theme === "dark" ? "#38bdf8" : "#2563eb";
+          context.strokeStyle = theme === "dark" ? "#d4a359" : "#b47b18";
           context.lineWidth = 1.5 / viewport.zoom;
           context.setLineDash([4 / viewport.zoom, 4 / viewport.zoom]);
           context.strokeRect(minX, minY, maxX - minX, maxY - minY);
@@ -575,7 +676,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
               return;
             }
             context.fillStyle =
-              theme === "dark" ? "rgba(56, 189, 248, 0.45)" : "rgba(37, 99, 235, 0.45)";
+              theme === "dark" ? "rgba(212, 163, 89, 0.45)" : "rgba(180, 123, 24, 0.45)";
             context.beginPath();
             context.arc(anc.x, anc.y, 3.5 / viewport.zoom, 0, Math.PI * 2);
             context.fill();
@@ -587,16 +688,16 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       // Glowing snap indicator
       if (hoveredAnchor) {
         context.save();
-        context.strokeStyle = theme === "dark" ? "#38bdf8" : "#2563eb";
+        context.strokeStyle = theme === "dark" ? "#d4a359" : "#b47b18";
         context.fillStyle =
-          theme === "dark" ? "rgba(56, 189, 248, 0.28)" : "rgba(37, 99, 235, 0.22)";
+          theme === "dark" ? "rgba(212, 163, 89, 0.28)" : "rgba(180, 123, 24, 0.22)";
         context.lineWidth = 2 / viewport.zoom;
         context.beginPath();
         context.arc(hoveredAnchor.x, hoveredAnchor.y, 8 / viewport.zoom, 0, Math.PI * 2);
         context.fill();
         context.stroke();
 
-        context.fillStyle = theme === "dark" ? "#38bdf8" : "#2563eb";
+        context.fillStyle = theme === "dark" ? "#d4a359" : "#b47b18";
         context.beginPath();
         context.arc(hoveredAnchor.x, hoveredAnchor.y, 3 / viewport.zoom, 0, Math.PI * 2);
         context.fill();
@@ -606,14 +707,14 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       // Marquee box selection
       if (selectionBox) {
         context.fillStyle =
-          theme === "dark" ? "rgba(56, 189, 248, 0.12)" : "rgba(37, 99, 235, 0.1)";
+          theme === "dark" ? "rgba(212, 163, 89, 0.12)" : "rgba(180, 123, 24, 0.1)";
         context.fillRect(
           selectionBox.x,
           selectionBox.y,
           selectionBox.width,
           selectionBox.height,
         );
-        context.strokeStyle = theme === "dark" ? "#38bdf8" : "#2563eb";
+        context.strokeStyle = theme === "dark" ? "#d4a359" : "#b47b18";
         context.lineWidth = 1 / viewport.zoom;
         context.setLineDash([4 / viewport.zoom, 4 / viewport.zoom]);
         context.strokeRect(
@@ -630,9 +731,13 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       canvasSize,
       draft,
       elements,
+      ghostElements,
       hoveredAnchor,
       moving,
       movingMap,
+      pageId,
+      pages,
+      remoteDrafts,
       selectedId,
       selectedIds,
       selectionBox,
@@ -730,6 +835,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         viewport.scrollY,
         viewport.zoom,
       );
+      onPointerWorldMove?.(world.x, world.y);
 
       // Middle click or Hand tool initiates canvas pan
       if (event.button === 1 || activeTool === "hand") {
@@ -902,8 +1008,10 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         nextDraft.width = 160;
         nextDraft.height = 120;
       }
+      draftRef.current = nextDraft;
       setDraft(nextDraft);
       actionRef.current = { mode: "draw", startWorld: world };
+      onStreamDraft?.(nextDraft);
     };
 
     const onDoubleClick = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -1064,11 +1172,13 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           });
           setMovingMap(map);
         } else if (action.original) {
-          setMoving({
+          const nextMoving = {
             ...action.original,
             x: action.original.x + dx,
             y: action.original.y + dy,
-          });
+          };
+          setMoving(nextMoving);
+          onStreamDraft?.(nextMoving);
         }
         return;
       }
@@ -1240,13 +1350,15 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           newY = finalCy - newH / 2;
         }
 
-        setMoving({
+        const nextMoving = {
           ...orig,
           x: newX,
           y: newY,
           width: newW,
           height: newH,
-        });
+        };
+        setMoving(nextMoving);
+        onStreamDraft?.(nextMoving);
         return;
       }
 
@@ -1256,73 +1368,79 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       }
 
       if (action.mode === "draw") {
-        setDraft((current) => {
-          if (!current) return null;
+        const current = draftRef.current || draft;
+        if (!current) return;
 
-          if (current.type === "pen") {
-            const localPoint = {
-              x: world.x - action.startWorld.x,
-              y: world.y - action.startWorld.y,
-              pressure: world.pressure,
-            };
-            const rawPoints = [...(current.points ?? []), localPoint];
-            const xs = rawPoints.map((p) => p.x);
-            const ys = rawPoints.map((p) => p.y);
-            const minX = Math.min(...xs);
-            const minY = Math.min(...ys);
-            const maxX = Math.max(...xs);
-            const maxY = Math.max(...ys);
+        let updated: CanvasElement | null = null;
+        if (current.type === "pen") {
+          const localPoint = {
+            x: world.x - action.startWorld.x,
+            y: world.y - action.startWorld.y,
+            pressure: world.pressure,
+          };
+          const rawPoints = [...(current.points ?? []), localPoint];
+          const xs = rawPoints.map((p) => p.x);
+          const ys = rawPoints.map((p) => p.y);
+          const minX = Math.min(...xs);
+          const minY = Math.min(...ys);
+          const maxX = Math.max(...xs);
+          const maxY = Math.max(...ys);
 
-            return {
-              ...current,
-              points: rawPoints,
-              width: Math.max(maxX - minX, 2),
-              height: Math.max(maxY - minY, 2),
-            };
+          updated = {
+            ...current,
+            points: rawPoints,
+            width: Math.max(maxX - minX, 2),
+            height: Math.max(maxY - minY, 2),
+          };
+        } else if (current.type === "line" || current.type === "arrow") {
+          let targetWorld = world;
+          let endBinding = current.endBinding;
+          const snap = findClosestAnchorPoint(world, elements, current.id, 24);
+          if (snap) {
+            targetWorld = { x: snap.anchor.x, y: snap.anchor.y };
+            endBinding = { elementId: snap.anchor.elementId, pointId: snap.anchor.id };
+            setHoveredAnchor(snap.anchor);
+          } else {
+            endBinding = undefined;
+            setHoveredAnchor(null);
           }
 
-          if (current.type === "line" || current.type === "arrow") {
-            let targetWorld = world;
-            let endBinding = current.endBinding;
-            const snap = findClosestAnchorPoint(world, elements, current.id, 24);
-            if (snap) {
-              targetWorld = { x: snap.anchor.x, y: snap.anchor.y };
-              endBinding = { elementId: snap.anchor.elementId, pointId: snap.anchor.id };
-              setHoveredAnchor(snap.anchor);
-            } else {
-              endBinding = undefined;
-              setHoveredAnchor(null);
-            }
-
-            const dx = targetWorld.x - current.x;
-            const dy = targetWorld.y - current.y;
-            return {
-              ...current,
-              endBinding,
-              width: Math.max(Math.abs(dx), 1),
-              height: Math.max(Math.abs(dy), 1),
-              points: [
-                { x: 0, y: 0 },
-                { x: dx / 2, y: dy / 2 },
-                { x: dx, y: dy },
-              ],
-            };
-          }
-
+          const dx = targetWorld.x - current.x;
+          const dy = targetWorld.y - current.y;
+          updated = {
+            ...current,
+            endBinding,
+            width: Math.max(Math.abs(dx), 1),
+            height: Math.max(Math.abs(dy), 1),
+            points: [
+              { x: 0, y: 0 },
+              { x: dx / 2, y: dy / 2 },
+              { x: dx, y: dy },
+            ],
+          };
+        } else {
           // Box shapes (rectangle, ellipse, diamond)
           const box = normalizeBox(action.startWorld, world);
-          return {
+          updated = {
             ...current,
             x: box.x,
             y: box.y,
             width: Math.max(box.width, 1),
             height: Math.max(box.height, 1),
           };
-        });
+        }
+
+        if (updated) {
+          draftRef.current = updated;
+          setDraft(updated);
+          onStreamDraft?.(updated);
+        }
+        return;
       }
     };
 
     const finishPointerAction = (event?: ReactPointerEvent<HTMLCanvasElement>) => {
+      onStreamDraft?.(null);
       if (event?.currentTarget && event?.pointerId !== undefined) {
         try {
           event.currentTarget.releasePointerCapture(event.pointerId);
@@ -1355,13 +1473,15 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         setMoving(null);
       }
 
-      if (draft) {
+      const finishedDraft = draftRef.current || draft;
+      if (finishedDraft) {
         // Pen tool pointer-up: commit stroke, KEEP pen active without switching to select
-        if (draft.type === "pen") {
-          if ((draft.points?.length ?? 0) > 1) {
-            const normalized = normalizePenElement(draft);
+        if (finishedDraft.type === "pen") {
+          if ((finishedDraft.points?.length ?? 0) > 1) {
+            const normalized = normalizePenElement(finishedDraft);
             onCommit(normalized);
           }
+          draftRef.current = null;
           setDraft(null);
           setMoving(null);
           setMovingMap(null);
@@ -1372,13 +1492,13 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         }
 
         // Text tool pointer-up: bounded text box if dragged, single click if clicked
-        if (draft.type === "text") {
-          const isBounded = draft.width > 20 && draft.height > 20;
+        if (finishedDraft.type === "text") {
+          const isBounded = finishedDraft.width > 20 && finishedDraft.height > 20;
           setEditingText({
-            x: draft.x,
-            y: draft.y,
-            width: isBounded ? Math.max(draft.width, 100) : undefined,
-            height: isBounded ? Math.max(draft.height, 40) : undefined,
+            x: finishedDraft.x,
+            y: finishedDraft.y,
+            width: isBounded ? Math.max(finishedDraft.width, 100) : undefined,
+            height: isBounded ? Math.max(finishedDraft.height, 40) : undefined,
             text: "",
             fontSize: elementStyle.fontSize || "medium",
             textAlign: elementStyle.textAlign || "left",
@@ -1387,6 +1507,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
             type: "text",
             isBounded,
           });
+          draftRef.current = null;
           setDraft(null);
           setMoving(null);
           setSelectionBox(null);
@@ -1399,34 +1520,36 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         }
 
         const canCommit =
-          draft.type === "sticky" ||
-          draft.width > 4 ||
-          draft.height > 4;
+          finishedDraft.type === "sticky" ||
+          finishedDraft.width > 4 ||
+          finishedDraft.height > 4;
 
         if (canCommit) {
-          onCommit(draft);
-          updateSelection([draft.id]);
+          onCommit(finishedDraft);
+          updateSelection([finishedDraft.id]);
           if (!isToolLocked) {
             onToolChange("select");
           }
-          if (draft.type === "sticky") {
+          if (finishedDraft.type === "sticky") {
             setEditingText({
-              id: draft.id,
-              x: draft.x,
-              y: draft.y,
-              width: draft.width,
-              height: draft.height,
-              text: draft.text ?? "",
-              fontSize: draft.fontSize || "medium",
-              textAlign: draft.textAlign || "left",
-              strokeColor: draft.strokeColor,
+              id: finishedDraft.id,
+              x: finishedDraft.x,
+              y: finishedDraft.y,
+              width: finishedDraft.width,
+              height: finishedDraft.height,
+              text: finishedDraft.text ?? "",
+              fontSize: finishedDraft.fontSize || "medium",
+              textAlign: finishedDraft.textAlign || "left",
+              strokeColor: finishedDraft.strokeColor,
               type: "sticky",
-              backgroundColor: draft.backgroundColor,
+              backgroundColor: finishedDraft.backgroundColor,
               isBounded: true,
             });
           }
         }
       }
+
+      draftRef.current = null;
 
       if (selectionBox) {
         const normBox = {
@@ -1515,6 +1638,54 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
             onBlur={commitInlineText}
           />
         ) : null}
+        {/* Remote collaborator cursors */}
+        {cursors &&
+          cursors.map((c) => {
+            const screenX = (c.x + viewport.scrollX) * viewport.zoom;
+            const screenY = (c.y + viewport.scrollY) * viewport.zoom;
+            return (
+              <div
+                key={c.authorId}
+                className="remote-cursor-indicator"
+                style={{
+                  position: "absolute",
+                  left: `${screenX}px`,
+                  top: `${screenY}px`,
+                  pointerEvents: "none",
+                  zIndex: 35,
+                  transform: "translate(-2px, -2px)",
+                  transition: "left 0.04s ease-out, top 0.04s ease-out",
+                }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M5.65376 12.3673H5.46026L5.31717 12.4976L0.500002 16.8829L0.500002 1.19841L11.7841 12.3673H5.65376Z"
+                    fill={c.color}
+                    stroke="#ffffff"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+                <span
+                  className="remote-cursor-label"
+                  style={{
+                    backgroundColor: c.color,
+                    color: "#ffffff",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                    marginLeft: "12px",
+                    marginTop: "-8px",
+                    display: "inline-block",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {c.name}
+                </span>
+              </div>
+            );
+          })}
       </div>
     );
   },

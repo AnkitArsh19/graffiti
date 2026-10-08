@@ -1,7 +1,5 @@
 package com.graffiti.presence;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
 /**
  * Data Transfer Object for ephemeral user presence events (cursor coordinates, active selections, laser pointer trails).
  *
@@ -10,12 +8,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 public class PresenceMessageDTO {
     private String authorId;
     private String type; // Presence event type (e.g. "cursor", "selection", "laser")
-    private JsonNode payload; // Coordinates and cursor metadata JSON
+    private Object payload; // Coordinates and cursor metadata JSON
 
     public PresenceMessageDTO() {
     }
 
-    public PresenceMessageDTO(String authorId, String type, JsonNode payload) {
+    public PresenceMessageDTO(String authorId, String type, Object payload) {
         this.authorId = authorId;
         this.type = type;
         this.payload = payload;
@@ -37,11 +35,11 @@ public class PresenceMessageDTO {
         this.type = type;
     }
 
-    public JsonNode getPayload() {
+    public Object getPayload() {
         return payload;
     }
 
-    public void setPayload(JsonNode payload) {
+    public void setPayload(Object payload) {
         this.payload = payload;
     }
 }

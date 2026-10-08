@@ -28,10 +28,10 @@ Graffiti runs as a **fully self-contained, native desktop application** on Windo
 
 | Platform | Format | Status & Download Link |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (x64)** | `.exe` Setup / Portable `.exe` | [Download Windows Release (v0.1.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
-| **macOS (Apple Silicon M-Series)** | `.dmg` Installer / `.app` | [Download macOS ARM64 Release (v0.1.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
-| **macOS (Intel x64)** | `.dmg` Installer / `.app` | [Download macOS Intel Release (v0.1.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
-| **Linux (x64)** | `.AppImage` / `.deb` | [Download Linux Release (v0.1.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
+| **Windows 10 / 11 (x64)** | `.exe` Setup (Recommended) | [Download Graffiti_0.2.0_x64-setup.exe](https://github.com/AnkitArsh19/graffiti/releases/download/v0.2.0/Graffiti_0.2.0_x64-setup.exe) / [Latest Release](https://github.com/AnkitArsh19/graffiti/releases/latest) |
+| **macOS (Apple Silicon M-Series)** | `.dmg` Installer / `.app` | [Download macOS ARM64 Release (v0.2.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
+| **macOS (Intel x64)** | `.dmg` Installer / `.app` | [Download macOS Intel Release (v0.2.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
+| **Linux (x64)** | `.AppImage` / `.deb` | [Download Linux Release (v0.2.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
 
 ### Direct Local Execution (From This Repository)
 
@@ -107,20 +107,30 @@ If you have this repository locally, the compiled desktop application executable
 
 ## Key Highlights
 
-1. **Deterministic CRDT Engine**: Last-Writer-Wins Element-Set reducer ensuring commutative and idempotent multi-user convergence without central locks.
+1. **Deterministic CRDT Engine & Sub-16ms Live Streaming**:
+   - Last-Writer-Wins Element-Set reducer ensuring commutative and idempotent multi-user convergence without central locks.
+   - **Real-Time In-Progress Stroke Streaming**: Pen ink flows and shapes expand continuously across collaborator screens as pointers move, streamed ephemerally over Redis Pub/Sub before permanent durable commit.
+   - **Resilient Connection Watchdog**: Dual-layer heartbeats (20s STOMP + 4s presence keepalive) and automated reconnection watchdog with offline operation queuing.
+   - **Collaborator Presence & Quick-Join**: Interactive Live status menu with participant count, room code copy, quick-join modal, and graceful leave with automatic owner reassignment.
 2. **Multi-Page Notebook & Classroom Presentation**:
    - **Multi-Page Deck (`pages`)**: Bottom page-bar, slide drawer, page reordering, and duplication (`Ctrl+Shift+D`).
    - **Paper Background Templates**: Ruled/Lined (28px handwriting), Grid (20×20 math), Dotted (24px sketch), Cornell notes, and Blank canvas.
    - **Teacher Follow-Me Mode**: Synchronized page flipping (`TEACHER_PAGE_SYNC`) over Redis Pub/Sub.
-3. **Cloud Export & Sharing**: Multi-page PDF compilation (`.pdf`), Markdown lecture notes (`.md`), and 1-click Google Drive upload with instant public share link.
-4. **Native Cross-Platform Desktop (Tauri v2)**:
+3. **Cloud Export, Google Drive & Presentation**:
+   - Multi-page PDF compilation (`.pdf`), Markdown lecture notes (`.md`), and direct PNG vector exports.
+   - **Google Drive Multi-Account Manager**: Connect multiple accounts, browse folders, search files, import slides/docs directly onto the board, and export with instant public share links.
+   - **Multi-Format Document Presentation Studio**: Open and annotate PDF (`pdfjs-dist`), Word (`.docx`), PowerPoint (`.pptx`), Markdown, Code, and Images, exporting back to annotated PDF, PPTX, or Images.
+4. **Native Cross-Platform Desktop & Screen Overlay (Tauri v2)**:
    - Lightweight (~12MB) hardware-accelerated desktop binary for Windows (10/11), macOS, and Linux.
+   - **Transparent Desktop Screen Overlay (`F6` / `Ctrl+Shift+O`)**: Fullscreen transparent annotation mode with Win32 click-through cursor tracking and live STOMP sync for presentations, Zoom, and code walkthroughs.
+   - **Deep-linking & Seamless Browser Handoff**: `graffiti://` custom protocol handler and session polling for one-click browser sign-in without token exposure.
    - Native frameless window with macOS traffic lights & vibrancy glassmorphism / Windows 11 Mica material.
    - Native OS system menu bar integration (`File`, `Edit`, `View`, `Tools`, `Help`) and local offline `.graffiti` file associations.
-5. **Layout & Productivity Superpowers**:
+5. **Layout, Navigation & Customization Superpowers**:
    - **Sticky Note Presets (`N`)**: Instant pastel brainstorm notes (`#fff3bf`, `#d0ebff`, `#d3f9d8`, `#ffdeeb`, `#f3d9fa`, `#ffe8cc`) with auto-centered text.
    - **Navigation Minimap (`Alt+M`)**: Scaled overview thumbnail with draggable viewport frame and click-to-pan.
    - **"Tidy Up" Auto-Alignment (`Ctrl+Alt+T`)**: Multi-shape geometry engine organizing scattered selections into clean grids, columns, or rows with 24px spacing.
+   - **Customizable Shortcuts Engine**: Configure custom keybindings and mouse buttons (including M4/M5) across whiteboard, overlay, document, and general workflows.
 6. **Multimodal AI Whiteboard Assistance**:
    - **Diagram-to-Code / Wireframe-to-Code (`MagicFrame`)**: Multimodal AI vision converting hand-drawn wireframes and sketches into live, interactive HTML/CSS code streamed directly into an embedded iframe.
    - **Conversational Text-to-Diagram (TTD) Streaming**: Multi-turn chat streaming generating structured Mermaid flowchart syntax and real-time previews via Server-Sent Events.

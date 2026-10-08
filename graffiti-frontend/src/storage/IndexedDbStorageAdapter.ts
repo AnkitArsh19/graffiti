@@ -84,7 +84,7 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
         workspaceId: defaultWorkspace.id,
         parentFolderId: null,
         name: "Quick Sketches",
-        color: "#fa5252",
+        color: "#d4a359",
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -229,7 +229,7 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
     workspaceId: string,
     name: string,
     parentFolderId: string | null = null,
-    color = "#4dabf7",
+    color = "#d4a359",
   ): Promise<Folder> {
     const folder: Folder = {
       id: crypto.randomUUID(),

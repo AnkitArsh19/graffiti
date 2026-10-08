@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Graffiti Overlay</title>
+    <style>
+      *, *::before, *::after {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html, body, #overlay-root {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background: transparent !important;
+        background-color: transparent !important;
+        user-select: none;
+        -webkit-user-select: none;
+        color-scheme: dark;
+      }
+    </style>
+  </head>
+  <body style="background: transparent !important; background-color: transparent !important;">
+    <div id="overlay-root" style="background: transparent !important; background-color: transparent !important;"></div>
+    <script type="module" src="/src/overlay-main.tsx"></script>
+  </body>
+</html>

@@ -1,7 +1,7 @@
 {
   "name": "graffiti-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,22 +10,36 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build"
+    "desktop:build": "tauri build",
+    "bump-version": "node ../scripts/bump-version.js"
   },
   "dependencies": {
+    "@stomp/stompjs": "^7.3.0",
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-opener": "^2.7.0",
+    "@types/jszip": "^3.4.0",
+    "docx-preview": "^0.4.1",
+    "html2canvas": "^1.4.1",
+    "jszip": "^3.10.2",
     "lucide-react": "1.41.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299",
     "perfect-freehand": "^1.2.3",
+    "pptxgenjs": "^4.0.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-router-dom": "^7.18.4",
     "roughjs": "4.6.6",
     "tinycolor2": "^1.6.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
+    "@tauri-apps/plugin-global-shortcut": "^2.4.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
     "@types/tinycolor2": "^1.4.6",
     "@vitejs/plugin-react": "6.1.1",
+    "jsdom": "^30.1.2",
     "typescript": "7.0.2",
     "vite": "8.2.2",
     "vitest": "5.0.0"

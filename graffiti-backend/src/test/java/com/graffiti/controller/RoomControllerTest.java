@@ -27,6 +27,9 @@ class RoomControllerTest {
     private RoomRepository roomRepository;
 
     @Autowired
+    private com.graffiti.roommember.RoomMemberRepository roomMemberRepository;
+
+    @Autowired
     private UserService userService;
 
     @Autowired
@@ -38,12 +41,13 @@ class RoomControllerTest {
     @BeforeEach
     void setUp() {
         opRepository.deleteAll();
+        roomMemberRepository.deleteAll();
         roomRepository.deleteAll();
     }
 
     @Test
     void testCreateRoomAnonymous() {
-        ResponseEntity<CreateRoomResponse> response = roomController.createRoom(null);
+        ResponseEntity<CreateRoomResponse> response = roomController.createRoom(null, null);
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody().getSlug());
     }
@@ -74,7 +78,7 @@ class RoomControllerTest {
         AuthResponse authResp = userService.register(regReq);
         assertNotNull(authResp.getToken());
 
-        ResponseEntity<CreateRoomResponse> createResp = roomController.createRoom(null);
+        ResponseEntity<CreateRoomResponse> createResp = roomController.createRoom(null, null);
         assertEquals(HttpStatus.OK, createResp.getStatusCode());
         String slug = createResp.getBody().getSlug();
 
@@ -108,5 +112,29 @@ class RoomControllerTest {
         assertNotNull(response.getBody());
         assertEquals(1, response.getBody().size());
         assertEquals("shape_sync", response.getBody().get(0).getShapeId());
+    }
+
+    @Test
+    void testLeaveRoomReassignsOwnership() {
+        java.util.UUID user1Id = java.util.UUID.randomUUID();
+        java.util.UUID user2Id = java.util.UUID.randomUUID();
+
+        Room room = new Room("leave-test-slug", user1Id);
+        roomRepository.save(room);
+
+        com.graffiti.roommember.RoomMember member1 = new com.graffiti.roommember.RoomMember(room.getId(), user1Id, com.graffiti.roommember.Role.OWNER);
+        com.graffiti.roommember.RoomMember member2 = new com.graffiti.roommember.RoomMember(room.getId(), user2Id, com.graffiti.roommember.Role.EDITOR);
+        roomMemberRepository.save(member1);
+        roomMemberRepository.save(member2);
+
+        ResponseEntity<java.util.Map<String, Object>> response = roomController.leaveRoom("leave-test-slug", user1Id, null);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("left", response.getBody().get("status"));
+        assertEquals(true, response.getBody().get("wasOwner"));
+        assertEquals(user2Id.toString(), response.getBody().get("newOwnerId"));
+
+        // Verify room owner in database is now user2
+        Room updated = roomRepository.findBySlug("leave-test-slug").orElseThrow();
+        assertEquals(user2Id, updated.getOwnerId());
     }
 }

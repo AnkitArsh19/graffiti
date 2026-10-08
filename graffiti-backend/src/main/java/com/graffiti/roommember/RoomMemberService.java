@@ -21,11 +21,6 @@ public class RoomMemberService {
 
     /**
      * Adds or updates a user's membership role within a room.
-     *
-     * @param roomId Target room ID
-     * @param userId Target user ID
-     * @param role Membership role (OWNER, EDITOR, VIEWER)
-     * @return Saved RoomMember entity
      */
     @Transactional
     public RoomMember addOrUpdateMember(UUID roomId, UUID userId, Role role) {
@@ -36,11 +31,15 @@ public class RoomMemberService {
     }
 
     /**
+     * Removes a member from a room.
+     */
+    @Transactional
+    public void removeMember(UUID roomId, UUID userId) {
+        roomMemberRepository.deleteByRoomIdAndUserId(roomId, userId);
+    }
+
+    /**
      * Finds a user's specific role in a room.
-     *
-     * @param roomId Target room ID
-     * @param userId Target user ID
-     * @return Optional Role enum
      */
     public Optional<Role> getUserRoleInRoom(UUID roomId, UUID userId) {
         return roomMemberRepository.findByRoomIdAndUserId(roomId, userId)
@@ -49,9 +48,6 @@ public class RoomMemberService {
 
     /**
      * Lists all registered members in a room.
-     *
-     * @param roomId Target room ID
-     * @return List of RoomMember entities
      */
     public List<RoomMember> getMembersByRoom(UUID roomId) {
         return roomMemberRepository.findByRoomId(roomId);

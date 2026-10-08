@@ -8,5 +8,6 @@ package com.graffiti.op;
  */
 public enum OpType {
     CREATE_OR_UPDATE,
-    DELETE
+    DELETE,
+    AI_REQUEST
 }

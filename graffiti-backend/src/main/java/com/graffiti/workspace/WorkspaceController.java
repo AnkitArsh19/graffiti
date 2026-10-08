@@ -40,6 +40,17 @@ public class WorkspaceController {
         return ResponseEntity.ok(saved);
     }
 
+    @PatchMapping("/{id}")
+    public ResponseEntity<Workspace> updateWorkspace(@PathVariable("id") UUID id,
+                                                     @RequestBody Map<String, String> body) {
+        return workspaceRepository.findById(id).map(ws -> {
+            if (body.containsKey("name")) ws.setName(body.get("name"));
+            if (body.containsKey("description")) ws.setDescription(body.get("description"));
+            if (body.containsKey("color")) ws.setColor(body.get("color"));
+            return ResponseEntity.ok(workspaceRepository.save(ws));
+        }).orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteWorkspace(@PathVariable("id") UUID id) {
         workspaceRepository.deleteById(id);
