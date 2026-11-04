@@ -19,12 +19,11 @@ def _heuristic_hierarchy(nodes: List[MindMapNodeInput]) -> Dict[str, Any]:
     if not nodes:
         return {"rootId": None, "hierarchy": [], "relationships": []}
     
-    # Pick root: prefer node with shortest text or broadest term, or first node
+    # 1. Identify central root node: prefer node with root/system/architecture keywords, or shortest title
     scored = []
     for idx, n in enumerate(nodes):
         txt = (n.text or "").strip()
-        # Common root keywords get highest priority
-        is_hub = any(k in txt.lower() for k in ["core", "root", "architecture", "system", "overview", "project", "app"])
+        is_hub = any(k in txt.lower() for k in ["core", "root", "architecture", "system", "overview", "project", "app", "main", "hub"])
         score = (100 if is_hub else 0) - len(txt)
         scored.append((score, idx, n))
     scored.sort(key=lambda x: x[0], reverse=True)
@@ -32,29 +31,14 @@ def _heuristic_hierarchy(nodes: List[MindMapNodeInput]) -> Dict[str, Any]:
     root_id = root_node.id
 
     hierarchy = [{"id": root_id, "parentId": None, "depth": 0, "order": 0}]
-    relationships = []
+    relationships: List[MindMapRelationship] = []
 
     remaining = [n for n in nodes if n.id != root_id]
     
-    # Divide into branches (level 1) and leaves (level 2) if more than 4 nodes
-    if len(remaining) <= 4:
-        for idx, n in enumerate(remaining):
-            hierarchy.append({"id": n.id, "parentId": root_id, "depth": 1, "order": idx})
-            relationships.append(MindMapRelationship(sourceId=root_id, targetId=n.id, label="includes"))
-    else:
-        # First 3-4 are main branches, rest are attached to them
-        num_branches = min(4, max(2, int(math.ceil(len(remaining) / 3))))
-        branches = remaining[:num_branches]
-        leaves = remaining[num_branches:]
-
-        for b_idx, b in enumerate(branches):
-            hierarchy.append({"id": b.id, "parentId": root_id, "depth": 1, "order": b_idx})
-            relationships.append(MindMapRelationship(sourceId=root_id, targetId=b.id, label="category"))
-
-        for l_idx, leaf in enumerate(leaves):
-            parent_branch = branches[l_idx % len(branches)]
-            hierarchy.append({"id": leaf.id, "parentId": parent_branch.id, "depth": 2, "order": l_idx})
-            relationships.append(MindMapRelationship(sourceId=parent_branch.id, targetId=leaf.id, label="detail"))
+    # Connect all remaining child nodes to the central root node
+    for idx, n in enumerate(remaining):
+        hierarchy.append({"id": n.id, "parentId": root_id, "depth": 1, "order": idx})
+        relationships.append(MindMapRelationship(sourceId=root_id, targetId=n.id, label="branch"))
 
     return {
         "rootId": root_id,
@@ -143,144 +127,222 @@ def compute_mindmap_layout(
     anchor_x: Optional[float] = None,
     anchor_y: Optional[float] = None
 ) -> MindMapAutoLayoutResponse:
-    """Calculates non-overlapping coordinates in a balanced two-sided horizontal mind-map tree."""
+    """
+    Calculates non-overlapping coordinates in a balanced bidirectional mind-map tree:
+    1. Places central root node at anchor.
+    2. Symmetrically distributes child nodes (half on the right, half on the left) with clean vertical spacing.
+    3. Generates curved connector arrows from the central root node to each child node.
+    """
     if not nodes:
         return MindMapAutoLayoutResponse(nodes=[], connectors=[], relationships=[])
 
-    node_map = {n.id: n.model_dump() for n in nodes}
-    root_id = hierarchy_data.get("rootId") or nodes[0].id
+    node_map: Dict[str, Dict[str, Any]] = {n.id: n.model_dump() for n in nodes}
+    root_id = hierarchy_data.get("rootId")
+    if not root_id or root_id not in node_map:
+        root_id = nodes[0].id
 
-    # Compute origin anchor: default to centroid of selected nodes
+    # Compute origin anchor: centroid of selected nodes
     if anchor_x is None:
         anchor_x = sum(n.x for n in nodes) / len(nodes)
     if anchor_y is None:
         anchor_y = sum(n.y for n in nodes) / len(nodes)
 
-    # Position Root Node at center
-    root_node = node_map.get(root_id, nodes[0].model_dump())
-    root_w = root_node.get("width") or 180.0
-    root_h = root_node.get("height") or 80.0
-    root_x = anchor_x - (root_w / 2)
-    root_y = anchor_y - (root_h / 2)
+    # 1. Position central root node at exact center
+    root_node = node_map[root_id]
+    root_w = float(root_node.get("width") or 180.0)
+    root_h = float(root_node.get("height") or 80.0)
+    root_x = anchor_x - (root_w / 2.0)
+    root_y = anchor_y - (root_h / 2.0)
 
     root_node["x"] = root_x
     root_node["y"] = root_y
-    root_node["strokeWidth"] = 3
+    root_node["strokeWidth"] = 3.0
     root_node["roughness"] = 1.0
 
-    # Build parent -> children tree
+    # 2. Build parent -> children map from hierarchy
     children_by_parent: Dict[str, List[str]] = {}
     for h in hierarchy_data.get("hierarchy", []):
         p_id = h.get("parentId")
         c_id = h.get("id")
-        if p_id and c_id and c_id != root_id:
+        if p_id and c_id and c_id != root_id and c_id in node_map:
             children_by_parent.setdefault(p_id, []).append(c_id)
 
-    # If root has no children registered, make all other nodes direct children
-    if root_id not in children_by_parent:
-        children_by_parent[root_id] = [n.id for n in nodes if n.id != root_id]
+    # Collect direct children of root
+    direct_children = list(children_by_parent.get(root_id, []))
 
-    # Partition direct branches into Right (50%) and Left (50%) sides
-    main_branches = children_by_parent.get(root_id, [])
-    half = int(math.ceil(len(main_branches) / 2))
-    right_branches = main_branches[:half]
-    left_branches = main_branches[half:]
+    # Ensure every non-root node in node_map is accounted for
+    all_assigned = {root_id}
+    for p_id, c_list in children_by_parent.items():
+        all_assigned.update(c_list)
+    for n in nodes:
+        if n.id not in all_assigned:
+            direct_children.append(n.id)
+            all_assigned.add(n.id)
+
+    # 3. Distribute direct child nodes symmetrically: half on Right, half on Left
+    right_branches: List[str] = []
+    left_branches: List[str] = []
+    for idx, c_id in enumerate(direct_children):
+        if idx % 2 == 0:
+            right_branches.append(c_id)
+        else:
+            left_branches.append(c_id)
 
     updated_nodes: List[Dict[str, Any]] = [root_node]
     connectors: List[Dict[str, Any]] = []
+    generated_relationships: List[MindMapRelationship] = []
 
-    def layout_branch(child_ids: List[str], side: str, depth: int, parent_x: float, parent_y: float, parent_w: float, parent_h: float, parent_id: str):
-        total = len(child_ids)
-        spacing_y = 120.0
-        horizontal_gap = 140.0
+    horizontal_gap = 160.0
+    spacing_y = 130.0
 
-        for i, c_id in enumerate(child_ids):
+    def layout_side(side_ids: List[str], side: str):
+        k = len(side_ids)
+        if k == 0:
+            return
+
+        total_span_y = (k - 1) * spacing_y
+        start_center_y = (root_y + root_h / 2.0) - (total_span_y / 2.0)
+
+        for i, c_id in enumerate(side_ids):
             c_node = node_map.get(c_id)
             if not c_node:
                 continue
-            c_w = c_node.get("width") or 160.0
-            c_h = c_node.get("height") or 70.0
+            c_w = float(c_node.get("width") or 160.0)
+            c_h = float(c_node.get("height") or 70.0)
 
-            # Vertical offset centered on parent
-            y_offset = (i - (total - 1) / 2) * spacing_y
-            target_y = parent_y + (parent_h / 2) - (c_h / 2) + y_offset
+            branch_center_y = start_center_y + i * spacing_y
+            target_y = branch_center_y - (c_h / 2.0)
 
             if side == "right":
-                target_x = parent_x + parent_w + horizontal_gap
+                target_x = root_x + root_w + horizontal_gap
                 start_pt_id = "right"
                 end_pt_id = "left"
-                arrow_start_x = parent_x + parent_w
+                arrow_start_x = root_x + root_w
                 arrow_end_x = target_x
             else:
-                target_x = parent_x - c_w - horizontal_gap
+                target_x = root_x - c_w - horizontal_gap
                 start_pt_id = "left"
                 end_pt_id = "right"
-                arrow_start_x = parent_x
+                arrow_start_x = root_x
                 arrow_end_x = target_x + c_w
 
-            arrow_start_y = parent_y + parent_h / 2
-            arrow_end_y = target_y + c_h / 2
+            arrow_start_y = root_y + root_h / 2.0
+            arrow_end_y = branch_center_y
 
             c_node["x"] = target_x
             c_node["y"] = target_y
             updated_nodes.append(c_node)
 
             # Generate aesthetic curved connector arrow
-            arrow_id = f"connector_{parent_id}_{c_id}_{uuid.uuid4().hex[:6]}"
+            arrow_id = f"connector_{root_id}_{c_id}_{uuid.uuid4().hex[:6]}"
+            dx = arrow_end_x - arrow_start_x
+            dy = arrow_end_y - arrow_start_y
+            mid_x = dx * 0.5
+            mid_y = dy * 0.5
+
             connector = {
                 "id": arrow_id,
                 "type": "arrow",
                 "x": arrow_start_x,
                 "y": arrow_start_y,
-                "width": abs(arrow_end_x - arrow_start_x),
-                "height": abs(arrow_end_y - arrow_start_y),
+                "width": max(1.0, abs(dx)),
+                "height": max(1.0, abs(dy)),
                 "points": [
                     {"x": 0.0, "y": 0.0},
-                    {"x": arrow_end_x - arrow_start_x, "y": arrow_end_y - arrow_start_y}
+                    {"x": mid_x, "y": mid_y},
+                    {"x": dx, "y": dy}
                 ],
-                "startBinding": {"elementId": parent_id, "pointId": start_pt_id},
+                "startBinding": {"elementId": root_id, "pointId": start_pt_id},
                 "endBinding": {"elementId": c_id, "pointId": end_pt_id},
                 "arrowType": "curved",
-                "strokeColor": "#6366f1" if depth == 1 else "#a855f7",
-                "strokeWidth": 2.0 if depth == 1 else 1.5,
+                "strokeColor": "#6366f1" if side == "right" else "#8b5cf6",
+                "strokeWidth": 2.0,
                 "strokeStyle": "solid",
                 "endArrowhead": "arrow",
-                "roughness": 0.8,
+                "roughness": 0.6,
                 "opacity": 0.9,
                 "seed": random.randint(1000, 99999)
             }
             connectors.append(connector)
+            generated_relationships.append(
+                MindMapRelationship(sourceId=root_id, targetId=c_id, label="branch")
+            )
 
-            # Layout sub-children (depth 2)
+            # Symmetrically position any depth-2 sub-children of this branch
             sub_children = children_by_parent.get(c_id, [])
-            if sub_children:
-                layout_branch(sub_children, side, depth + 1, target_x, target_y, c_w, c_h, c_id)
+            sub_k = len(sub_children)
+            if sub_k > 0:
+                sub_span_y = (sub_k - 1) * 90.0
+                sub_start_y = branch_center_y - (sub_span_y / 2.0)
 
-    # Layout right and left sides
-    layout_branch(right_branches, "right", 1, root_x, root_y, root_w, root_h, root_id)
-    layout_branch(left_branches, "left", 1, root_x, root_y, root_w, root_h, root_id)
+                for j, sub_id in enumerate(sub_children):
+                    sub_node = node_map.get(sub_id)
+                    if not sub_node:
+                        continue
+                    sub_w = float(sub_node.get("width") or 150.0)
+                    sub_h = float(sub_node.get("height") or 60.0)
+                    sub_center_y = sub_start_y + j * 90.0
+                    sub_target_y = sub_center_y - (sub_h / 2.0)
 
-    # Deduplicate in case any node wasn't in hierarchy
-    placed_ids = {n["id"] for n in updated_nodes}
-    unplaced = [node_map[nid] for nid in node_map if nid not in placed_ids]
-    for idx, un in enumerate(unplaced):
-        un["x"] = root_x + (idx + 1) * 200.0
-        un["y"] = root_y + root_h + 150.0
-        updated_nodes.append(un)
+                    if side == "right":
+                        sub_target_x = target_x + c_w + (horizontal_gap * 0.85)
+                        sub_arrow_start_x = target_x + c_w
+                        sub_arrow_end_x = sub_target_x
+                        sub_start_pt = "right"
+                        sub_end_pt = "left"
+                    else:
+                        sub_target_x = target_x - sub_w - (horizontal_gap * 0.85)
+                        sub_arrow_start_x = target_x
+                        sub_arrow_end_x = sub_target_x + sub_w
+                        sub_start_pt = "left"
+                        sub_end_pt = "right"
 
-    relationships = [
-        MindMapRelationship(**r) if isinstance(r, dict) else r
-        for r in hierarchy_data.get("relationships", [])
-    ]
+                    sub_node["x"] = sub_target_x
+                    sub_node["y"] = sub_target_y
+                    updated_nodes.append(sub_node)
+
+                    sub_dx = sub_arrow_end_x - sub_arrow_start_x
+                    sub_dy = sub_center_y - branch_center_y
+                    sub_connector = {
+                        "id": f"connector_{c_id}_{sub_id}_{uuid.uuid4().hex[:6]}",
+                        "type": "arrow",
+                        "x": sub_arrow_start_x,
+                        "y": branch_center_y,
+                        "width": max(1.0, abs(sub_dx)),
+                        "height": max(1.0, abs(sub_dy)),
+                        "points": [
+                            {"x": 0.0, "y": 0.0},
+                            {"x": sub_dx * 0.5, "y": sub_dy * 0.5},
+                            {"x": sub_dx, "y": sub_dy}
+                        ],
+                        "startBinding": {"elementId": c_id, "pointId": sub_start_pt},
+                        "endBinding": {"elementId": sub_id, "pointId": sub_end_pt},
+                        "arrowType": "curved",
+                        "strokeColor": "#a855f7",
+                        "strokeWidth": 1.5,
+                        "strokeStyle": "solid",
+                        "endArrowhead": "arrow",
+                        "roughness": 0.6,
+                        "opacity": 0.85,
+                        "seed": random.randint(1000, 99999)
+                    }
+                    connectors.append(sub_connector)
+                    generated_relationships.append(
+                        MindMapRelationship(sourceId=c_id, targetId=sub_id, label="detail")
+                    )
+
+    # Execute symmetrical layout on both Right and Left sides
+    layout_side(right_branches, "right")
+    layout_side(left_branches, "left")
 
     return MindMapAutoLayoutResponse(
         success=True,
         rootNodeId=root_id,
         nodes=updated_nodes,
         connectors=connectors,
-        relationships=relationships,
+        relationships=generated_relationships,
         aiProvider=hierarchy_data.get("aiProvider", "groq-llama-3.1-70b-versatile"),
-        summary=f"Organized {len(updated_nodes)} nodes into clean hierarchical mind-map around '{root_node.get('text', 'Root')}'."
+        summary=f"Organized {len(updated_nodes)} nodes into symmetrical balanced bidirectional mind-map around '{root_node.get('text', 'Central Theme')}'."
     )
 
 

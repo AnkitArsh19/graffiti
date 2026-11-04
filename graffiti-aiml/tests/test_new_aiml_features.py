@@ -26,14 +26,25 @@ def test_mindmap_auto_layout():
     data = res.json()
     assert data["success"] is True
     assert len(data["nodes"]) == 4
+    # Root node should be identified and centered
+    root_node = next(n for n in data["nodes"] if n["id"] == data["rootNodeId"])
+    assert root_node["id"] == "node_1"
+    
+    # Verify symmetrical bidirectional placement (children on both right and left)
+    right_nodes = [n for n in data["nodes"] if n["id"] != root_node["id"] and n["x"] > root_node["x"]]
+    left_nodes = [n for n in data["nodes"] if n["id"] != root_node["id"] and n["x"] < root_node["x"]]
+    assert len(right_nodes) >= 1
+    assert len(left_nodes) >= 1
+
     # Mindmap must generate connector lines
     assert len(data["connectors"]) >= 3
-    # Verify connectors have valid arrow element properties
+    # Verify connectors have valid arrow element properties and curved styling
     for conn in data["connectors"]:
         assert conn["type"] == "arrow"
+        assert conn["arrowType"] == "curved"
         assert "startBinding" in conn
         assert "endBinding" in conn
-        assert "points" in conn
+        assert len(conn["points"]) >= 2
 
 
 def test_flowchart_to_code():
