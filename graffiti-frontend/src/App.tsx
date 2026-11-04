@@ -41,6 +41,10 @@ import {
   LogIn,
   Copy,
   Check,
+  GitBranch,
+  Code2,
+  Palette,
+  Activity,
 } from "lucide-react";
 
 const DESKTOP_VERSION = "0.2.0";
@@ -59,6 +63,11 @@ import { Minimap } from "./components/Minimap";
 import { CanvasSearch } from "./components/CanvasSearch";
 import { VoiceCommander } from "./components/VoiceCommander";
 import { TextToDiagramPanel } from "./components/TextToDiagramPanel";
+import { MindMapPanel } from "./components/MindMapPanel";
+import { FlowchartToCodePanel } from "./components/FlowchartToCodePanel";
+import { NotebookBriefingWidget } from "./components/NotebookBriefingWidget";
+import { ThemeMorphPanel } from "./components/ThemeMorphPanel";
+import { FlowSimulatorPanel } from "./components/FlowSimulatorPanel";
 import { GoogleDriveExportModal } from "./components/GoogleDriveExportModal";
 import { DesktopAuthModal } from "./components/DesktopAuthModal";
 import { SettingsModal } from "./components/SettingsModal";
@@ -258,6 +267,12 @@ export default function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [isDiagramOpen, setIsDiagramOpen] = useState(false);
+  const [isMindMapOpen, setIsMindMapOpen] = useState(false);
+  const [isFlowchartToCodeOpen, setIsFlowchartToCodeOpen] = useState(false);
+  const [isNotebookBriefingOpen, setIsNotebookBriefingOpen] = useState(false);
+  const [isThemeMorphOpen, setIsThemeMorphOpen] = useState(false);
+  const [isFlowSimulatorOpen, setIsFlowSimulatorOpen] = useState(false);
+  const [simulatedActiveNodeId, setSimulatedActiveNodeId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<Viewport>({ zoom: 1, scrollX: 0, scrollY: 0 });
 
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -2044,6 +2059,97 @@ export default function App() {
     }
   };
 
+  // --- AI Feature Helpers ---
+  const handleApplyMindMapLayout = (updatedNodes: CanvasElement[], connectors: CanvasElement[]) => {
+    const nodeMap = new Map(updatedNodes.map((n) => [n.id, n]));
+    const updatedPageElements = activePage.elements.map((el) => {
+      const match = nodeMap.get(el.id);
+      if (match) {
+        return {
+          ...el,
+          x: match.x,
+          y: match.y,
+          width: match.width || el.width,
+          height: match.height || el.height,
+        };
+      }
+      return el;
+    });
+
+    const styledConnectors: CanvasElement[] = connectors.map((c) => ({
+      ...c,
+      pageId: activePage.id,
+    }));
+
+    commitElements([...updatedPageElements, ...styledConnectors]);
+  };
+
+  const handleApplyTheme = (updatedElements: CanvasElement[]) => {
+    const updatedMap = new Map(updatedElements.map((e) => [e.id, e]));
+    const updatedPageElements = activePage.elements.map((el) => {
+      const match = updatedMap.get(el.id);
+      if (match) {
+        return {
+          ...el,
+          strokeColor: match.strokeColor ?? el.strokeColor,
+          backgroundColor: match.backgroundColor ?? el.backgroundColor,
+          strokeWidth: match.strokeWidth ?? el.strokeWidth,
+          strokeStyle: match.strokeStyle ?? el.strokeStyle,
+          fillStyle: match.fillStyle ?? el.fillStyle,
+          roughness: match.roughness ?? el.roughness,
+          fontFamily: match.fontFamily ?? el.fontFamily,
+        };
+      }
+      return el;
+    });
+
+    commitElements(updatedPageElements);
+  };
+
+  const captureCanvasPng = async (): Promise<string> => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1600;
+    canvas.height = 1000;
+    const context = canvas.getContext("2d");
+    if (!context) return "";
+    context.fillStyle = theme === "dark" ? "#09090b" : "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    activePage.elements.forEach((element) => renderCanvasElement(context, canvas, element, theme === "dark"));
+    return canvas.toDataURL("image/png");
+  };
+
+  const extractActivePageText = (): string => {
+    return activePage.elements
+      .map((e) => e.text || (e as any).title || (e as any).bodyText || "")
+      .filter((t: string) => t.trim().length > 0)
+      .join("\n");
+  };
+
+  const handleAddAiSticky = (text: string, bgColor: string = "#fef08a") => {
+    const newSticky: CanvasElement = {
+      id: createId("sticky"),
+      pageId: activePage.id,
+      type: "sticky",
+      x: 300 + Math.random() * 80,
+      y: 250 + Math.random() * 80,
+      width: 220,
+      height: 140,
+      text,
+      backgroundColor: bgColor,
+      strokeColor: "#ca8a04",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      fillStyle: "solid",
+      roughness: 0,
+      opacity: 100,
+      roundness: "round",
+      fontSize: "small",
+      textAlign: "left",
+      seed: createSeed(),
+    };
+    commitElements([newSticky]);
+  };
+
   const exportToGoogleDrive = () => {
     setIsExportOpen(false);
     setDriveModalMode("export");
@@ -2290,6 +2396,71 @@ export default function App() {
                 >
                   <Wand2 size={14} style={{ color: selectedElement ? "var(--accent-primary)" : "var(--text-muted)" }} />
                   <span>Beautify Selection</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="dropdown-item-btn"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsMindMapOpen(true);
+                    setIsToolsOpen(false);
+                  }}
+                >
+                  <GitBranch size={14} style={{ color: "#818cf8" }} />
+                  <span>Mind-Map Layout AI</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="dropdown-item-btn"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsFlowchartToCodeOpen(true);
+                    setIsToolsOpen(false);
+                  }}
+                >
+                  <Code2 size={14} style={{ color: "#34d399" }} />
+                  <span>Convert Diagram to Code</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="dropdown-item-btn"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsNotebookBriefingOpen((prev) => !prev);
+                    setIsToolsOpen(false);
+                  }}
+                >
+                  <FileText size={14} style={{ color: "#fbbf24" }} />
+                  <span>Executive Briefing</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="dropdown-item-btn"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsThemeMorphOpen(true);
+                    setIsToolsOpen(false);
+                  }}
+                >
+                  <Palette size={14} style={{ color: "#f472b6" }} />
+                  <span>AI Theme & Aesthetics</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="dropdown-item-btn"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsFlowSimulatorOpen(true);
+                    setIsToolsOpen(false);
+                  }}
+                >
+                  <Activity size={14} style={{ color: "#38bdf8" }} />
+                  <span>Flow Simulator</span>
                 </button>
               </div>
             )}
@@ -3215,6 +3386,8 @@ export default function App() {
             });
           }
         }}
+        onInsertStoryboardElements={(els) => commitElements(els.map((e) => ({ ...e, pageId: activePage.id })))}
+        existingElements={activePage.elements}
       />
 
       {/* Text-to-Diagram Panel */}
@@ -3225,6 +3398,54 @@ export default function App() {
         onInsertElements={commitElements}
         onRequestAiDiagram={(p) => {
           sendAiRequest(createId("diagram"), { feature: "diagram", prompt: p });
+        }}
+      />
+
+      {/* Mind-Map Auto-Layout Panel */}
+      <MindMapPanel
+        isOpen={isMindMapOpen}
+        onClose={() => setIsMindMapOpen(false)}
+        elements={activePage.elements}
+        selectedIds={selectedIds}
+        onApplyLayout={handleApplyMindMapLayout}
+      />
+
+      {/* Flowchart-to-Code Panel */}
+      <FlowchartToCodePanel
+        isOpen={isFlowchartToCodeOpen}
+        onClose={() => setIsFlowchartToCodeOpen(false)}
+        onCaptureCanvasImage={captureCanvasPng}
+        onInsertCodeSnippet={handleAddAiSticky}
+      />
+
+      {/* Live Executive Briefing Widget */}
+      <NotebookBriefingWidget
+        isOpen={isNotebookBriefingOpen}
+        onClose={() => setIsNotebookBriefingOpen(false)}
+        pageTitle={activePage.title}
+        getTextContent={extractActivePageText}
+        onAddStickyNote={handleAddAiSticky}
+      />
+
+      {/* AI Theme & Aesthetic Morphing Panel */}
+      <ThemeMorphPanel
+        isOpen={isThemeMorphOpen}
+        onClose={() => setIsThemeMorphOpen(false)}
+        elements={activePage.elements}
+        onApplyTheme={handleApplyTheme}
+      />
+
+      {/* Spatial Logic & Flow Simulator Panel */}
+      <FlowSimulatorPanel
+        isOpen={isFlowSimulatorOpen}
+        onClose={() => setIsFlowSimulatorOpen(false)}
+        elements={activePage.elements}
+        onHighlightElement={(id) => {
+          setSimulatedActiveNodeId(id);
+          if (id) {
+            setSelectedId(id);
+            setSelectedIds([id]);
+          }
         }}
       />
 

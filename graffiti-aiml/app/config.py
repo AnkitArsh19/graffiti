@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     groq_api_key: Optional[str] = None
     groq_model: str = "llama-3.1-70b-versatile"
     groq_fast_model: str = "llama-3.1-8b-instant"
+
+    # Backward compatibility with existing mock fallbacks (strictly None to enforce free APIs only)
+    openai_api_key: Optional[str] = None
+    anthropic_api_key: Optional[str] = None
     
     # Backend Integration
     backend_url: str = "http://localhost:8080"

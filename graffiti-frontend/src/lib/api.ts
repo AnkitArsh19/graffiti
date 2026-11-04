@@ -593,3 +593,90 @@ export function getWebSocketUrl(): string {
 }
 
 export { API_BASE };
+
+/**
+ * Python AI/ML Service Base URL (FREE Google Gemini & Groq microservice)
+ */
+export function getAimlBaseUrl(): string {
+  if (import.meta.env.VITE_AIML_URL) {
+    return import.meta.env.VITE_AIML_URL;
+  }
+  return "http://localhost:8000";
+}
+
+export async function apiAutoLayoutMindmap(payload: {
+  elements: any[];
+  anchorX?: number;
+  anchorY?: number;
+  preferredModel?: "groq" | "gemini" | "auto";
+}) {
+  const res = await fetch(`${getAimlBaseUrl()}/v1/ai/mindmap/auto-layout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<any>(res);
+}
+
+export async function apiConvertFlowchartToCode(payload: {
+  image: string;
+  targetLanguage?: "both" | "python" | "nodejs";
+}) {
+  const res = await fetch(`${getAimlBaseUrl()}/v1/ai/flowchart/to-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<any>(res);
+}
+
+export async function apiSummarizeNotebook(payload: {
+  text: string;
+  pageTitle?: string;
+  maxTokens?: number;
+}) {
+  const res = await fetch(`${getAimlBaseUrl()}/v1/ai/notebook/summarize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<any>(res);
+}
+
+export async function apiMorphTheme(payload: {
+  themePrompt: string;
+  elements: any[];
+  applyToBackground?: boolean;
+}) {
+  const res = await fetch(`${getAimlBaseUrl()}/v1/ai/theme/morph`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<any>(res);
+}
+
+export async function apiSimulateFlow(payload: {
+  elements: any[];
+  initialInputs?: Record<string, any>;
+}) {
+  const res = await fetch(`${getAimlBaseUrl()}/v1/ai/flow/simulate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<any>(res);
+}
+
+export async function apiVoiceStoryboard(payload: {
+  transcript: string;
+  existingElements?: any[];
+  anchorPosition?: { x: number; y: number };
+}) {
+  const res = await fetch(`${getAimlBaseUrl()}/v1/ai/voice/storyboard`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<any>(res);
+}
