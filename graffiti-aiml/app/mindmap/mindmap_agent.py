@@ -14,17 +14,87 @@ from app.schemas.mindmap_schema import (
 )
 
 
+PARENT_DOMAINS = [
+    "artificial intelligence", "machine learning", "deep learning", "system design",
+    "software architecture", "data science", "cloud computing", "computer science",
+    "web development", "cyber security", "database management", "distributed systems",
+    "operating systems", "microservices", "cloud architecture", "full stack development"
+]
+
+HUB_KEYWORDS = [
+    "core", "root", "architecture", "system", "overview", "project", "app", "main", "hub",
+    "central", "parent", "platform", "framework", "fundamentals", "foundations", "introduction",
+    "domain", "concept", "principles", "infrastructure"
+]
+
+LEAF_ACRONYMS = {
+    "nlp", "cv", "rl", "cnn", "rnn", "lstm", "gan", "svm", "knn", "bert", "gpt", "rag",
+    "api", "db", "sdk", "cli", "css", "html", "dom", "jwt", "sql", "nosql", "etl", "k8s",
+    "orm", "gui", "crud", "ci/cd", "ci", "cd", "rest", "graphql"
+}
+
+SUBTOPIC_KEYWORDS = [
+    "subtopic", "component", "module", "detail", "step", "test", "leaf", "feature",
+    "endpoint", "util", "helper", "cache", "worker", "algorithm", "technique", "method"
+]
+
+
+def _score_root_candidate(txt: str) -> float:
+    """Calculates semantic priority score for a node being the central root of a mindmap."""
+    t_clean = (txt or "").strip()
+    t_lower = t_clean.lower()
+    if not t_clean:
+        return -999.0
+
+    score = 0.0
+
+    # 1. Exact or partial match with major parent umbrella domains
+    for domain in PARENT_DOMAINS:
+        if domain == t_lower:
+            score += 300.0
+        elif domain in t_lower:
+            score += 200.0
+
+    # 2. General hub / architecture keywords
+    for k in HUB_KEYWORDS:
+        if k in t_lower:
+            score += 100.0
+
+    # 3. Penalize subtopics / leaves
+    for s in SUBTOPIC_KEYWORDS:
+        if s in t_lower:
+            score -= 100.0
+
+    # 4. Strongly penalize abbreviations and leaf acronyms (e.g. NLP, CV, DB)
+    words = t_clean.split()
+    if t_lower in LEAF_ACRONYMS or (len(words) == 1 and t_clean.isupper() and len(t_clean) <= 5):
+        score -= 250.0
+
+    # 5. Semantic breadth: multi-word parent topics (e.g. "Artificial Intelligence")
+    if 2 <= len(words) <= 5:
+        score += 40.0
+    elif len(words) == 1 and len(t_clean) > 3 and t_lower not in LEAF_ACRONYMS:
+        score += 10.0
+
+    # 6. Prefer standard title length over tiny acronyms (< 5 chars)
+    if 10 <= len(t_clean) <= 45:
+        score += 30.0
+    elif len(t_clean) < 5:
+        score -= 50.0
+
+    return score
+
+
 def _heuristic_hierarchy(nodes: List[MindMapNodeInput]) -> Dict[str, Any]:
     """Offline heuristic clustering for mind-map layout when API keys are absent."""
     if not nodes:
         return {"rootId": None, "hierarchy": [], "relationships": []}
     
-    # 1. Identify central root node: prefer node with root/system/architecture keywords, or shortest title
+    # 1. Identify central root node: give explicit semantic priority to parent umbrella topics
     scored = []
     for idx, n in enumerate(nodes):
         txt = (n.text or "").strip()
-        is_hub = any(k in txt.lower() for k in ["core", "root", "architecture", "system", "overview", "project", "app", "main", "hub"])
-        score = (100 if is_hub else 0) - len(txt)
+        score = _score_root_candidate(txt)
         scored.append((score, idx, n))
     scored.sort(key=lambda x: x[0], reverse=True)
     root_node = scored[0][2]
@@ -58,6 +128,9 @@ async def _llm_hierarchy(nodes: List[MindMapNodeInput], preferred_model: str = "
         "You are an expert cognitive mind-mapping and information layout agent.\n"
         "Analyze the following whiteboard nodes and determine their semantic relationship.\n"
         "1. Identify the single central theme or root node.\n"
+        "   CRITICAL ROOT IDENTIFICATION RULE:\n"
+        "   Give explicit semantic priority to parent topics and overarching umbrella domains (e.g. 'Artificial Intelligence', 'Cloud Architecture') as the central root node.\n"
+        "   Never select shorter abbreviations, acronyms, or specific sub-topics (e.g. 'NLP', 'CV', 'API', 'DB') as the central root node when a broader parent topic exists.\n"
         "2. Form hierarchical relationships: root -> main branches (depth 1) -> child concepts/leaves (depth 2).\n"
         "Return ONLY a valid JSON object with the following structure:\n"
         "{\n"
@@ -138,8 +211,17 @@ def compute_mindmap_layout(
 
     node_map: Dict[str, Dict[str, Any]] = {n.id: n.model_dump() for n in nodes}
     root_id = hierarchy_data.get("rootId")
+
+    # Semantic guardrail: verify root node priority so acronyms/subtopics never override parent topics
+    best_candidate_node = max(nodes, key=lambda n: _score_root_candidate(n.text or ""))
+    best_candidate_id = best_candidate_node.id
     if not root_id or root_id not in node_map:
-        root_id = nodes[0].id
+        root_id = best_candidate_id
+    else:
+        current_root_score = _score_root_candidate(node_map[root_id].get("text") or "")
+        best_score = _score_root_candidate(node_map[best_candidate_id].get("text") or "")
+        if best_score > current_root_score + 100.0:
+            root_id = best_candidate_id
 
     # Compute origin anchor: centroid of selected nodes
     if anchor_x is None:

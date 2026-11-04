@@ -138,6 +138,54 @@ type PointerAction =
 
 const DEFAULT_VIEWPORT: Viewport = { scrollX: 100, scrollY: 80, zoom: 1 };
 
+/**
+ * Expands target moving elements with any bound or spatially contained text elements
+ * so shapes and their text move together when dragged.
+ */
+function expandGroupWithBoundText(
+  targets: CanvasElement[],
+  allElements: CanvasElement[]
+): CanvasElement[] {
+  const result = new Map<string, CanvasElement>();
+  targets.forEach((el) => result.set(el.id, el));
+
+  for (const primary of targets) {
+    if (["rectangle", "ellipse", "diamond", "sticky", "card", "frame"].includes(primary.type)) {
+      const px1 = primary.x;
+      const py1 = primary.y;
+      const px2 = primary.x + primary.width;
+      const py2 = primary.y + primary.height;
+
+      for (const el of allElements) {
+        if (el.type === "text" && !result.has(el.id)) {
+          // Explicit binding via containerId or boundElements
+          if (
+            el.containerId === primary.id ||
+            primary.childrenIds?.includes(el.id) ||
+            primary.boundElements?.some((b) => b.id === el.id)
+          ) {
+            result.set(el.id, el);
+          } else {
+            // Spatial proximity / containment
+            const cx = el.x + (el.width || 0) / 2;
+            const cy = el.y + (el.height || 0) / 2;
+            if (cx >= px1 - 5 && cx <= px2 + 5 && cy >= py1 - 5 && cy <= py2 + 5) {
+              result.set(el.id, el);
+            }
+          }
+        }
+      }
+    } else if (primary.type === "text" && primary.containerId) {
+      const parentShape = allElements.find((el) => el.id === primary.containerId);
+      if (parentShape && !result.has(parentShape.id)) {
+        result.set(parentShape.id, parentShape);
+      }
+    }
+  }
+
+  return Array.from(result.values());
+}
+
 export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProps>(
   function WhiteboardCanvas(
     {
@@ -295,13 +343,20 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
 
       const trimmed = editingText.text.trim();
       if (!trimmed) {
-        if (editingText.type !== "sticky") {
-          if (editingText.id) {
+        if (editingText.id) {
+          const existing = elements.find((el) => el.id === editingText.id);
+          if (existing && existing.type !== "text") {
+            // Clear text on shape without deleting the shape itself
+            onCommit({ ...existing, text: "" });
+            setEditingText(null);
+            return;
+          }
+          if (editingText.type !== "sticky") {
             onDelete(editingText.id);
           }
-          setEditingText(null);
-          return;
         }
+        setEditingText(null);
+        return;
       }
 
       const fontSizePx = getFontSizeInPx(editingText.fontSize);
@@ -323,18 +378,42 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       if (editingText.id) {
         const existing = elements.find((el) => el.id === editingText.id);
         if (existing) {
+          const isShape = ["rectangle", "ellipse", "diamond", "sticky", "card", "frame"].includes(existing.type);
           onCommit({
             ...existing,
             text: editingText.text,
-            width: existing.type === "sticky" ? existing.width : width,
-            height: existing.type === "sticky" ? existing.height : height,
+            width: isShape ? existing.width : width,
+            height: isShape ? existing.height : height,
             fontSize: editingText.fontSize,
-            textAlign: editingText.textAlign,
-            strokeColor: editingText.strokeColor,
+            textAlign: isShape && existing.type !== "sticky" ? (existing.textAlign || "center") : editingText.textAlign,
+            strokeColor: existing.strokeColor,
           });
           onSelect(existing.id);
         }
       } else {
+        // Check if drawn inside an existing shape: rectangle, ellipse, diamond, sticky
+        const clickPt = { x: editingText.x, y: editingText.y };
+        const containingShape = [...elements].reverse().find(
+          (el) =>
+            ["rectangle", "ellipse", "diamond", "sticky"].includes(el.type) &&
+            pointInElement(clickPt, el, 8 / viewport.zoom)
+        );
+
+        if (containingShape && (!containingShape.text || !containingShape.text.trim())) {
+          // Bind text directly into the containing shape so it moves together and auto-wraps
+          onCommit({
+            ...containingShape,
+            text: editingText.text,
+            textAlign: containingShape.textAlign || (containingShape.type === "sticky" ? "left" : "center"),
+          });
+          onSelect(containingShape.id);
+          if (!isToolLocked) {
+            onToolChange("select");
+          }
+          setEditingText(null);
+          return;
+        }
+
         const newElement: CanvasElement = {
           id: createId("el"),
           pageId,
@@ -344,6 +423,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           width,
           height,
           text: editingText.text,
+          containerId: containingShape ? containingShape.id : undefined,
           strokeColor: editingText.strokeColor,
           backgroundColor: "transparent",
           strokeWidth: elementStyle.strokeWidth || 2,
@@ -354,6 +434,15 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           textAlign: editingText.textAlign,
         };
         onCommit(newElement);
+
+        if (containingShape) {
+          const currentBound = containingShape.boundElements || [];
+          onCommit({
+            ...containingShape,
+            boundElements: [...currentBound, { id: newElement.id, type: "text" }],
+          });
+        }
+
         onSelect(newElement.id);
         if (!isToolLocked) {
           onToolChange("select");
@@ -937,19 +1026,20 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           const normTargets = targetEls.map((el) =>
             el.type === "pen" ? normalizePenElement(el) : el,
           );
+          const expandedTargets = expandGroupWithBoundText(normTargets, elements);
 
           actionRef.current = {
             mode: "move",
             startWorld: world,
             original: normPrimary,
-            originals: normTargets,
+            originals: expandedTargets,
           };
           if (canvasRef.current) {
             canvasRef.current.style.cursor = "move";
           }
-          if (normTargets.length > 1) {
+          if (expandedTargets.length > 1) {
             const map = new Map<string, CanvasElement>();
-            normTargets.forEach((el) => map.set(el.id, el));
+            expandedTargets.forEach((el) => map.set(el.id, el));
             setMovingMap(map);
             setMoving(null);
           } else {
@@ -970,14 +1060,23 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
 
           updateSelection([hit.id]);
           const normHit = hit.type === "pen" ? normalizePenElement(hit) : hit;
+          const groupToMove = expandGroupWithBoundText([normHit], elements);
+
           actionRef.current = {
             mode: "move",
             startWorld: world,
             original: normHit,
-            originals: [normHit],
+            originals: groupToMove,
           };
-          setMoving(normHit);
-          setMovingMap(null);
+          if (groupToMove.length > 1) {
+            const map = new Map<string, CanvasElement>();
+            groupToMove.forEach((el) => map.set(el.id, el));
+            setMovingMap(map);
+            setMoving(null);
+          } else {
+            setMoving(normHit);
+            setMovingMap(null);
+          }
           if (canvasRef.current) {
             canvasRef.current.style.cursor = "move";
           }
@@ -1456,6 +1555,18 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         } else {
           movedList.forEach((el) => onCommit(el));
         }
+        movedList.forEach((normalized) => {
+          const updatedArrows = updateBoundArrows(elements, normalized);
+          updatedArrows.forEach((el) => {
+            if (
+              el.id !== normalized.id &&
+              (el.startBinding?.elementId === normalized.id ||
+                el.endBinding?.elementId === normalized.id)
+            ) {
+              onCommit(el);
+            }
+          });
+        });
         setMovingMap(null);
       } else if (moving) {
         const normalized = moving.type === "pen" ? normalizePenElement(moving) : moving;
@@ -1615,6 +1726,11 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
               color: applyDarkModeFilter(editingText.strokeColor, theme === "dark", false),
               minWidth: `${Math.max(editingText.width ? editingText.width * viewport.zoom : 80, 80)}px`,
               minHeight: `${Math.max(editingText.height ? editingText.height * viewport.zoom : 36, 36)}px`,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              overflowWrap: "break-word",
+              boxSizing: "border-box",
+              padding: editingText.type === "sticky" ? "14px" : "8px",
               background:
                 editingText.type === "sticky"
                   ? editingText.backgroundColor || "#fef3c7"

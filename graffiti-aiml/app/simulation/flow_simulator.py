@@ -14,76 +14,201 @@ from app.schemas.simulation_schema import (
 
 
 def _extract_graph_heuristics(elements: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Extracts nodes and directional connections from raw Graffiti canvas elements."""
+    """Extracts nodes and directional connections from raw Graffiti canvas elements with spatial proximity parsing."""
     nodes: List[Dict[str, Any]] = []
     edges: List[Dict[str, Any]] = []
     node_id_set = set()
 
-    # Identify nodes: rectangles, diamonds, ellipses, stickies, cards, text
-    for el in elements:
-        t = (el.get("type") or "").lower()
+    shape_elements = [
+        el for el in elements
+        if (el.get("type") or "").lower() in ["rectangle", "ellipse", "diamond", "sticky", "card"]
+    ]
+    arrow_elements = [
+        el for el in elements
+        if (el.get("type") or "").lower() in ["arrow", "line"]
+    ]
+    text_elements = [
+        el for el in elements
+        if (el.get("type") or "").lower() == "text"
+    ]
+
+    consumed_text_ids = set()
+
+    # 1. Explicit container / boundElement resolution
+    for t_el in text_elements:
+        cid = t_el.get("containerId")
+        if cid:
+            matching_shape = next((s for s in shape_elements if s.get("id") == cid), None)
+            if matching_shape:
+                if not (matching_shape.get("text") or "").strip():
+                    matching_shape["text"] = (t_el.get("text") or "").strip()
+                consumed_text_ids.add(t_el.get("id"))
+                continue
+            matching_arrow = next((a for a in arrow_elements if a.get("id") == cid), None)
+            if matching_arrow:
+                if not (matching_arrow.get("text") or "").strip():
+                    matching_arrow["text"] = (t_el.get("text") or "").strip()
+                consumed_text_ids.add(t_el.get("id"))
+                continue
+
+    # 2. Spatial proximity parsing: associate floating text labels inside or near shape borders
+    for shape in shape_elements:
+        sx = float(shape.get("x", 0))
+        sy = float(shape.get("y", 0))
+        sw = float(shape.get("width") or 100)
+        sh = float(shape.get("height") or 60)
+
+        # Check unconsumed text elements
+        nearby_texts = []
+        for t_el in text_elements:
+            if t_el.get("id") in consumed_text_ids:
+                continue
+            txt = (t_el.get("text") or "").strip()
+            if not txt:
+                continue
+
+            tx = float(t_el.get("x", 0))
+            ty = float(t_el.get("y", 0))
+            tw = float(t_el.get("width") or 60)
+            th = float(t_el.get("height") or 30)
+            tcx = tx + tw / 2.0
+            tcy = ty + th / 2.0
+
+            # Distance from text centroid to shape bounding box (0 if inside)
+            dx = max(sx - tcx, 0.0, tcx - (sx + sw))
+            dy = max(sy - tcy, 0.0, tcy - (sy + sh))
+            border_dist = math.hypot(dx, dy)
+
+            # Within 60px of shape border or directly contained
+            if border_dist <= 60.0:
+                nearby_texts.append((border_dist, t_el))
+
+        if nearby_texts:
+            nearby_texts.sort(key=lambda x: x[0])
+            # If shape text is empty or generic, associate the closest floating label
+            current_shape_text = (shape.get("text") or shape.get("title") or "").strip()
+            if not current_shape_text:
+                best_text_el = nearby_texts[0][1]
+                shape["text"] = (best_text_el.get("text") or "").strip()
+                consumed_text_ids.add(best_text_el.get("id"))
+
+    # 3. Spatial proximity parsing: associate floating text near arrow midpoints (e.g. Yes/No branch labels)
+    for arrow in arrow_elements:
+        if (arrow.get("text") or "").strip():
+            continue
+        pts = arrow.get("points") or []
+        ax = float(arrow.get("x", 0))
+        ay = float(arrow.get("y", 0))
+        mid_pt = None
+
+        if len(pts) >= 2:
+            p_start = (ax + pts[0].get("x", 0), ay + pts[0].get("y", 0))
+            p_end = (ax + pts[-1].get("x", 0), ay + pts[-1].get("y", 0))
+            mid_pt = ((p_start[0] + p_end[0]) / 2.0, (p_start[1] + p_end[1]) / 2.0)
+        else:
+            sb = arrow.get("startBinding") or {}
+            eb = arrow.get("endBinding") or {}
+            src_s = next((s for s in shape_elements if s.get("id") == sb.get("elementId")), None)
+            tgt_s = next((s for s in shape_elements if s.get("id") == eb.get("elementId")), None)
+            if src_s and tgt_s:
+                scx = float(src_s.get("x", 0)) + float(src_s.get("width") or 100) / 2.0
+                scy = float(src_s.get("y", 0)) + float(src_s.get("height") or 60) / 2.0
+                tcx = float(tgt_s.get("x", 0)) + float(tgt_s.get("width") or 100) / 2.0
+                tcy = float(tgt_s.get("y", 0)) + float(tgt_s.get("height") or 60) / 2.0
+                mid_pt = ((scx + tcx) / 2.0, (scy + tcy) / 2.0)
+            else:
+                mid_pt = (ax + float(arrow.get("width") or 0) / 2.0, ay + float(arrow.get("height") or 0) / 2.0)
+
+        if mid_pt:
+            best_t = None
+            best_d = 999999
+            for t_el in text_elements:
+                if t_el.get("id") in consumed_text_ids:
+                    continue
+                txt = (t_el.get("text") or "").strip()
+                if not txt:
+                    continue
+                tx = float(t_el.get("x", 0)) + float(t_el.get("width") or 40) / 2.0
+                ty = float(t_el.get("y", 0)) + float(t_el.get("height") or 20) / 2.0
+                d = math.hypot(tx - mid_pt[0], ty - mid_pt[1])
+                if d < best_d and d <= 90.0:
+                    best_d = d
+                    best_t = t_el
+
+            if best_t:
+                arrow["text"] = (best_t.get("text") or "").strip()
+                consumed_text_ids.add(best_t.get("id"))
+
+    # 4. Build nodes: shapes + unconsumed standalone text elements
+    for shape in shape_elements:
+        t = (shape.get("type") or "").lower()
+        eid = shape.get("id") or ""
+        txt = (shape.get("text") or shape.get("title") or "").strip()
+
+        node_type = "process"
+        if t == "diamond" or "?" in txt or any(k in txt.lower() for k in ["if", "valid", "check", "verify", "is"]):
+            node_type = "decision"
+        elif any(k in txt.lower() for k in ["start", "begin", "init", "launch"]):
+            node_type = "start"
+        elif any(k in txt.lower() for k in ["end", "stop", "finish", "complete", "done"]):
+            node_type = "end"
+        elif t == "ellipse" and (not txt or "start" in txt.lower()):
+            node_type = "start"
+
+        label = txt if txt else f"{t.capitalize()} Node"
+        nodes.append({"id": eid, "label": label, "nodeType": node_type, "raw": shape})
+        node_id_set.add(eid)
+
+    for t_el in text_elements:
+        if t_el.get("id") not in consumed_text_ids:
+            txt = (t_el.get("text") or "").strip()
+            if txt:
+                eid = t_el.get("id") or ""
+                nodes.append({"id": eid, "label": txt, "nodeType": "process", "raw": t_el})
+                node_id_set.add(eid)
+
+    # 5. Build edges: arrows and lines
+    for el in arrow_elements:
         eid = el.get("id") or ""
-        txt = el.get("text") or el.get("title") or ""
+        sb = el.get("startBinding") or {}
+        eb = el.get("endBinding") or {}
+        src = sb.get("elementId")
+        tgt = eb.get("elementId")
 
-        if t in ["rectangle", "ellipse", "diamond", "sticky", "card", "text"]:
-            node_type = "process"
-            if t == "diamond" or "?" in txt or any(k in txt.lower() for k in ["if", "valid", "check", "verify"]):
-                node_type = "decision"
-            elif any(k in txt.lower() for k in ["start", "begin", "init", "launch"]):
-                node_type = "start"
-            elif any(k in txt.lower() for k in ["end", "stop", "finish", "complete", "done"]):
-                node_type = "end"
-            elif t == "ellipse" and not txt:
-                node_type = "start"
+        # If not explicitly bound by startBinding/endBinding, use spatial proximity
+        if not src or not tgt or src not in node_id_set or tgt not in node_id_set:
+            pts = el.get("points") or []
+            el_x = el.get("x", 0)
+            el_y = el.get("y", 0)
+            if len(pts) >= 2:
+                p_start = (el_x + pts[0].get("x", 0), el_y + pts[0].get("y", 0))
+                p_end = (el_x + pts[-1].get("x", 0), el_y + pts[-1].get("y", 0))
 
-            label = txt if txt else f"{t.capitalize()} Node"
-            nodes.append({"id": eid, "label": label, "nodeType": node_type, "raw": el})
-            node_id_set.add(eid)
+                def find_closest_node(pt):
+                    best_n = None
+                    best_dist = 999999
+                    for n in nodes:
+                        nel = n["raw"]
+                        cx = nel.get("x", 0) + nel.get("width", 100) / 2
+                        cy = nel.get("y", 0) + nel.get("height", 60) / 2
+                        d = math.hypot(pt[0] - cx, pt[1] - cy)
+                        if d < best_dist and d < 350:
+                            best_dist = d
+                            best_n = n["id"]
+                    return best_n
 
-    # Identify edges: arrows and lines
-    for el in elements:
-        t = (el.get("type") or "").lower()
-        if t in ["arrow", "line"]:
-            eid = el.get("id") or ""
-            sb = el.get("startBinding") or {}
-            eb = el.get("endBinding") or {}
-            src = sb.get("elementId")
-            tgt = eb.get("elementId")
+                src = src if (src and src in node_id_set) else find_closest_node(p_start)
+                tgt = tgt if (tgt and tgt in node_id_set) else find_closest_node(p_end)
 
-            # If not explicitly bound by startBinding/endBinding, use spatial proximity
-            if not src or not tgt or src not in node_id_set or tgt not in node_id_set:
-                pts = el.get("points") or []
-                el_x = el.get("x", 0)
-                el_y = el.get("y", 0)
-                if len(pts) >= 2:
-                    p_start = (el_x + pts[0].get("x", 0), el_y + pts[0].get("y", 0))
-                    p_end = (el_x + pts[-1].get("x", 0), el_y + pts[-1].get("y", 0))
-
-                    def find_closest_node(pt):
-                        best_n = None
-                        best_dist = 999999
-                        for n in nodes:
-                            nel = n["raw"]
-                            cx = nel.get("x", 0) + nel.get("width", 100) / 2
-                            cy = nel.get("y", 0) + nel.get("height", 60) / 2
-                            d = math.hypot(pt[0] - cx, pt[1] - cy)
-                            if d < best_dist and d < 350:
-                                best_dist = d
-                                best_n = n["id"]
-                        return best_n
-
-                    src = src if (src and src in node_id_set) else find_closest_node(p_start)
-                    tgt = tgt if (tgt and tgt in node_id_set) else find_closest_node(p_end)
-
-            if src and tgt and src != tgt:
-                label = el.get("text") or ""
-                edges.append({
-                    "id": eid,
-                    "sourceId": src,
-                    "targetId": tgt,
-                    "label": label,
-                    "condition": label if label else None
-                })
+        if src and tgt and src != tgt:
+            label = (el.get("text") or "").strip()
+            edges.append({
+                "id": eid,
+                "sourceId": src,
+                "targetId": tgt,
+                "label": label,
+                "condition": label if label else None
+            })
 
     return {"nodes": nodes, "edges": edges}
 

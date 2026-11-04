@@ -31,6 +31,159 @@ interface FlowSimulatorPanelProps {
   onHighlightElement?: (elementId: string | null) => void;
 }
 
+/**
+ * Resolves and binds floating text labels near shape borders or connectors using spatial proximity,
+ * preventing blank execution traces in simulation.
+ */
+export function associateNearbyFloatingText(elements: CanvasElement[]): CanvasElement[] {
+  const shapeElements = elements.filter((el) =>
+    ["rectangle", "ellipse", "diamond", "sticky", "card"].includes(el.type)
+  );
+  const arrowElements = elements.filter((el) =>
+    ["arrow", "line"].includes(el.type)
+  );
+  const textElements = elements.filter((el) => el.type === "text");
+
+  const consumedTextIds = new Set<string>();
+  const shapeMap = new Map<string, CanvasElement>();
+  shapeElements.forEach((s) => shapeMap.set(s.id, { ...s }));
+
+  const arrowMap = new Map<string, CanvasElement>();
+  arrowElements.forEach((a) => arrowMap.set(a.id, { ...a }));
+
+  // 1. Explicit containerId or boundElements resolution
+  for (const t of textElements) {
+    if (t.containerId) {
+      if (shapeMap.has(t.containerId)) {
+        const shape = shapeMap.get(t.containerId)!;
+        if (!shape.text || !shape.text.trim()) {
+          shape.text = (t.text || "").trim();
+        }
+        consumedTextIds.add(t.id);
+        continue;
+      }
+      if (arrowMap.has(t.containerId)) {
+        const arrow = arrowMap.get(t.containerId)!;
+        if (!arrow.text || !arrow.text.trim()) {
+          arrow.text = (t.text || "").trim();
+        }
+        consumedTextIds.add(t.id);
+        continue;
+      }
+    }
+  }
+
+  // 2. Spatial proximity parsing for shapes (rectangles, ellipses, diamonds, stickies)
+  for (const shape of shapeMap.values()) {
+    const sx = shape.x ?? 0;
+    const sy = shape.y ?? 0;
+    const sw = shape.width || 100;
+    const sh = shape.height || 60;
+
+    const nearbyTexts: Array<{ dist: number; el: CanvasElement }> = [];
+    for (const t of textElements) {
+      if (consumedTextIds.has(t.id)) continue;
+      const txt = (t.text || "").trim();
+      if (!txt) continue;
+
+      const tx = t.x ?? 0;
+      const ty = t.y ?? 0;
+      const tw = t.width || 60;
+      const th = t.height || 30;
+      const tcx = tx + tw / 2;
+      const tcy = ty + th / 2;
+
+      const dx = Math.max(sx - tcx, 0, tcx - (sx + sw));
+      const dy = Math.max(sy - tcy, 0, tcy - (sy + sh));
+      const borderDist = Math.hypot(dx, dy);
+
+      if (borderDist <= 60) {
+        nearbyTexts.push({ dist: borderDist, el: t });
+      }
+    }
+
+    if (nearbyTexts.length > 0) {
+      nearbyTexts.sort((a, b) => a.dist - b.dist);
+      if (!shape.text || !shape.text.trim()) {
+        const best = nearbyTexts[0].el;
+        shape.text = (best.text || "").trim();
+        consumedTextIds.add(best.id);
+      }
+    }
+  }
+
+  // 3. Spatial proximity parsing for arrows
+  for (const arrow of arrowMap.values()) {
+    if (arrow.text && arrow.text.trim()) continue;
+    let midX: number | null = null;
+    let midY: number | null = null;
+
+    if (arrow.points && arrow.points.length >= 2) {
+      const p0 = arrow.points[0];
+      const pLast = arrow.points[arrow.points.length - 1];
+      midX = (arrow.x ?? 0) + (p0.x + pLast.x) / 2;
+      midY = (arrow.y ?? 0) + (p0.y + pLast.y) / 2;
+    } else if (arrow.startBinding?.elementId && arrow.endBinding?.elementId) {
+      const srcShape = shapeMap.get(arrow.startBinding.elementId);
+      const tgtShape = shapeMap.get(arrow.endBinding.elementId);
+      if (srcShape && tgtShape) {
+        midX =
+          ((srcShape.x + (srcShape.width || 100) / 2) +
+            (tgtShape.x + (tgtShape.width || 100) / 2)) /
+          2;
+        midY =
+          ((srcShape.y + (srcShape.height || 60) / 2) +
+            (tgtShape.y + (tgtShape.height || 60) / 2)) /
+          2;
+      }
+    }
+
+    if (midX !== null && midY !== null) {
+      let bestEl: CanvasElement | null = null;
+      let bestDist = 999999;
+      for (const t of textElements) {
+        if (consumedTextIds.has(t.id)) continue;
+        const txt = (t.text || "").trim();
+        if (!txt) continue;
+        const tx = (t.x ?? 0) + (t.width || 40) / 2;
+        const ty = (t.y ?? 0) + (t.height || 20) / 2;
+        const d = Math.hypot(tx - midX, ty - midY);
+        if (d < bestDist && d <= 80) {
+          bestDist = d;
+          bestEl = t;
+        }
+      }
+      if (bestEl) {
+        arrow.text = (bestEl.text || "").trim();
+        consumedTextIds.add(bestEl.id);
+      }
+    }
+  }
+
+  // Combine resolved shapes, arrows, and any unconsumed standalone text elements
+  const otherElements = elements.filter(
+    (el) =>
+      ![
+        "rectangle",
+        "ellipse",
+        "diamond",
+        "sticky",
+        "card",
+        "arrow",
+        "line",
+        "text",
+      ].includes(el.type)
+  );
+  const remainingTexts = textElements.filter((t) => !consumedTextIds.has(t.id));
+
+  return [
+    ...Array.from(shapeMap.values()),
+    ...Array.from(arrowMap.values()),
+    ...remainingTexts,
+    ...otherElements,
+  ];
+}
+
 export function FlowSimulatorPanel({
   isOpen,
   onClose,
@@ -55,8 +208,9 @@ export function FlowSimulatorPanel({
     setIsPlaying(false);
 
     try {
+      const processedElements = associateNearbyFloatingText(elements);
       const resp = await apiSimulateFlow({
-        elements,
+        elements: processedElements,
         initialInputs: {
           requestId: `req_${Math.floor(Math.random() * 9000 + 1000)}`,
           status: "INIT",

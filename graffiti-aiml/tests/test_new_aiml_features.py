@@ -47,6 +47,46 @@ def test_mindmap_auto_layout():
         assert len(conn["points"]) >= 2
 
 
+def test_mindmap_root_priority_ai_over_nlp():
+    """Verify semantic parent topics like 'Artificial Intelligence' override short sub-topics/acronyms like 'NLP'."""
+    elements = [
+        {"id": "node_nlp", "text": "NLP", "type": "sticky", "x": 100, "y": 100, "width": 120, "height": 60},
+        {"id": "node_ai", "text": "Artificial Intelligence", "type": "rectangle", "x": 500, "y": 200, "width": 200, "height": 80},
+        {"id": "node_cv", "text": "Computer Vision", "type": "sticky", "x": 200, "y": 400, "width": 160, "height": 70},
+        {"id": "node_rl", "text": "Reinforcement Learning", "type": "rectangle", "x": 600, "y": 450, "width": 180, "height": 70},
+    ]
+
+    res = client.post(
+        "/v1/ai/mindmap/auto-layout",
+        json={
+            "elements": elements,
+            "anchorX": 500.0,
+            "anchorY": 300.0,
+            "preferredModel": "auto"
+        }
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    # 'Artificial Intelligence' must be the central root, NOT 'NLP'
+    assert data["rootNodeId"] == "node_ai"
+
+    root_node = next(n for n in data["nodes"] if n["id"] == "node_ai")
+    assert root_node["text"] == "Artificial Intelligence"
+    # Root node must be locked at exact center
+    expected_root_x = 500.0 - (float(root_node["width"]) / 2.0)
+    expected_root_y = 300.0 - (float(root_node["height"]) / 2.0)
+    assert abs(root_node["x"] - expected_root_x) < 0.01
+    assert abs(root_node["y"] - expected_root_y) < 0.01
+
+    # Symmetrical distribution: child branches on both right and left
+    right_nodes = [n for n in data["nodes"] if n["id"] != "node_ai" and n["x"] > root_node["x"]]
+    left_nodes = [n for n in data["nodes"] if n["id"] != "node_ai" and n["x"] < root_node["x"]]
+    assert len(right_nodes) >= 1
+    assert len(left_nodes) >= 1
+
+
+
 def test_flowchart_to_code():
     # Simple 1x1 white PNG as dummy test canvas capture
     dummy_b64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
@@ -172,6 +212,59 @@ def test_flow_simulator():
         assert "activeNodeId" in step
         assert "log" in step
         assert "stateVariables" in step
+
+
+def test_flow_simulator_spatial_proximity_floating_text():
+    """Verify floating text labels near shape borders are correctly associated, preventing blank traces."""
+    elements = [
+        # Start node (ellipse)
+        {"id": "n1", "type": "ellipse", "text": "Start", "x": 100, "y": 100, "width": 100, "height": 50},
+        # Shape without text, but floating text label near its border
+        {"id": "n2", "type": "rectangle", "text": "", "x": 260, "y": 95, "width": 160, "height": 60},
+        {"id": "t2", "type": "text", "text": "Validate Auth Token", "x": 275, "y": 110, "width": 130, "height": 30},
+        # Decision diamond without text, but floating text label inside
+        {"id": "n3", "type": "diamond", "text": "", "x": 480, "y": 90, "width": 120, "height": 70},
+        {"id": "t3", "type": "text", "text": "Is Valid?", "x": 495, "y": 110, "width": 90, "height": 30},
+        # End node
+        {"id": "n4", "type": "rectangle", "text": "Dashboard", "x": 660, "y": 95, "width": 160, "height": 60},
+        # Connecting arrows
+        {"id": "a1", "type": "arrow", "x": 200, "y": 125, "startBinding": {"elementId": "n1"}, "endBinding": {"elementId": "n2"}},
+        {"id": "a2", "type": "arrow", "x": 420, "y": 125, "startBinding": {"elementId": "n2"}, "endBinding": {"elementId": "n3"}},
+        {"id": "a3", "type": "arrow", "x": 600, "y": 125, "startBinding": {"elementId": "n3"}, "endBinding": {"elementId": "n4"}},
+        # Floating branch text near arrow a3 midpoint
+        {"id": "t_branch", "type": "text", "text": "Yes", "x": 625, "y": 115, "width": 40, "height": 20},
+    ]
+
+    res = client.post(
+        "/v1/ai/flow/simulate",
+        json={
+            "elements": elements,
+            "initialInputs": {"userId": "usr_777"}
+        }
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+
+    # Check graphNodes: n2 and n3 should have acquired the floating text labels
+    node_map = {n["id"]: n for n in data["graphNodes"]}
+    assert "Validate Auth Token" in node_map["n2"]["label"]
+    assert "Is Valid?" in node_map["n3"]["label"]
+    assert node_map["n3"]["nodeType"] == "decision"
+
+    # Floating text elements should NOT be separate orphaned nodes
+    assert "t2" not in node_map
+    assert "t3" not in node_map
+    assert "t_branch" not in node_map
+
+    # Check execution steps have no blank logs and contain the associated text labels
+    for step in data["executionSteps"]:
+        assert step["log"] != ""
+        assert "Data entered node ''" not in step["log"]
+    
+    logs_combined = " ".join(step["log"] for step in data["executionSteps"])
+    assert "Validate Auth Token" in logs_combined
+
 
 
 def test_voice_storyboard():

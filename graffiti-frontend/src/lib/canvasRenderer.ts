@@ -286,6 +286,63 @@ function drawArrowhead(
   rc.draw(generator.line(w2.x, w2.y, tip.x, tip.y, headOptions));
 }
 
+/**
+ * Wraps text into lines that do not exceed maxWidth to prevent horizontal overflow.
+ */
+export function wrapTextLines(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+): string[] {
+  if (!text) return [];
+  if (maxWidth <= 0) return text.split("\n");
+
+  const paragraphs = text.split("\n");
+  const resultLines: string[] = [];
+
+  for (const para of paragraphs) {
+    if (!para.trim()) {
+      resultLines.push("");
+      continue;
+    }
+    const words = para.split(" ");
+    let currentLine = "";
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = context.measureText(testLine).width;
+
+      if (testWidth <= maxWidth) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) {
+          resultLines.push(currentLine);
+          currentLine = word;
+        } else {
+          // If a single word exceeds maxWidth, break characters
+          let partial = "";
+          for (const char of word) {
+            const charTest = partial + char;
+            if (context.measureText(charTest).width <= maxWidth) {
+              partial = charTest;
+            } else {
+              if (partial) resultLines.push(partial);
+              partial = char;
+            }
+          }
+          currentLine = partial;
+        }
+      }
+    }
+    if (currentLine) {
+      resultLines.push(currentLine);
+    }
+  }
+
+  return resultLines;
+}
+
 // -----------------------------------------------------------------------------
 // Shape Rendering Pipeline via Rough.js & Vector Geometry
 // -----------------------------------------------------------------------------
@@ -568,21 +625,46 @@ export function drawShapeOnCanvas(
     context.fillStyle = strokeColor;
     context.font = `normal ${fontSize}px ${fontFamilyName}`;
     context.textBaseline = "top";
-    context.textAlign = element.textAlign || "left";
 
-    const padding = element.type === "sticky" ? 14 : 2;
-    const lines = element.text.split("\n");
+    const isSticky = element.type === "sticky";
+    const isDiamond = element.type === "diamond";
+    const isEllipse = element.type === "ellipse";
+    const isRect = element.type === "rectangle";
+    const isShape = isRect || isEllipse || isDiamond;
+
+    const align: TextAlign = element.textAlign || (isShape ? "center" : "left");
+    context.textAlign = align;
+
+    const padding = isSticky ? 14 : isDiamond ? 14 : isEllipse ? 12 : isRect ? 8 : 2;
+    const maxWidth = isSticky
+      ? Math.max(20, element.width - padding * 2)
+      : isDiamond
+      ? Math.max(20, (element.width - padding * 2) * 0.72)
+      : isEllipse
+      ? Math.max(20, (element.width - padding * 2) * 0.78)
+      : isRect
+      ? Math.max(20, element.width - padding * 2)
+      : element.width && element.width > 30
+      ? element.width
+      : 999999;
+
+    const lines = wrapTextLines(context, element.text, maxWidth);
     const lineHeight = fontSize * 1.35;
+    const totalTextHeight = lines.length * lineHeight;
+
+    const startY = isShape
+      ? Math.max(padding, (element.height - totalTextHeight) / 2)
+      : padding;
 
     let startX = padding;
-    if (element.textAlign === "center") {
+    if (align === "center") {
       startX = element.width / 2;
-    } else if (element.textAlign === "right") {
+    } else if (align === "right") {
       startX = element.width - padding;
     }
 
     lines.forEach((line, i) => {
-      context.fillText(line, startX, padding + i * lineHeight);
+      context.fillText(line, startX, startY + i * lineHeight);
     });
   }
 
