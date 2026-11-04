@@ -6,6 +6,7 @@ router = APIRouter(tags=["Beautify"])
 
 
 @router.post("/beautify", response_model=BeautifiedShapeResponse)
+@router.post("/v1/ai/beautify", response_model=BeautifiedShapeResponse)
 async def beautify_stroke(req: BeautifyRequest):
     detected_type, payload = classify_and_clean_stroke(req.shapeId, req.points)
     return BeautifiedShapeResponse(

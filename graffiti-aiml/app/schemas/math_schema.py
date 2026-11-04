@@ -3,16 +3,15 @@ from pydantic import BaseModel, Field
 
 
 class AnchorPosition(BaseModel):
-    x: float
-    y: float
+    x: float = 100.0
+    y: float = 100.0
 
 
 class MathSolveRequest(BaseModel):
     roomId: Optional[str] = None
     equation: str = Field(..., description="Equation or mathematical expression to evaluate")
-    anchorPosition: AnchorPosition = Field(
-        default_factory=lambda: AnchorPosition(x=100.0, y=100.0)
-    )
+    anchorPosition: Optional[AnchorPosition] = None
+    anchor: Optional[AnchorPosition] = None
 
 
 class MathSolveResponse(BaseModel):

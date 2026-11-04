@@ -239,3 +239,56 @@ source-node[Source Node] -->|Transfer Data| target-node[Target Node]
     assert arrow_label_el["text"] == "Transfer Data"
     assert arrow_label_el["containerId"] == arrow["id"]
 
+
+
+def test_v1_ai_route_aliases_and_dict_points():
+    # 1. Beautify with dict points {"x": ..., "y": ...} at /v1/ai/beautify
+    dict_points = [
+        {"x": 100.0, "y": 100.0},
+        {"x": 250.0, "y": 102.0},
+        {"x": 248.0, "y": 200.0},
+        {"x": 101.0, "y": 198.0},
+        {"x": 100.0, "y": 100.0}
+    ]
+    res_b = client.post(
+        "/v1/ai/beautify",
+        json={
+            "shapeId": "el_test_dict_points",
+            "points": dict_points
+        }
+    )
+    assert res_b.status_code == 200
+    assert res_b.json()["detectedType"] in ["rectangle", "diamond", "ellipse"]
+
+    # 2. Math solve with "anchor" instead of "anchorPosition" at /v1/ai/math/solve
+    res_m = client.post(
+        "/v1/ai/math/solve",
+        json={
+            "equation": "100 / 4 + 5 =",
+            "anchor": {"x": 250.0, "y": 300.0}
+        }
+    )
+    assert res_m.status_code == 200
+    assert res_m.json()["result"] == "30"
+
+    # 3. Diagram synthesize at /v1/ai/diagram/synthesize
+    res_d = client.post(
+        "/v1/ai/diagram/synthesize",
+        json={
+            "prompt": "Order flow",
+            "anchor": {"x": 150.0, "y": 120.0}
+        }
+    )
+    assert res_d.status_code == 200
+    assert len(res_d.json()["proposedElements"]) > 0
+
+    # 4. Gesture circle query at /v1/ai/gesture/circle-query
+    res_g = client.post(
+        "/v1/ai/gesture/circle-query",
+        json={
+            "circleBounds": {"x": 10.0, "y": 10.0, "w": 200.0, "h": 200.0},
+            "enclosedElements": [],
+            "userPrompt": "Explain"
+        }
+    )
+    assert res_g.status_code == 200

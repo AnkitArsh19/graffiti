@@ -36,6 +36,7 @@ import {
   Wand2,
   X,
   ExternalLink,
+  Calculator,
   Monitor,
   Settings as SettingsIcon,
   LogIn,
@@ -123,6 +124,7 @@ import {
   normalizePenElement,
   updateBoundArrows,
 } from "./lib/geometry";
+import { executeAiRequest } from "./lib/aiClient";
 import type {
   CanvasElement,
   DockPosition,
@@ -281,6 +283,24 @@ export default function App() {
   const [isCopiedCode, setIsCopiedCode] = useState(false);
   const [roomInfo, setRoomInfo] = useState<any>(null);
   const [ghostElements, setGhostElements] = useState<CanvasElement[]>([]);
+  const [autoBeautify, setAutoBeautify] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("graffiti:auto_beautify");
+      return saved === null ? true : saved !== "false";
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleAutoBeautify = useCallback(() => {
+    setAutoBeautify((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("graffiti:auto_beautify", String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const liveMenuRef = useRef<HTMLDivElement>(null);
 
@@ -1340,6 +1360,20 @@ export default function App() {
     sendCursorPosition,
   } = useCollaboration(slug || null, handleRemoteOp, handleCollabReconnect);
 
+  const handleAiRequest = useCallback(
+    async (shapeId: string, payload: any) => {
+      if (slug && isCollabConnected) {
+        sendAiRequest(shapeId, payload);
+      } else {
+        const ghostMsg = await executeAiRequest(payload, { pageId: activePage.id, theme });
+        if (ghostMsg) {
+          handleRemoteOp(ghostMsg);
+        }
+      }
+    },
+    [slug, isCollabConnected, sendAiRequest, activePage.id, theme, handleRemoteOp]
+  );
+
   const isRoomOwner = Boolean(
     user?.userId && roomInfo?.ownerId && user.userId === roomInfo.ownerId
   );
@@ -1909,7 +1943,7 @@ export default function App() {
 
       if (event.key === "=" && selectedElement && (selectedElement.type === "pen" || selectedElement.type === "text")) {
         event.preventDefault();
-        sendAiRequest(selectedElement.id, selectedElement.type === "text" ? { feature: "math", equation: selectedElement.text, anchor: { x: selectedElement.x, y: selectedElement.y } } : { feature: "beautify", shapeId: selectedElement.id, points: selectedElement.points || [] });
+        handleAiRequest(selectedElement.id, selectedElement.type === "text" ? { feature: "math", equation: selectedElement.text, anchor: { x: selectedElement.x, y: selectedElement.y } } : { feature: "beautify", shapeId: selectedElement.id, points: selectedElement.points || [] });
         return;
       }
 
@@ -2013,7 +2047,7 @@ export default function App() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("mousedown", onMouseDown);
     };
-  }, [acceptGhosts, addPage, deleteSelectedElements, dismissGhosts, duplicatePage, duplicateSelected, ghostElements.length, redo, selectedElement, selectedId, selectedIds.length, sendAiRequest, undo, shortcuts, openSettings, handleToggleOverlay]);
+  }, [acceptGhosts, addPage, deleteSelectedElements, dismissGhosts, duplicatePage, duplicateSelected, ghostElements.length, redo, selectedElement, selectedId, selectedIds.length, handleAiRequest, undo, shortcuts, openSettings, handleToggleOverlay]);
 
   const exportSvg = () => {
     downloadFile(
@@ -2354,6 +2388,32 @@ export default function App() {
                   type="button"
                   className="dropdown-item-btn"
                   role="menuitem"
+                  onClick={toggleAutoBeautify}
+                  title="Automatically correct pencil strokes into clean geometric shapes upon drawing"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Wand2 size={14} style={{ color: autoBeautify ? "var(--accent-primary)" : "var(--text-muted)" }} />
+                    <span>Auto-Correct Pen</span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: "1px 6px",
+                      borderRadius: 10,
+                      backgroundColor: autoBeautify ? "rgba(34, 197, 94, 0.2)" : "rgba(113, 113, 122, 0.2)",
+                      color: autoBeautify ? "#22c55e" : "var(--text-muted)",
+                    }}
+                  >
+                    {autoBeautify ? "ON" : "OFF"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="dropdown-item-btn"
+                  role="menuitem"
                   onClick={() => {
                     setIsDiagramOpen(true);
                     setIsToolsOpen(false);
@@ -2384,7 +2444,7 @@ export default function App() {
                   disabled={!selectedElement}
                   onClick={() => {
                     if (selectedElement) {
-                      sendAiRequest(selectedElement.id, {
+                      handleAiRequest(selectedElement.id, {
                         feature: "beautify",
                         shapeId: selectedElement.id,
                         points: selectedElement.points || [],
@@ -2461,6 +2521,29 @@ export default function App() {
                 >
                   <Activity size={14} style={{ color: "#38bdf8" }} />
                   <span>Flow Simulator</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="dropdown-item-btn"
+                  role="menuitem"
+                  disabled={!selectedElement || (selectedElement.type !== "text" && selectedElement.type !== "pen")}
+                  onClick={() => {
+                    if (selectedElement) {
+                      handleAiRequest(
+                        selectedElement.id,
+                        selectedElement.type === "text"
+                          ? { feature: "math", equation: selectedElement.text, anchor: { x: selectedElement.x, y: selectedElement.y } }
+                          : { feature: "beautify", shapeId: selectedElement.id, points: selectedElement.points || [] }
+                      );
+                    }
+                    setIsToolsOpen(false);
+                  }}
+                  title={selectedElement?.type === "text" ? "Solve mathematical expression" : "Solve equation or beautify shape"}
+                >
+                  <Calculator size={14} style={{ color: selectedElement ? "var(--accent-primary)" : "var(--text-muted)" }} />
+                  <span>Solve Math</span>
+                  <kbd className="shortcut-badge">=</kbd>
                 </button>
               </div>
             )}
@@ -3110,6 +3193,7 @@ export default function App() {
           ghostElements={ghostElements}
           remoteDrafts={remoteDrafts}
           onStreamDraft={(draft) => streamDraft(draft, activePage.id)}
+          autoBeautify={autoBeautify}
         />
 
         {ghostElements.length > 0 && (
@@ -3127,6 +3211,8 @@ export default function App() {
           style={elementStyle}
           theme={theme}
           isEditingText={isEditingText || activeTool === "text" || selectedElement?.type === "text"}
+          autoBeautify={autoBeautify}
+          onToggleAutoBeautify={toggleAutoBeautify}
           onStyleChange={handleStyleChange}
           onSelectedChange={updateSelected}
           onDuplicateSelected={duplicateSelected}
@@ -3379,11 +3465,21 @@ export default function App() {
         onNewPage={addPage}
         onBeautify={() => {
           if (selectedElement) {
-            sendAiRequest(selectedElement.id, {
+            handleAiRequest(selectedElement.id, {
               feature: "beautify",
               shapeId: selectedElement.id,
               points: selectedElement.points || [],
             });
+          }
+        }}
+        onSolveMath={() => {
+          if (selectedElement) {
+            handleAiRequest(
+              selectedElement.id,
+              selectedElement.type === "text"
+                ? { feature: "math", equation: selectedElement.text, anchor: { x: selectedElement.x, y: selectedElement.y } }
+                : { feature: "beautify", shapeId: selectedElement.id, points: selectedElement.points || [] }
+            );
           }
         }}
         onInsertStoryboardElements={(els) => commitElements(els.map((e) => ({ ...e, pageId: activePage.id })))}
@@ -3397,7 +3493,7 @@ export default function App() {
         onClose={() => setIsDiagramOpen(false)}
         onInsertElements={commitElements}
         onRequestAiDiagram={(p) => {
-          sendAiRequest(createId("diagram"), { feature: "diagram", prompt: p });
+          handleAiRequest(createId("diagram"), { feature: "diagram", prompt: p });
         }}
       />
 

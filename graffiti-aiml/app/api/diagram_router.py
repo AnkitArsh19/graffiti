@@ -11,6 +11,7 @@ from app.diagram.layout_engine import layout_diagram
 from app.diagram.mermaid_parser import parse_mermaid
 from app.schemas.code_schema import StreamChunk
 from app.schemas.diagram_schema import (
+    AnchorPosition,
     DiagramSynthesizeRequest,
     DiagramSynthesizeResponse,
     TTDChatRequest,
@@ -54,14 +55,16 @@ def pick_mermaid_template(prompt: str) -> str:
 
 
 @router.post("/diagram/synthesize", response_model=DiagramSynthesizeResponse)
+@router.post("/v1/ai/diagram/synthesize", response_model=DiagramSynthesizeResponse)
 async def synthesize_diagram(req: DiagramSynthesizeRequest):
     """Generates structured diagram elements and Mermaid syntax from prompt."""
     mermaid_code = pick_mermaid_template(req.prompt)
     parsed = parse_mermaid(mermaid_code)
+    pos = req.anchorPosition or req.anchor or AnchorPosition(x=200.0, y=150.0)
     layouts = layout_diagram(
         parsed,
-        start_x=req.anchorPosition.x or 200.0,
-        start_y=req.anchorPosition.y or 150.0
+        start_x=pos.x or 200.0,
+        start_y=pos.y or 150.0
     )
     elements = build_graffiti_elements(parsed, layouts)
     return DiagramSynthesizeResponse(
@@ -177,6 +180,7 @@ async def stream_ttd_chat(chat_request: TTDChatRequest) -> AsyncGenerator[str, N
 
 
 @router.post("/v1/ai/text-to-diagram/chat-streaming")
+@router.post("/text-to-diagram/chat-streaming")
 async def chat_streaming_endpoint(req: TTDChatRequest):
     """2D vector canvas engine (in docs_archive)-compatible Text-to-Diagram SSE streaming endpoint."""
     return StreamingResponse(

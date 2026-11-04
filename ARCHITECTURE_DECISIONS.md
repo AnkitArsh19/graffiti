@@ -168,20 +168,27 @@ Graffiti solves this through a high-performance **Server-Authoritative CRDT Hybr
 
 ---
 
-### ADR-009: AI/ML Service Architecture: Local Algorithms vs. Google Gemini 3.8 Flash Streaming
+### ADR-009: AI/ML Service Architecture: Local Algorithms vs. Google Gemini 3.8 Flash Streaming & Offline-First Fallbacks
 
-* **Status:** Implemented in [`graffiti-aiml/`](file:///e:/graffiti/graffiti-aiml/)
-* **Context:** Calling cloud LLM APIs for instantaneous canvas interactions introduces unacceptable latency (300–800ms) and unnecessary API cost.
-* **Decision:** Partition the AI capabilities into two distinct execution tiers:
-  1. **Local Deterministic Tier (0 API Calls / Sub-millisecond Execution)**:
-     - *Stroke Beautification (`/beautify`)*: Ramer-Douglas-Peucker point decimation and geometric ratio classification (rectangles, diamonds, ellipses, arrows).
-     - *Handwritten Math Solver (`/math/solve`)*: Python `sympy` symbolic parser with implicit multiplication (`3x`) and exponentiation (`x^2`).
-     - *Voice Commands*: Client-side native browser Web Speech API (`webkitSpeechRecognition`).
-  2. **Cloud Multimodal LLM Tier (Google Gemini 3.8 Flash)**:
-     - *Text-to-Diagram (`/diagram/synthesize` & `/v1/ai/text-to-diagram/chat-streaming`)*: Streams valid Mermaid flowcharts via SSE using `gemini-3.8-flash`.
-     - *Diagram-to-Code (`/v1/ai/diagram-to-code/generate-streaming`)*: Translates wireframe sketches and screenshot image patches into responsive HTML/CSS/JS components.
-     - *Circle-to-Edit Gesture (`/circle-query`)*: Multimodal contextual reasoning on circled elements.
-* **Consequences:** Instant responsiveness for drawing and math, combined with state-of-the-art generative capabilities for diagrams and code.
+* **Status:** Implemented in [`graffiti-aiml/`](file:///e:/graffiti/graffiti-aiml/), [`graffiti-backend/`](file:///e:/graffiti/graffiti-backend/src/main/java/com/graffiti/ai/), and [`graffiti-frontend/`](file:///e:/graffiti/graffiti-frontend/src/lib/aiClient.ts)
+* **Context:** Calling cloud LLM APIs for instantaneous canvas interactions introduces unacceptable latency (300–800ms) and unnecessary API cost. Furthermore, desktop and offline users require full whiteboarding capabilities without mandating a live cloud microservice or STOMP room.
+* **Decision:** Partition the AI capabilities into a resilient multi-tier execution architecture:
+  1. **Dual Routing & Normalized Schemas (`graffiti-aiml`)**:
+     - Standardized route aliases across root (`/beautify`, `/math/solve`, `/diagram/synthesize`) and versioned endpoints (`/v1/ai/...`).
+     - Polymorphic point coordinate parsing accepting both `[[x, y]]` coordinate tuples and `[{ x, y }]` object representations from TypeScript frontends.
+  2. **Synchronous REST & Ghost Unwrapping (`graffiti-backend`)**:
+     - Introduced [`AiController.java`](file:///e:/graffiti/graffiti-backend/src/main/java/com/graffiti/ai/AiController.java) (`POST /ai/request`) to support direct, stateless AI inference outside of collaborative STOMP rooms.
+     - Enhanced [`AiService.java`](file:///e:/graffiti/graffiti-backend/src/main/java/com/graffiti/ai/AiService.java) payload normalization to reliably extract both `proposedElement` (math singletons) and `payload` (shape beautifications) into standard `proposedElements` ghost arrays.
+  3. **Zero-Latency Client-Side Fallback Engine & Auto-Beautify (`graffiti-frontend`)**:
+     - Implemented [`beautifier.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/beautifier.ts) featuring Ramer-Douglas-Peucker (RDP) polyline simplification and geometric error fitting for circles, ellipses, rectangles, diamonds, straight lines, and arrows.
+     - Auto-beautification is scoped exclusively to pencil (`pen`) strokes and enabled by default (`autoBeautify: true`), with persistent user toggles in both the AI Studio top bar and the contextual Inspector panel.
+     - Shapes are corrected in-place upon release without intrusive preview popups. The original hand-drawn stroke is safely preserved in `customData.originalElement`.
+     - Hovering over (or selecting) any auto-beautified shape reveals an interactive `↺ Revert to original` button, allowing users to restore their exact hand-drawn stroke anytime.
+     - Implemented [`mathEvaluator.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/mathEvaluator.ts) providing a zero-dependency, safe recursive-descent arithmetic parser with trigonometric and exponential functions.
+     - Unified AI inference in [`aiClient.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/aiClient.ts) (`executeAiRequest`): tries backend REST first, seamlessly falling back to local client algorithms upon network unavailability or timeouts.
+  4. **Browser-Native Voice Commander**:
+     - 100% client-side via native Web Speech API (`SpeechRecognition` / `webkitSpeechRecognition`), driving instant tool switching, zoom, undo/redo, shape beautification, and math calculation without server dependencies.
+* **Consequences:** Instant responsiveness, zero server dependencies for local/desktop whiteboard usage, and robust failure isolation.
 
 ---
 

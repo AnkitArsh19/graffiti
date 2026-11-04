@@ -1005,7 +1005,9 @@ Automatically cleans up irregular, shaky hand-drawn shapes into crisp, mathemati
      - `arrow` (linear stroke terminating in a sharp arrowhead stroke)
    - **Catmull-Rom & Bezier Smoothing**: If the stroke is an irregular curve or custom contour (not a primitive), applies cubic Bezier / Catmull-Rom spline interpolation for silky-smooth contours.
 2. **Interaction Modes**:
-   - **Auto-Snap on Hold**: Holding the stylus or mouse stationary for 400ms after drawing automatically snaps the stroke into its smoothed shape.
+   - **Auto-Correct on Release (Pencil Tool Only)**: Enabled by default (`autoBeautify: true`). When drawing with the freehand pen/pencil tool, lifting the pointer immediately snaps the stroke in-place into its cleanest primitive without preview interruption.
+   - **Hover Revert Option**: Auto-beautified shapes preserve their original hand-drawn points in `customData.originalElement`. Hovering or selecting the shape reveals a floating `↺ Revert to original` button, restoring the exact drawn stroke on demand.
+   - **Toggle Control**: Users can toggle Auto-Correct ON/OFF anytime from the AI Studio top bar or the Inspector panel when the pen tool is active.
    - **Post-Draw Action**: Tapping a "Beautify Shape" icon replaces selected rough strokes with clean vector primitives.
 
 ---
@@ -1088,7 +1090,13 @@ Synthesizes full diagrams from textual descriptions (e.g., *"Kubernetes deployme
 | `POST` | `/v1/ai/text-to-diagram/chat-streaming` | TTD chat streaming returning Mermaid | `{"messages": [{"role": "user", "content": "..."}]}` | `text/event-stream (StreamChunk SSE)` |
 | `POST` | `/v1/ai/diagram-to-code/generate-streaming` | Wireframe-to-code streaming HTML/CSS | `{"texts": [...], "image": "...", "theme": "light"}` | `text/event-stream (StreamChunk SSE)` |
 
-All AI endpoints are called **by the backend only**. On success, the backend takes `proposedElements` / `payload`, tags each with `customData.aiGenerated: true`, and forwards them to `POST /internal/rooms/{slug}/ai-suggestion` (§6.1) to be broadcast as ghost-preview ops (§8.7).
+All AI endpoints can be invoked asynchronously via collaborative STOMP rooms or directly via Spring Boot's `AiController` (`POST /ai/request`) for local desktop boards. On success, the backend normalizes `proposedElements` / `payload`, tags each with `customData.aiGenerated: true`, and presents them as ghost-preview suggestions (§8.7).
+
+**Client-Side Offline Engine**:
+When the AI microservice or backend is unreachable, `graffiti-frontend` activates `aiClient.ts` with local, deterministic fallback engines:
+- `beautifier.ts`: RDP curve decimation and geometric error fitting for instantaneous shape smoothing.
+- `mathEvaluator.ts`: Safe recursive-descent arithmetic and function evaluator for expressions on `=`.
+- `generateLocalDiagram()`: Procedural node-and-connector layout synthesis.
 
 ### 8.7 Ghost Overlay Accept/Dismiss Wire Format & AI Failure Handling
 - **Accept (`Enter`)**: Frontend sends ghost element(s) as a normal `CREATE_OR_UPDATE` op over `/app/rooms/{slug}/op`, merged through the standard CRDT reducer path.

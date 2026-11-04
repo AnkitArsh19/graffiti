@@ -10,7 +10,8 @@ class AnchorPosition(BaseModel):
 class DiagramSynthesizeRequest(BaseModel):
     roomId: Optional[str] = None
     prompt: str = Field(..., description="Prompt describing the diagram to generate")
-    anchorPosition: AnchorPosition = Field(default_factory=AnchorPosition)
+    anchorPosition: Optional[AnchorPosition] = None
+    anchor: Optional[AnchorPosition] = None
 
 
 class DiagramSynthesizeResponse(BaseModel):

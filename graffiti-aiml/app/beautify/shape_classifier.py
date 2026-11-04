@@ -7,27 +7,36 @@ from app.beautify.douglas_peucker import ramer_douglas_peucker
 Point = Tuple[float, float]
 
 
+def _norm_pt(p: Any) -> Point:
+    if isinstance(p, dict):
+        return (float(p.get("x", 0.0)), float(p.get("y", 0.0)))
+    if isinstance(p, (list, tuple)) and len(p) >= 2:
+        return (float(p[0]), float(p[1]))
+    return (0.0, 0.0)
+
+
 def classify_and_clean_stroke(
     shape_id: str,
-    raw_points: List[Point]
+    raw_points: List[Any]
 ) -> Tuple[str, Dict[str, Any]]:
-    if not raw_points:
+    points: List[Point] = [_norm_pt(p) for p in raw_points] if raw_points else []
+    if not points:
         return "freedraw", {"id": shape_id, "type": "freedraw", "points": []}
 
-    xs = [p[0] for p in raw_points]
-    ys = [p[1] for p in raw_points]
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
     min_x, max_x = min(xs), max(xs)
     min_y, max_y = min(ys), max(ys)
     width = max(max_x - min_x, 10.0)
     height = max(max_y - min_y, 10.0)
 
-    start_pt = raw_points[0]
-    end_pt = raw_points[-1]
+    start_pt = points[0]
+    end_pt = points[-1]
     closure_distance = math.hypot(start_pt[0] - end_pt[0], start_pt[1] - end_pt[1])
     perimeter_est = 2 * (width + height)
     is_closed = (closure_distance / perimeter_est) < 0.20
 
-    simplified = ramer_douglas_peucker(raw_points, epsilon=max(width, height) * 0.05)
+    simplified = ramer_douglas_peucker(points, epsilon=max(width, height) * 0.05)
     num_vertices = len(simplified) - 1 if is_closed else len(simplified)
 
     now = int(time.time() * 1000)

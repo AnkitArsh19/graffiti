@@ -3,7 +3,7 @@ import type { Options } from "roughjs/bin/core";
 import { getStroke } from "perfect-freehand";
 import { applyDarkModeFilter } from "./colors";
 import { getElementTransformHandles, type TransformHandleType } from "./collision";
-import type { CanvasElement, PaperTemplate } from "../types";
+import type { CanvasElement, PaperTemplate, TextAlign } from "../types";
 
 const generator = rough.generator();
 

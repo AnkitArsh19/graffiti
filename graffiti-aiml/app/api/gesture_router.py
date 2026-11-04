@@ -6,6 +6,7 @@ router = APIRouter(tags=["Gesture"])
 
 
 @router.post("/circle-query", response_model=CircleQueryResponse)
+@router.post("/v1/ai/gesture/circle-query", response_model=CircleQueryResponse)
 async def handle_circle_query(req: CircleQueryRequest):
     action, proposed, explanation = process_circle_query(
         req.circleBounds.model_dump(),

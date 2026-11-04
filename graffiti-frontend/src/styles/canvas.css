@@ -374,3 +374,43 @@
 .inspector-header:active {
   cursor: grabbing;
 }
+
+/* Auto-Beautify Revert Pill on Hover */
+.auto-beautify-revert-pill {
+  animation: fadeInPill 140ms ease-out forwards;
+}
+
+@keyframes fadeInPill {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.beautify-revert-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 9999px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.15));
+  background: var(--bg-panel, #18181b);
+  color: var(--text-primary, #f4f4f5);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: all 120ms ease;
+  white-space: nowrap;
+}
+
+.beautify-revert-btn:hover {
+  background: var(--bg-panel-hover, #27272a);
+  border-color: var(--accent-primary, #d4a359);
+  color: var(--accent-primary, #d4a359);
+  transform: translateY(-1px);
+}

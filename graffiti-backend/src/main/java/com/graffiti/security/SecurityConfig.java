@@ -56,6 +56,7 @@ public class SecurityConfig {
                                 "/upload/image/**",
                                 "/ws/**", "/internal/**",
                                 "/export/**",
+                                "/ai/**",
                                 "/oauth2/**", "/login/**"
                         ).permitAll()
                         .anyRequest().authenticated()

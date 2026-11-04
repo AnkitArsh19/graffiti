@@ -15,6 +15,7 @@ import {
   Minus,
   Plus,
   Trash2,
+  Wand2,
 } from "lucide-react";
 import { ColorPickerPopover } from "./ColorPickerPopover";
 import type {
@@ -37,6 +38,8 @@ interface InspectorProps {
   style: ElementStyle;
   theme?: "dark" | "light";
   isEditingText?: boolean;
+  autoBeautify?: boolean;
+  onToggleAutoBeautify?: () => void;
   onStyleChange: (style: ElementStyle) => void;
   onSelectedChange: (patch: Partial<CanvasElement>) => void;
   onDuplicateSelected?: () => void;
@@ -97,6 +100,8 @@ export function Inspector({
   style,
   theme = "dark",
   isEditingText = false,
+  autoBeautify = true,
+  onToggleAutoBeautify,
   onStyleChange,
   onSelectedChange,
   onDuplicateSelected,
@@ -524,6 +529,51 @@ export function Inspector({
                 />
               ))}
             </div>
+          </section>
+        )}
+
+        {/* Auto-Correct Shapes for Pen Tool */}
+        {isPenMode && onToggleAutoBeautify && (
+          <section className="inspector-section">
+            <span className="section-label">Shape Snapping</span>
+            <button
+              type="button"
+              className="inspector-action-btn"
+              onClick={onToggleAutoBeautify}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+                padding: "6px 10px",
+                borderRadius: "6px",
+                border: "1px solid var(--border-subtle, rgba(255, 255, 255, 0.12))",
+                background: autoBeautify ? "rgba(34, 197, 94, 0.12)" : "rgba(255, 255, 255, 0.04)",
+                color: autoBeautify ? "#22c55e" : "var(--text-muted, #71717a)",
+                cursor: "pointer",
+                fontWeight: 500,
+                fontSize: "12px",
+                transition: "all 120ms ease",
+              }}
+              title="Automatically correct pencil strokes into clean geometric shapes upon release"
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Wand2 size={13} />
+                <span>Auto-Correct Shapes</span>
+              </div>
+              <span
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  padding: "1px 6px",
+                  borderRadius: "8px",
+                  backgroundColor: autoBeautify ? "#22c55e" : "rgba(113, 113, 122, 0.25)",
+                  color: autoBeautify ? "#ffffff" : "var(--text-muted, #71717a)",
+                }}
+              >
+                {autoBeautify ? "ON" : "OFF"}
+              </span>
+            </button>
           </section>
         )}
 

@@ -16,6 +16,7 @@ interface VoiceCommanderProps {
   onBeautify: () => void;
   onInsertStoryboardElements?: (elements: CanvasElement[]) => void;
   existingElements?: CanvasElement[];
+  onSolveMath?: () => void;
 }
 
 export function VoiceCommander({
@@ -31,6 +32,7 @@ export function VoiceCommander({
   onBeautify,
   onInsertStoryboardElements,
   existingElements,
+  onSolveMath,
 }: VoiceCommanderProps) {
   const [transcript, setTranscript] = useState("");
   const [lastAction, setLastAction] = useState<string | null>(null);
@@ -190,6 +192,9 @@ export function VoiceCommander({
     } else if (phrase.includes("storyboard")) {
       setIsStoryboardMode(true);
       setLastAction("Switched to Live Storyboard Mode!");
+    } else if (phrase.includes("solve") || phrase.includes("calculate") || phrase.includes("math")) {
+      onSolveMath?.();
+      setLastAction("AI Math Solver Triggered");
     }
   }
 

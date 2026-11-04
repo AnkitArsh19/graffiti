@@ -35,6 +35,8 @@ import {
   screenToWorld,
   updateBoundArrows,
 } from "../lib/geometry";
+import { beautifyStroke } from "../lib/beautifier";
+import { RotateCcw } from "lucide-react";
 import type { CursorInfo } from "../collab/useCollaboration";
 import type {
   CanvasElement,
@@ -121,6 +123,7 @@ interface WhiteboardCanvasProps {
     element: CanvasElement;
   }>;
   onStreamDraft?: (draft: CanvasElement | null) => void;
+  autoBeautify?: boolean;
 }
 
 type PointerAction =
@@ -215,12 +218,15 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       ghostElements = [],
       remoteDrafts = [],
       onStreamDraft,
+      autoBeautify = true,
     },
     ref,
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const actionRef = useRef<PointerAction | null>(null);
+    const [hoveredBeautifiedElement, setHoveredBeautifiedElement] = useState<CanvasElement | null>(null);
+    const isHoveringRevertBtnRef = useRef(false);
 
     const [viewport, setViewport] = useState<Viewport>(() => {
       try {
@@ -925,6 +931,9 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         viewport.zoom,
       );
       onPointerWorldMove?.(world.x, world.y);
+      if (!isHoveringRevertBtnRef.current) {
+        setHoveredBeautifiedElement(null);
+      }
 
       // Middle click or Hand tool initiates canvas pan
       if (event.button === 1 || activeTool === "hand") {
@@ -1155,6 +1164,16 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       );
 
       if (!action) {
+        // Track hover over auto-beautified elements for "Revert to original" option
+        const hoveredHit = [...elements]
+          .reverse()
+          .find((el) => pointInElement(world, el, 10 / viewport.zoom));
+        if (hoveredHit && hoveredHit.customData?.autoBeautified && hoveredHit.customData?.originalElement) {
+          setHoveredBeautifiedElement(hoveredHit);
+        } else if (!isHoveringRevertBtnRef.current) {
+          setHoveredBeautifiedElement(null);
+        }
+
         // Dynamic hover cursor updates
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -1590,7 +1609,45 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         if (finishedDraft.type === "pen") {
           if ((finishedDraft.points?.length ?? 0) > 1) {
             const normalized = normalizePenElement(finishedDraft);
-            onCommit(normalized);
+            if (autoBeautify) {
+              const worldPoints = (normalized.points || []).map((pt) => ({
+                x: normalized.x + pt.x,
+                y: normalized.y + pt.y,
+                pressure: pt.pressure,
+              }));
+              const result = beautifyStroke(
+                worldPoints,
+                {
+                  id: normalized.id,
+                  strokeColor: normalized.strokeColor,
+                  strokeWidth: normalized.strokeWidth,
+                  strokeStyle: normalized.strokeStyle,
+                  fillStyle: normalized.fillStyle,
+                  backgroundColor: normalized.backgroundColor,
+                  roughness: normalized.roughness,
+                  opacity: normalized.opacity,
+                },
+                pageId
+              );
+
+              // If a geometric shape was confidently recognized (circle, ellipse, rectangle, diamond, line, arrow):
+              if (result.shape !== "smoothed_stroke" && result.confidence >= 0.70) {
+                const beautified: CanvasElement = {
+                  ...result.element,
+                  id: normalized.id,
+                  customData: {
+                    ...result.element.customData,
+                    autoBeautified: true,
+                    originalElement: normalized,
+                  },
+                };
+                onCommit(beautified);
+              } else {
+                onCommit(normalized);
+              }
+            } else {
+              onCommit(normalized);
+            }
           }
           draftRef.current = null;
           setDraft(null);
@@ -1689,6 +1746,21 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       setSelectionBox(null);
       setHoveredAnchor(null);
       actionRef.current = null;
+    };
+
+    const handleRevertOriginal = (targetEl: CanvasElement) => {
+      const orig = targetEl.customData?.originalElement as CanvasElement | undefined;
+      if (!orig) return;
+      const restored: CanvasElement = {
+        ...orig,
+        id: targetEl.id,
+        customData: {
+          ...orig.customData,
+          autoBeautified: false,
+        },
+      };
+      onCommit(restored);
+      setHoveredBeautifiedElement(null);
     };
 
     const selectedElement = elements.find((el) => el.id === (selectedId || selectedIds[0])) ?? null;
@@ -1802,6 +1874,53 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
               </div>
             );
           })}
+
+        {/* Hover / Selection Revert Pill for Auto-Beautified Shapes */}
+        {(() => {
+          const target =
+            (hoveredBeautifiedElement && elements.find((e) => e.id === hoveredBeautifiedElement.id)) ||
+            (selectedElement?.customData?.autoBeautified && selectedElement?.customData?.originalElement
+              ? selectedElement
+              : null);
+          if (!target) return null;
+          const screenX = (target.x + viewport.scrollX) * viewport.zoom;
+          const screenY = (target.y + viewport.scrollY) * viewport.zoom;
+          const screenW = target.width * viewport.zoom;
+          return (
+            <div
+              className="auto-beautify-revert-pill"
+              onPointerEnter={() => {
+                isHoveringRevertBtnRef.current = true;
+              }}
+              onPointerLeave={() => {
+                isHoveringRevertBtnRef.current = false;
+                setHoveredBeautifiedElement(null);
+              }}
+              style={{
+                position: "absolute",
+                left: `${screenX + screenW / 2}px`,
+                top: `${Math.max(screenY - 34, 10)}px`,
+                transform: "translateX(-50%)",
+                zIndex: 40,
+                pointerEvents: "auto",
+              }}
+            >
+              <button
+                type="button"
+                className="beautify-revert-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  handleRevertOriginal(target);
+                }}
+                title="Restore original hand-drawn stroke as drawn"
+              >
+                <RotateCcw size={12} />
+                <span>Revert to original</span>
+              </button>
+            </div>
+          );
+        })()}
       </div>
     );
   },
