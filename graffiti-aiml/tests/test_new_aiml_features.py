@@ -282,3 +282,66 @@ def test_voice_storyboard():
     # Must have both nodes and arrows
     has_card = any(e.get("type") in ["card", "rectangle"] for e in data["newElements"])
     assert has_card is True
+    # Must return a summary string for speech synthesis playback
+    assert "summary" in data
+    assert isinstance(data["summary"], str)
+    assert len(data["summary"]) > 0
+
+
+def test_flow_simulator_aabb_100px_threshold():
+    """Shape with no text but floating label within 100px (not 60px) must acquire that label."""
+    elements = [
+        # Start ellipse
+        {"id": "n1", "type": "ellipse", "text": "Start", "x": 100, "y": 100, "width": 100, "height": 50},
+        # Rectangle with no text; floating label is 70px away from its border — within 100px but beyond 60px.
+        {"id": "n2", "type": "rectangle", "text": "", "x": 300, "y": 100, "width": 150, "height": 60},
+        # text centroid at (540, 130): right border of n2 is at x=450, so gap = 540 - 110/2 - 450 = 85px > 60px
+        {"id": "t2", "type": "text", "text": "Process Payload", "x": 485, "y": 115, "width": 110, "height": 30},
+        # End rectangle
+        {"id": "n3", "type": "rectangle", "text": "Done", "x": 700, "y": 100, "width": 120, "height": 60},
+        # Connecting arrows
+        {"id": "a1", "type": "arrow", "x": 200, "y": 125, "startBinding": {"elementId": "n1"}, "endBinding": {"elementId": "n2"}},
+        {"id": "a2", "type": "arrow", "x": 450, "y": 125, "startBinding": {"elementId": "n2"}, "endBinding": {"elementId": "n3"}},
+    ]
+
+    res = client.post(
+        "/v1/ai/flow/simulate",
+        json={"elements": elements, "initialInputs": {}}
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+
+    node_map = {n["id"]: n for n in data["graphNodes"]}
+    # n2 must have acquired 'Process Payload' via the 100px AABB threshold
+    assert "Process Payload" in node_map["n2"]["label"]
+    # Floating text t2 should NOT be an orphaned node
+    assert "t2" not in node_map
+
+
+def test_flow_simulator_step_n_default_labels():
+    """Shapes with no text and no nearby text must receive sequential 'Step N' labels, not discarded."""
+    elements = [
+        # Three bare shapes with no text, no nearby text nodes
+        {"id": "s1", "type": "rectangle", "text": "", "x": 100, "y": 100, "width": 150, "height": 60},
+        {"id": "s2", "type": "rectangle", "text": "", "x": 320, "y": 100, "width": 150, "height": 60},
+        {"id": "s3", "type": "rectangle", "text": "", "x": 540, "y": 100, "width": 150, "height": 60},
+        {"id": "a1", "type": "arrow", "x": 250, "y": 130, "startBinding": {"elementId": "s1"}, "endBinding": {"elementId": "s2"}},
+        {"id": "a2", "type": "arrow", "x": 470, "y": 130, "startBinding": {"elementId": "s2"}, "endBinding": {"elementId": "s3"}},
+    ]
+
+    res = client.post(
+        "/v1/ai/flow/simulate",
+        json={"elements": elements, "initialInputs": {}}
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    # All 3 shapes should be present as nodes with sequential "Step N" labels
+    assert len(data["graphNodes"]) == 3
+    labels = [n["label"] for n in data["graphNodes"]]
+    assert any("Step 1" in lbl for lbl in labels)
+    assert any("Step 2" in lbl for lbl in labels)
+    assert any("Step 3" in lbl for lbl in labels)
+    # Execution trace must not be empty
+    assert len(data["executionSteps"]) >= 1

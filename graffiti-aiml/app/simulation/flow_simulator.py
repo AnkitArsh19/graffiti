@@ -51,12 +51,20 @@ def _extract_graph_heuristics(elements: List[Dict[str, Any]]) -> Dict[str, Any]:
                 consumed_text_ids.add(t_el.get("id"))
                 continue
 
-    # 2. Spatial proximity parsing: associate floating text labels inside or near shape borders
+    # 2. Spatial proximity parsing: associate floating text labels inside or near shape borders.
+    #    Uses AABB (axis-aligned bounding box) intersection with a 100px expansion threshold.
+    SHAPE_PROXIMITY_PX = 100.0
     for shape in shape_elements:
         sx = float(shape.get("x", 0))
         sy = float(shape.get("y", 0))
         sw = float(shape.get("width") or 100)
         sh = float(shape.get("height") or 60)
+
+        # Expand shape bounds by SHAPE_PROXIMITY_PX in all directions for AABB check
+        exp_x0 = sx - SHAPE_PROXIMITY_PX
+        exp_y0 = sy - SHAPE_PROXIMITY_PX
+        exp_x1 = sx + sw + SHAPE_PROXIMITY_PX
+        exp_y1 = sy + sh + SHAPE_PROXIMITY_PX
 
         # Check unconsumed text elements
         nearby_texts = []
@@ -71,16 +79,15 @@ def _extract_graph_heuristics(elements: List[Dict[str, Any]]) -> Dict[str, Any]:
             ty = float(t_el.get("y", 0))
             tw = float(t_el.get("width") or 60)
             th = float(t_el.get("height") or 30)
-            tcx = tx + tw / 2.0
-            tcy = ty + th / 2.0
 
-            # Distance from text centroid to shape bounding box (0 if inside)
-            dx = max(sx - tcx, 0.0, tcx - (sx + sw))
-            dy = max(sy - tcy, 0.0, tcy - (sy + sh))
-            border_dist = math.hypot(dx, dy)
-
-            # Within 60px of shape border or directly contained
-            if border_dist <= 60.0:
+            # AABB intersection check: does text bbox overlap the expanded shape bbox?
+            if tx < exp_x1 and tx + tw > exp_x0 and ty < exp_y1 and ty + th > exp_y0:
+                # Use centroid distance to rank candidates
+                tcx = tx + tw / 2.0
+                tcy = ty + th / 2.0
+                dx = max(sx - tcx, 0.0, tcx - (sx + sw))
+                dy = max(sy - tcy, 0.0, tcy - (sy + sh))
+                border_dist = math.hypot(dx, dy)
                 nearby_texts.append((border_dist, t_el))
 
         if nearby_texts:
@@ -140,6 +147,7 @@ def _extract_graph_heuristics(elements: List[Dict[str, Any]]) -> Dict[str, Any]:
                 consumed_text_ids.add(best_t.get("id"))
 
     # 4. Build nodes: shapes + unconsumed standalone text elements
+    step_counter = 1
     for shape in shape_elements:
         t = (shape.get("type") or "").lower()
         eid = shape.get("id") or ""
@@ -155,7 +163,11 @@ def _extract_graph_heuristics(elements: List[Dict[str, Any]]) -> Dict[str, Any]:
         elif t == "ellipse" and (not txt or "start" in txt.lower()):
             node_type = "start"
 
-        label = txt if txt else f"{t.capitalize()} Node"
+        if txt:
+            label = txt
+        else:
+            label = f"Step {step_counter}"
+            step_counter += 1
         nodes.append({"id": eid, "label": label, "nodeType": node_type, "raw": shape})
         node_id_set.add(eid)
 

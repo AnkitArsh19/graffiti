@@ -235,12 +235,22 @@ async def generate_voice_storyboard(req: VoiceStoryboardRequest) -> VoiceStorybo
                     entity_names = [e["name"] for e in data.get("entities", [])]
                     rel_names = [f"{r.get('source')} -> {r.get('target')} ({r.get('protocol', '')})" for r in data.get("relationships", [])]
 
+                    entity_count = len(entity_names)
+                    rel_count = len(rel_names)
+                    summary = (
+                        f"I placed {entity_count} component{'s' if entity_count != 1 else ''} on the canvas: "
+                        + ", ".join(entity_names[:3])
+                        + (f", and {entity_count - 3} more" if entity_count > 3 else "")
+                        + f". With {rel_count} connection{'s' if rel_count != 1 else ''} between them."
+                    )
+
                     return VoiceStoryboardResponse(
                         success=True,
                         newElements=new_elements,
                         entitiesDetected=entity_names,
                         relationshipsDetected=rel_names,
                         transcriptSnippet=transcript[:100],
+                        summary=summary,
                         aiProvider="gemini-1.5-flash"
                     )
         except Exception:
@@ -258,11 +268,21 @@ async def generate_voice_storyboard(req: VoiceStoryboardRequest) -> VoiceStorybo
     entity_names = [e["name"] for e in fallback_data.get("entities", [])]
     rel_names = [f"{r.get('source')} -> {r.get('target')} ({r.get('protocol', '')})" for r in fallback_data.get("relationships", [])]
 
+    entity_count = len(entity_names)
+    rel_count = len(rel_names)
+    summary = (
+        f"I placed {entity_count} component{'s' if entity_count != 1 else ''} on the canvas: "
+        + ", ".join(entity_names[:3])
+        + (f", and {entity_count - 3} more" if entity_count > 3 else "")
+        + f". With {rel_count} connection{'s' if rel_count != 1 else ''} between them."
+    )
+
     return VoiceStoryboardResponse(
         success=True,
         newElements=new_elements,
         entitiesDetected=entity_names,
         relationshipsDetected=rel_names,
         transcriptSnippet=transcript[:100],
+        summary=summary,
         aiProvider="gemini-1.5-flash-offline"
     )

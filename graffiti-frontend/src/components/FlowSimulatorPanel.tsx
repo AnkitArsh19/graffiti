@@ -97,7 +97,7 @@ export function associateNearbyFloatingText(elements: CanvasElement[]): CanvasEl
       const dy = Math.max(sy - tcy, 0, tcy - (sy + sh));
       const borderDist = Math.hypot(dx, dy);
 
-      if (borderDist <= 60) {
+      if (borderDist <= 100) {
         nearbyTexts.push({ dist: borderDist, el: t });
       }
     }

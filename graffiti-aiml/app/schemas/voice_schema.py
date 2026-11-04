@@ -14,4 +14,5 @@ class VoiceStoryboardResponse(BaseModel):
     entitiesDetected: List[str] = Field(default_factory=list)
     relationshipsDetected: List[str] = Field(default_factory=list)
     transcriptSnippet: str = ""
+    summary: str = Field(default="", description="Human-readable summary for text-to-speech playback")
     aiProvider: str = "gemini-1.5-flash"

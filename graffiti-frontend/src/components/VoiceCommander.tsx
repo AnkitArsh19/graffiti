@@ -107,7 +107,20 @@ export function VoiceCommander({
       if (resp && resp.success && resp.newElements && resp.newElements.length > 0) {
         onInsertStoryboardElements(resp.newElements);
         const entityCount = resp.entitiesDetected?.length || 0;
+        const summary = resp.summary
+          ? resp.summary
+          : `Placed ${entityCount} architecture block${entityCount !== 1 ? "s" : ""} on the canvas.`;
         setLastAction(`Placed ${entityCount} architecture block(s) & arrows!`);
+
+        // Audio confirmation: speak the summary back to the user
+        if (typeof window !== "undefined" && window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(summary);
+          utterance.rate = 1.0;
+          utterance.pitch = 1.0;
+          utterance.volume = 0.9;
+          window.speechSynthesis.speak(utterance);
+        }
       } else {
         setLastAction("Heard: " + spokenText.slice(0, 30));
       }

@@ -603,7 +603,7 @@ export function drawShapeOnCanvas(
       break;
   }
 
-  // Draw element text using selected font family and size
+  // Draw element text using selected font family and size, clipped to shape interior.
   if (element.text) {
     const fontSize =
       element.customFontSize ||
@@ -632,16 +632,17 @@ export function drawShapeOnCanvas(
     const isRect = element.type === "rectangle";
     const isShape = isRect || isEllipse || isDiamond;
 
-    const align: TextAlign = element.textAlign || (isShape ? "center" : "left");
+    const align: TextAlign = element.textAlign || (isShape || isSticky ? "center" : "left");
     context.textAlign = align;
 
     const padding = isSticky ? 14 : isDiamond ? 14 : isEllipse ? 12 : isRect ? 8 : 2;
+    // Tighter inset for diamond (inscribed square: width*0.5) and ellipse (inscribed rect: width*0.707).
     const maxWidth = isSticky
       ? Math.max(20, element.width - padding * 2)
       : isDiamond
-      ? Math.max(20, (element.width - padding * 2) * 0.72)
+      ? Math.max(20, element.width * 0.50)
       : isEllipse
-      ? Math.max(20, (element.width - padding * 2) * 0.78)
+      ? Math.max(20, element.width * 0.707)
       : isRect
       ? Math.max(20, element.width - padding * 2)
       : element.width && element.width > 30
@@ -652,7 +653,7 @@ export function drawShapeOnCanvas(
     const lineHeight = fontSize * 1.35;
     const totalTextHeight = lines.length * lineHeight;
 
-    const startY = isShape
+    const startY = isShape || isSticky
       ? Math.max(padding, (element.height - totalTextHeight) / 2)
       : padding;
 
@@ -663,9 +664,52 @@ export function drawShapeOnCanvas(
       startX = element.width - padding;
     }
 
+    // Apply hard clip to shape interior so text never bleeds outside the outline.
+    context.save();
+    if (isDiamond) {
+      context.beginPath();
+      context.moveTo(element.width / 2, 0);
+      context.lineTo(element.width, element.height / 2);
+      context.lineTo(element.width / 2, element.height);
+      context.lineTo(0, element.height / 2);
+      context.closePath();
+      context.clip();
+    } else if (isEllipse) {
+      context.beginPath();
+      context.ellipse(
+        element.width / 2,
+        element.height / 2,
+        element.width / 2,
+        element.height / 2,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      context.closePath();
+      context.clip();
+    } else if (isSticky) {
+      const r = 10;
+      const w = element.width;
+      const h = element.height;
+      context.beginPath();
+      context.moveTo(r, 0);
+      context.lineTo(w - r, 0);
+      context.quadraticCurveTo(w, 0, w, r);
+      context.lineTo(w, h - r);
+      context.quadraticCurveTo(w, h, w - r, h);
+      context.lineTo(r, h);
+      context.quadraticCurveTo(0, h, 0, h - r);
+      context.lineTo(0, r);
+      context.quadraticCurveTo(0, 0, r, 0);
+      context.closePath();
+      context.clip();
+    }
+
     lines.forEach((line, i) => {
       context.fillText(line, startX, startY + i * lineHeight);
     });
+
+    context.restore();
   }
 
   context.restore();
