@@ -246,7 +246,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               <div className="ai-info-body">
                 <p><strong>100% Offline:</strong> Canvas drawing, notebooks, templates, and local exports require no internet.</p>
                 <div className="ai-info-divider" />
-                <p><strong>Internet Required:</strong> Math Solver, Canvas OCR Search, Circle-to-Edit, and Diagram Synthesis connect to the AI microservice when online.</p>
+                <p><strong>Free AI Models (Gemini 1.5 Flash & Groq):</strong> Mind-Map Auto-Layout, Flowchart-to-Code Vision, Live Executive Briefing, AI Theme Morphing, Flow Simulator, and Voice-to-Canvas Storyboarding.</p>
               </div>
             </div>
           )}

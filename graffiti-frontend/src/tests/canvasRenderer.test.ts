@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getFreedrawOutline, getSvgPathFromStroke } from "../lib/canvasRenderer";
+import { getFreedrawOutline, getSvgPathFromStroke, wrapTextLines } from "../lib/canvasRenderer";
 import { pointInElement, getElementTransformHandles, getHitTransformHandle } from "../lib/collision";
 import type { CanvasElement } from "../types";
 
@@ -117,5 +117,24 @@ describe("canvas renderer and interaction tests", () => {
 
     const hit = getHitTransformHandle({ x: 200, y: 180 }, arrow, 1);
     expect(hit).toBe("pMid");
+  });
+
+  it("auto-wraps shape text into multiple lines without horizontal overflow", () => {
+    // Mock 2D context measureText
+    const mockCtx = {
+      measureText: (str: string) => ({ width: str.length * 8 }),
+    } as unknown as CanvasRenderingContext2D;
+
+    // A long text in a 100px wide shape (max text width = 80px -> ~10 chars per line)
+    const longText = "Process Auth Token and Return User Profile";
+    const wrapped = wrapTextLines(mockCtx, longText, 80);
+
+    expect(wrapped.length).toBeGreaterThan(1);
+    // Every line should respect maxWidth (<= 80px)
+    for (const line of wrapped) {
+      expect(mockCtx.measureText(line).width).toBeLessThanOrEqual(80);
+    }
+    // All words should be preserved
+    expect(wrapped.join(" ")).toBe(longText);
   });
 });

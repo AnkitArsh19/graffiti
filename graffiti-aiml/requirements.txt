@@ -9,3 +9,4 @@ pillow>=10.4.0
 numpy>=1.26.0
 shapely>=2.0.6
 pytest>=8.0.0
+groq>=0.37.0

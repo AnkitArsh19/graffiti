@@ -72,6 +72,8 @@ export interface CanvasElement {
   seed: number;
   startBinding?: PointBinding;
   endBinding?: PointBinding;
+  containerId?: string;
+  boundElements?: Array<{ id: string; type?: string }>;
   childrenIds?: string[];
   iconFamily?: string;
   svgPath?: string;

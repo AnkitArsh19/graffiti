@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, Sparkles, X } from "lucide-react";
-import type { ToolId } from "../types";
+import { Mic, MicOff, Sparkles, X, Layers, Activity } from "lucide-react";
+import type { ToolId, CanvasElement } from "../types";
+import { apiVoiceStoryboard } from "../lib/api";
 
 interface VoiceCommanderProps {
   isListening: boolean;
@@ -13,6 +14,8 @@ interface VoiceCommanderProps {
   onResetView: () => void;
   onNewPage: () => void;
   onBeautify: () => void;
+  onInsertStoryboardElements?: (elements: CanvasElement[]) => void;
+  existingElements?: CanvasElement[];
 }
 
 export function VoiceCommander({
@@ -26,10 +29,15 @@ export function VoiceCommander({
   onResetView,
   onNewPage,
   onBeautify,
+  onInsertStoryboardElements,
+  existingElements,
 }: VoiceCommanderProps) {
   const [transcript, setTranscript] = useState("");
   const [lastAction, setLastAction] = useState<string | null>(null);
+  const [isStoryboardMode, setIsStoryboardMode] = useState(false);
+  const [isProcessingAi, setIsProcessingAi] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const debounceTimerRef = useRef<any>(null);
 
   useEffect(() => {
     const SpeechRecognition =
@@ -48,7 +56,11 @@ export function VoiceCommander({
       setTranscript(text);
 
       if (event.results[current].isFinal) {
-        processCommand(text);
+        if (isStoryboardMode) {
+          triggerStoryboardExtraction(text);
+        } else {
+          processCommand(text);
+        }
       }
     };
 
@@ -63,7 +75,7 @@ export function VoiceCommander({
         recognition.stop();
       } catch {}
     };
-  }, []);
+  }, [isStoryboardMode, onInsertStoryboardElements, existingElements]);
 
   useEffect(() => {
     if (!recognitionRef.current) return;
@@ -71,13 +83,54 @@ export function VoiceCommander({
       if (isListening) {
         recognitionRef.current.start();
         setTranscript("");
-        setLastAction("Listening...");
+        setLastAction(isStoryboardMode ? "Listening for architecture storytelling..." : "Listening...");
       } else {
         recognitionRef.current.stop();
         setLastAction(null);
       }
     } catch {}
-  }, [isListening]);
+  }, [isListening, isStoryboardMode]);
+
+  async function triggerStoryboardExtraction(spokenText: string) {
+    if (!spokenText || spokenText.length < 5 || !onInsertStoryboardElements) return;
+
+    setIsProcessingAi(true);
+    setLastAction("Synthesizing system blocks with Gemini Flash...");
+
+    try {
+      const resp = await apiVoiceStoryboard({
+        transcript: spokenText,
+        existingElements: existingElements || [],
+        anchorPosition: { x: 300, y: 250 },
+      });
+
+      if (resp && resp.success && resp.newElements && resp.newElements.length > 0) {
+        onInsertStoryboardElements(resp.newElements);
+        const entityCount = resp.entitiesDetected?.length || 0;
+        const summary = resp.summary
+          ? resp.summary
+          : `Placed ${entityCount} architecture block${entityCount !== 1 ? "s" : ""} on the canvas.`;
+        setLastAction(`Placed ${entityCount} architecture block(s) & arrows!`);
+
+        // Audio confirmation: speak the summary back to the user
+        if (typeof window !== "undefined" && window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(summary);
+          utterance.rate = 1.0;
+          utterance.pitch = 1.0;
+          utterance.volume = 0.9;
+          window.speechSynthesis.speak(utterance);
+        }
+      } else {
+        setLastAction("Heard: " + spokenText.slice(0, 30));
+      }
+    } catch (err) {
+      console.warn("Voice storyboard error:", err);
+      setLastAction("Storyboard extraction unavailable.");
+    } finally {
+      setIsProcessingAi(false);
+    }
+  }
 
   function processCommand(phrase: string) {
     if (phrase.includes("rectangle") || phrase.includes("box")) {
@@ -134,6 +187,9 @@ export function VoiceCommander({
     } else if (phrase.includes("beautify") || phrase.includes("smooth")) {
       onBeautify();
       setLastAction("AI Shape Beautify Triggered");
+    } else if (phrase.includes("storyboard")) {
+      setIsStoryboardMode(true);
+      setLastAction("Switched to Live Storyboard Mode!");
     }
   }
 
@@ -148,10 +204,14 @@ export function VoiceCommander({
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 90,
-        background: "rgba(24, 24, 27, 0.9)",
-        backdropFilter: "blur(8px)",
-        border: "1px solid rgba(239, 68, 68, 0.35)",
-        boxShadow: "0 10px 30px rgba(239, 68, 68, 0.2)",
+        background: "rgba(24, 24, 27, 0.92)",
+        backdropFilter: "blur(12px)",
+        border: isStoryboardMode
+          ? "1px solid rgba(139, 92, 246, 0.5)"
+          : "1px solid rgba(239, 68, 68, 0.35)",
+        boxShadow: isStoryboardMode
+          ? "0 10px 30px rgba(139, 92, 246, 0.25)"
+          : "0 10px 30px rgba(239, 68, 68, 0.2)",
         borderRadius: 24,
         padding: "8px 16px",
         display: "flex",
@@ -166,20 +226,46 @@ export function VoiceCommander({
           width: 10,
           height: 10,
           borderRadius: "50%",
-          background: "#ef4444",
-          boxShadow: "0 0 10px #ef4444",
+          background: isStoryboardMode ? "#a855f7" : "#ef4444",
+          boxShadow: isStoryboardMode ? "0 0 10px #a855f7" : "0 0 10px #ef4444",
         }}
       />
-      <Mic size={16} color="#ef4444" />
-      <div style={{ fontSize: 13, fontWeight: 500 }}>
-        {transcript ? (
-          <span style={{ color: "#fca5a5" }}>"{transcript}"</span>
+      <Mic size={16} color={isStoryboardMode ? "#a855f7" : "#ef4444"} />
+
+      {/* Mode Switcher Pill */}
+      <button
+        type="button"
+        onClick={() => setIsStoryboardMode((prev) => !prev)}
+        style={{
+          background: isStoryboardMode ? "rgba(168, 85, 247, 0.25)" : "rgba(255, 255, 255, 0.08)",
+          border: isStoryboardMode ? "1px solid #a855f7" : "1px solid rgba(255, 255, 255, 0.15)",
+          color: isStoryboardMode ? "#d8b4fe" : "#d4d4d8",
+          padding: "2px 8px",
+          borderRadius: 12,
+          fontSize: 10,
+          fontWeight: 600,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+        }}
+      >
+        <Sparkles size={10} />
+        <span>{isStoryboardMode ? "Live Storyboard" : "Commands"}</span>
+      </button>
+
+      <div style={{ fontSize: 13, fontWeight: 500, minWidth: 200, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {isProcessingAi ? (
+          <span style={{ color: "#d8b4fe" }}>Extracting entities & layout...</span>
+        ) : transcript ? (
+          <span style={{ color: isStoryboardMode ? "#e9d5ff" : "#fca5a5" }}>"{transcript}"</span>
         ) : lastAction ? (
           <span style={{ color: "#86efac" }}>{lastAction}</span>
         ) : (
-          <span>Listening for voice commands (Alt+V)...</span>
+          <span>{isStoryboardMode ? "Describe your system architecture out loud..." : "Listening for voice commands (Alt+V)..."}</span>
         )}
       </div>
+
       <button
         type="button"
         onClick={onToggle}

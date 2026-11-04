@@ -286,6 +286,63 @@ function drawArrowhead(
   rc.draw(generator.line(w2.x, w2.y, tip.x, tip.y, headOptions));
 }
 
+/**
+ * Wraps text into lines that do not exceed maxWidth to prevent horizontal overflow.
+ */
+export function wrapTextLines(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+): string[] {
+  if (!text) return [];
+  if (maxWidth <= 0) return text.split("\n");
+
+  const paragraphs = text.split("\n");
+  const resultLines: string[] = [];
+
+  for (const para of paragraphs) {
+    if (!para.trim()) {
+      resultLines.push("");
+      continue;
+    }
+    const words = para.split(" ");
+    let currentLine = "";
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = context.measureText(testLine).width;
+
+      if (testWidth <= maxWidth) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) {
+          resultLines.push(currentLine);
+          currentLine = word;
+        } else {
+          // If a single word exceeds maxWidth, break characters
+          let partial = "";
+          for (const char of word) {
+            const charTest = partial + char;
+            if (context.measureText(charTest).width <= maxWidth) {
+              partial = charTest;
+            } else {
+              if (partial) resultLines.push(partial);
+              partial = char;
+            }
+          }
+          currentLine = partial;
+        }
+      }
+    }
+    if (currentLine) {
+      resultLines.push(currentLine);
+    }
+  }
+
+  return resultLines;
+}
+
 // -----------------------------------------------------------------------------
 // Shape Rendering Pipeline via Rough.js & Vector Geometry
 // -----------------------------------------------------------------------------
@@ -546,7 +603,7 @@ export function drawShapeOnCanvas(
       break;
   }
 
-  // Draw element text using selected font family and size
+  // Draw element text using selected font family and size, clipped to shape interior.
   if (element.text) {
     const fontSize =
       element.customFontSize ||
@@ -568,22 +625,91 @@ export function drawShapeOnCanvas(
     context.fillStyle = strokeColor;
     context.font = `normal ${fontSize}px ${fontFamilyName}`;
     context.textBaseline = "top";
-    context.textAlign = element.textAlign || "left";
 
-    const padding = element.type === "sticky" ? 14 : 2;
-    const lines = element.text.split("\n");
+    const isSticky = element.type === "sticky";
+    const isDiamond = element.type === "diamond";
+    const isEllipse = element.type === "ellipse";
+    const isRect = element.type === "rectangle";
+    const isShape = isRect || isEllipse || isDiamond;
+
+    const align: TextAlign = element.textAlign || (isShape || isSticky ? "center" : "left");
+    context.textAlign = align;
+
+    const padding = isSticky ? 14 : isDiamond ? 14 : isEllipse ? 12 : isRect ? 8 : 2;
+    // Tighter inset for diamond (inscribed square: width*0.5) and ellipse (inscribed rect: width*0.707).
+    const maxWidth = isSticky
+      ? Math.max(20, element.width - padding * 2)
+      : isDiamond
+      ? Math.max(20, element.width * 0.50)
+      : isEllipse
+      ? Math.max(20, element.width * 0.707)
+      : isRect
+      ? Math.max(20, element.width - padding * 2)
+      : element.width && element.width > 30
+      ? element.width
+      : 999999;
+
+    const lines = wrapTextLines(context, element.text, maxWidth);
     const lineHeight = fontSize * 1.35;
+    const totalTextHeight = lines.length * lineHeight;
+
+    const startY = isShape || isSticky
+      ? Math.max(padding, (element.height - totalTextHeight) / 2)
+      : padding;
 
     let startX = padding;
-    if (element.textAlign === "center") {
+    if (align === "center") {
       startX = element.width / 2;
-    } else if (element.textAlign === "right") {
+    } else if (align === "right") {
       startX = element.width - padding;
     }
 
+    // Apply hard clip to shape interior so text never bleeds outside the outline.
+    context.save();
+    if (isDiamond) {
+      context.beginPath();
+      context.moveTo(element.width / 2, 0);
+      context.lineTo(element.width, element.height / 2);
+      context.lineTo(element.width / 2, element.height);
+      context.lineTo(0, element.height / 2);
+      context.closePath();
+      context.clip();
+    } else if (isEllipse) {
+      context.beginPath();
+      context.ellipse(
+        element.width / 2,
+        element.height / 2,
+        element.width / 2,
+        element.height / 2,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      context.closePath();
+      context.clip();
+    } else if (isSticky) {
+      const r = 10;
+      const w = element.width;
+      const h = element.height;
+      context.beginPath();
+      context.moveTo(r, 0);
+      context.lineTo(w - r, 0);
+      context.quadraticCurveTo(w, 0, w, r);
+      context.lineTo(w, h - r);
+      context.quadraticCurveTo(w, h, w - r, h);
+      context.lineTo(r, h);
+      context.quadraticCurveTo(0, h, 0, h - r);
+      context.lineTo(0, r);
+      context.quadraticCurveTo(0, 0, r, 0);
+      context.closePath();
+      context.clip();
+    }
+
     lines.forEach((line, i) => {
-      context.fillText(line, startX, padding + i * lineHeight);
+      context.fillText(line, startX, startY + i * lineHeight);
     });
+
+    context.restore();
   }
 
   context.restore();

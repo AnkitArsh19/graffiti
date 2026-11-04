@@ -78,17 +78,23 @@ If you have this repository locally, the compiled desktop application executable
 │  └────────────────────────────────────────────────────────────────────────────┘  │
 └──────────────┬───────────────────────────┬────────────────────────┬──────────────┘
                │                           │                        │
-        Database Ops                 Pub/Sub & Locks          Internal Callback
+        Database Ops                 Pub/Sub & Locks       REST (AI Inference)
                │                           │                        │
                ▼                           ▼                        ▼
 ┌─────────────────────────────┐ ┌──────────────────────┐ ┌─────────────────────────┐
 │        PostgreSQL 16        │ │       Redis 7        │ │      AI/ML Service      │
-│  - ops (Append-only JSONB)  │ │ - room:{slug}:op     │ │    (FastAPI / Python)   │
+│  - ops (Append-only JSONB)  │ │ - room:{slug}:op     │ │  (FastAPI / Python 3.12)│
 │  - snapshots (State JSONB)  │ │ - room:{slug}:pres.. │ │ - Handwriting OCR Search│
 │  - rooms, pages, users      │ │ - lock:compact:{id}  │ │ - Stroke Beautification │
 │                             │ │                      │ │ - Live Math Solver      │
 │                             │ │                      │ │ - Circle-to-Edit Engine │
 │                             │ │                      │ │ - Text-to-Diagram (LLM) │
+│                             │ │                      │ │ - Mind-Map Auto-Layout  │
+│                             │ │                      │ │ - Flow Simulator Engine │
+│                             │ │                      │ │ - Notebook AI Briefing  │
+│                             │ │                      │ │ - Theme Morphing (LLM)  │
+│                             │ │                      │ │ - Flowchart-to-Code     │
+│                             │ │                      │ │ - Voice Live Storyboard │
 └─────────────────────────────┘ └──────────────────────┘ └─────────────────────────┘
 ```
 
@@ -100,7 +106,7 @@ If you have this repository locally, the compiled desktop application executable
 | :--- | :--- | :--- | :--- |
 | **Backend & Sync Engine** | Java 25, Spring Boot 4.1.0, STOMP, Redis 7, PostgreSQL 16 | [`graffiti-backend/`](file:///e:/graffiti/graffiti-backend/) | [Backend README](file:///e:/graffiti/graffiti-backend/README.md) |
 | **Frontend & Desktop App** | React 19, TypeScript, Vite, Tauri v2, Rough vector renderer | [`graffiti-frontend/`](file:///e:/graffiti/graffiti-frontend/) | [Frontend README](file:///e:/graffiti/graffiti-frontend/README.md) |
-| **AI/ML Assistance Service** | Python 3.12, FastAPI, SymPy, TrOCR / Vision, Shapely | [`graffiti-aiml/`](file:///e:/graffiti/graffiti-aiml/) | [AI/ML README](file:///e:/graffiti/graffiti-aiml/README.md) |
+| **AI/ML Assistance Service** | Python 3.12, FastAPI, Groq (llama-3.1-70b), Gemini 1.5 Flash, SymPy | [`graffiti-aiml/`](file:///e:/graffiti/graffiti-aiml/) | [AI/ML README](file:///e:/graffiti/graffiti-aiml/README.md) |
 | **Infrastructure** | Docker, Docker Compose, PostgreSQL 16, Redis 7 | [`docker/`](file:///e:/graffiti/docker/) | [Docker Compose](file:///e:/graffiti/docker/docker-compose.yml) |
 
 ---
@@ -133,13 +139,18 @@ If you have this repository locally, the compiled desktop application executable
    - **Customizable Shortcuts Engine**: Configure custom keybindings and mouse buttons (including M4/M5) across whiteboard, overlay, document, and general workflows.
 6. **Multimodal AI Whiteboard Assistance**:
    - **Diagram-to-Code / Wireframe-to-Code (`MagicFrame`)**: Multimodal AI vision converting hand-drawn wireframes and sketches into live, interactive HTML/CSS code streamed directly into an embedded iframe.
-   - **Conversational Text-to-Diagram (TTD) Streaming**: Multi-turn chat streaming generating structured Mermaid flowchart syntax and real-time previews via Server-Sent Events.
+   - **Conversational Text-to-Diagram (TTD) Streaming**: Multi-turn chat streaming generating structured Mermaid flowcharts and real-time previews via Server-Sent Events.
    - **Live Handwritten Math & Equation Solver**: Automatically detects math expressions ending in `=`, evaluates via symbolic Python (`sympy`), and places the result digitally on canvas.
-   - **Voice-Driven Canvas Commands**: Browser-native Web Speech API enabling hands-free tool switching, color selection, and page navigation.
+   - **Voice-Driven Canvas Commands & Live Storyboard**: Browser-native Web Speech API enabling hands-free tool switching, color selection, and page navigation. Activate **Live Storyboard mode** to describe a system architecture out loud; Gemini 1.5 Flash extracts entities and relationships, renders architecture cards directly onto the canvas, and plays back an audio confirmation summary via `speechSynthesis`.
    - **Handwriting OCR & Search (`Ctrl+F`)**: Unified spatial canvas search across typed text and handwritten notes across all pages.
    - **Stroke Beautification**: Douglas-Peucker point decimation and geometric primitive snapping (Auto-Snap on Hold).
    - **"Circle to Ask / Modify / Change" Gesture AI**: Drawing a closed loop around any region extracts spatial context for AI queries, restyling, or transformation.
    - **Non-Destructive Ghost Previews**: AI suggestions render as interactive preview overlays with **Accept (Enter)** and **Dismiss (Esc)** actions.
+   - **Mind-Map Auto-Layout** (`MindMapPanel`): One-click AI-driven radial/bidirectional tree layout with semantic root identification (prevents short acronyms like "NLP" from displacing parent domains like "Artificial Intelligence") powered by Groq llama-3.1-70b or Gemini 1.5 Flash, with symmetric left/right branch distribution and curved connector arrows.
+   - **Behavioral Flow Simulator** (`FlowSimulatorPanel`): Converts directed whiteboard diagrams into an executable state graph. Performs AABB spatial proximity parsing (100 px threshold) to associate floating text labels with shapes, assigns sequential "Step N" fallback labels for unlabeled nodes, and runs a step-by-step execution trace with live element highlighting.
+   - **AI Notebook Briefing** (`NotebookBriefingWidget`): Extracts action items (with assignees and priorities), key decisions, and open questions from multi-page lecture or meeting notes via LLM summarization.
+   - **Flowchart-to-Code Converter** (`FlowchartToCodePanel`): Captures the canvas as an image, sends it to Gemini 1.5 Flash, and returns Python and Node.js implementations plus a Mermaid diagram — insertable directly as canvas code blocks.
+   - **AI Theme Morpher** (`ThemeMorphPanel`): Transforms the visual aesthetic of all canvas elements (stroke color, background, fill style, roughness) using a natural-language theme prompt (e.g., "Cyberpunk Blueprint", "Retro Paper") while strictly preserving all spatial coordinates and dimensions.
 
 ---
 
@@ -159,10 +170,31 @@ graffiti/
 │   ├── src-tauri/                  # Native desktop windowing & OS menu configuration
 │   ├── README.md
 │   └── src/
-├── graffiti-aiml/                  # Python 3.12 + FastAPI AI assistance service
+│       ├── components/
+│       │   ├── WhiteboardCanvas.tsx           # Core canvas (shape containment, bound text, drag groups)
+│       │   ├── canvasRenderer.ts              # Rough.js renderer with shape-clipped text rendering
+│       │   ├── FlowSimulatorPanel.tsx         # Behavioral flow execution engine UI
+│       │   ├── FlowchartToCodePanel.tsx       # Flowchart → Python/Node.js/Mermaid converter UI
+│       │   ├── MindMapPanel.tsx               # AI mind-map auto-layout panel
+│       │   ├── NotebookBriefingWidget.tsx     # AI notebook summarization & action items widget
+│       │   ├── ThemeMorphPanel.tsx            # AI visual theme transformation panel
+│       │   ├── VoiceCommander.tsx             # Voice commands + Live Storyboard HUD
+│       │   └── VoiceStoryboardHUD.tsx         # Semantic alias for VoiceCommander storyboard mode
+│       └── lib/
+│           └── api.ts                         # Typed REST client for backend & AI/ML service
+├── graffiti-aiml/                  # Python 3.12 + FastAPI AI assistance microservice
 │   ├── README.md
 │   └── app/
+│       ├── main.py                            # FastAPI entrypoint — 12 routers mounted
+│       ├── mindmap/mindmap_agent.py           # Semantic root-scoring + bidirectional tree layout
+│       ├── simulation/flow_simulator.py       # AABB spatial graph parser + state machine executor
+│       ├── flowchart/flowchart_to_code.py     # Canvas-image → code (Gemini 1.5 Flash)
+│       ├── notebook/notebook_summarizer.py    # LLM action-item & decision extraction
+│       ├── theme/theme_morpher.py             # LLM aesthetic theme morphing (preserves geometry)
+│       └── voice/voice_storyboard.py         # Speech → architecture block generation
+├── pytest.ini                      # Root pytest configuration (testpaths, pythonpath)
 ├── README.md                       # Master project overview & quickstart guide
+├── ARCHITECTURE_DECISIONS.md       # ADR matrix & distributed systems trade-offs
 └── PROJECT_SPECIFICATION.md        # Authoritative engineering specification & contracts
 ```
 

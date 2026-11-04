@@ -7,12 +7,21 @@ from app.api.diagram_router import router as diagram_router
 from app.api.gesture_router import router as gesture_router
 from app.api.math_router import router as math_router
 from app.api.ocr_router import router as ocr_router
+
+# New AI/ML Feature Routers
+from app.api.mindmap_router import router as mindmap_router
+from app.api.flowchart_router import router as flowchart_router
+from app.api.notebook_router import router as notebook_router
+from app.api.theme_router import router as theme_router
+from app.api.simulation_router import router as simulation_router
+from app.api.voice_router import router as voice_router
+
 from app.config import settings
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.1.0",
-    description="Graffiti Asynchronous AI/ML Service for intelligent whiteboard features."
+    version="0.2.0",
+    description="Graffiti Asynchronous AI/ML Service for intelligent whiteboard and canvas features."
 )
 
 # Enable CORS for frontend and backend integration
@@ -32,13 +41,25 @@ app.include_router(gesture_router)
 app.include_router(diagram_router)
 app.include_router(code_router)
 
+# Mount Feature Routers
+app.include_router(mindmap_router)
+app.include_router(flowchart_router)
+app.include_router(notebook_router)
+app.include_router(theme_router)
+app.include_router(simulation_router)
+app.include_router(voice_router)
+
 
 @app.get("/health", tags=["Health"])
 async def health_check():
     return {
         "status": "UP",
         "service": settings.app_name,
-        "environment": settings.environment
+        "environment": settings.environment,
+        "free_providers": {
+            "gemini_api_key_configured": bool(settings.get_gemini_key()),
+            "groq_api_key_configured": bool(settings.get_groq_key())
+        }
     }
 
 
