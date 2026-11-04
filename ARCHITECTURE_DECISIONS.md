@@ -29,6 +29,11 @@
    - [ADR-015: Low-Latency Ephemeral Stroke Streaming Protocol & Canvas Normalization](#adr-015-low-latency-ephemeral-stroke-streaming-protocol--canvas-normalization)
    - [ADR-016: Resilient STOMP Watchdog, Dual-Layer Heartbeats & Multi-Threaded Redis Pub/Sub](#adr-016-resilient-stomp-watchdog-dual-layer-heartbeats--multi-threaded-redis-pubsub)
    - [ADR-017: Automatic Room Ownership Handover & Graceful Leave Protocol](#adr-017-automatic-room-ownership-handover--graceful-leave-protocol)
+   - [ADR-018: Six-Feature AI/ML Microservice Expansion (Mind-Map, Flow Simulator, Notebook Briefing, Theme Morphing, Flowchart-to-Code, Voice Storyboard)](#adr-018-six-feature-aiml-microservice-expansion)
+   - [ADR-019: Semantic Root-Priority Scoring for Mind-Map Auto-Layout](#adr-019-semantic-root-priority-scoring-for-mind-map-auto-layout)
+   - [ADR-020: AABB Spatial Proximity Parsing & Sequential Fallback Labels in Flow Simulator](#adr-020-aabb-spatial-proximity-parsing--sequential-fallback-labels-in-flow-simulator)
+   - [ADR-021: Shape-Interior Text Clipping & Bound-Text Drag Grouping on Canvas](#adr-021-shape-interior-text-clipping--bound-text-drag-grouping-on-canvas)
+   - [ADR-022: Voice Live Storyboard with Speech Synthesis Audio Confirmation](#adr-022-voice-live-storyboard-with-speech-synthesis-audio-confirmation)
 
 ---
 
@@ -290,4 +295,84 @@ Graffiti solves this through a high-performance **Server-Authoritative CRDT Hybr
   4. If no members or active collaborators remain, unowned temporary rooms can be safely retired.
   5. The client UI provides an interactive "Live" dropdown displaying the room code, collaborator list with `OWNER` badges, and a direct "Leave Room" action.
 * **Consequences:** Clean lifecycle transitions, prevent orphaned sessions, and provide seamless host handoff.
+
+---
+
+### ADR-018: Six-Feature AI/ML Microservice Expansion
+
+* **Status:** Implemented in [`graffiti-aiml/`](file:///e:/graffiti/graffiti-aiml/) — branch `feature/new-aiml-features`
+* **Date:** November 2026
+* **Context:** The original AI/ML microservice (`v0.1`) covered stroke beautification, handwriting OCR, math solving, circle-gesture queries, text-to-diagram, and wireframe-to-code. As the product matured, users required higher-level canvas intelligence: automatic diagram layouts, executable flowchart simulations, voice-driven design, AI-powered notebook summarization, visual theme transformation, and reverse engineering of drawn flowcharts into executable code.
+* **Decision:** Extend the FastAPI service with **six independent, fully self-contained AI feature modules**, each with its own router, service layer, Pydantic schemas, and dual LLM provider chain (Groq llama-3.1-70b primary → Gemini 1.5 Flash secondary → deterministic heuristic fallback):
+
+  | Module | Endpoint | Frontend Component | Capability |
+  | :--- | :--- | :--- | :--- |
+  | `mindmap/` | `POST /v1/ai/mindmap/auto-layout` | `MindMapPanel.tsx` | Semantic root identification + bidirectional tree layout |
+  | `simulation/` | `POST /v1/ai/flow/simulate` | `FlowSimulatorPanel.tsx` | Spatial graph parsing + step-by-step state machine simulation |
+  | `notebook/` | `POST /v1/ai/notebook/summarize` | `NotebookBriefingWidget.tsx` | Action items, key decisions & open questions from lecture notes |
+  | `theme/` | `POST /v1/ai/theme/morph` | `ThemeMorphPanel.tsx` | LLM aesthetic theme transformation preserving all coordinates |
+  | `flowchart/` | `POST /v1/ai/flowchart/to-code` | `FlowchartToCodePanel.tsx` | Canvas image → Python + Node.js code + Mermaid diagram |
+  | `voice/` | `POST /v1/ai/voice/storyboard` | `VoiceCommander.tsx` | Speech transcript → architecture canvas blocks + audio summary |
+
+* **Consequences:** The AI/ML service now exposes **12 routers** in `main.py`. Each new module is independently testable via pytest's `TestClient` with dedicated integration tests in `graffiti-aiml/tests/test_new_aiml_features.py`. All 22 backend tests pass as of November 2026.
+
+---
+
+### ADR-019: Semantic Root-Priority Scoring for Mind-Map Auto-Layout
+
+* **Status:** Implemented in [`mindmap_agent.py`](file:///e:/graffiti/graffiti-aiml/app/mindmap/mindmap_agent.py)
+* **Context:** Early root-selection heuristics used only text length and word count, causing short domain abbreviations (e.g., "NLP", "CV") to override semantically broader parent topics (e.g., "Artificial Intelligence") as the central root node of generated mind maps.
+* **Decision:** Replace the length heuristic with a **multi-factor semantic scoring function** `_score_root_candidate(txt) → float`:
+  1. **Domain match (+300/+200)**: Exact/partial match against `PARENT_DOMAINS` list (16 known parent umbrella topics: "artificial intelligence", "machine learning", "cloud computing", etc.).
+  2. **Hub keywords (+100 each)**: Terms like "architecture", "overview", "platform", "fundamentals" signal a central concept.
+  3. **Subtopic keywords (−100 each)**: Terms like "component", "module", "helper", "cache" penalize leaf-level concepts.
+  4. **Leaf acronym penalty (−250)**: Any entry in `LEAF_ACRONYMS` (NLP, CV, DB, JWT, SQL, etc.) or any single all-uppercase token ≤ 5 chars is classified as a leaf node.
+  5. **Multi-word breadth bonus (+40)**: 2–5 word labels (e.g., "Artificial Intelligence") are likely parent topics.
+  6. **Length range preference (+30)**: Labels between 10–45 characters score higher than very short or very long strings.
+
+  The scorer is applied both during heuristic hierarchy building (`_heuristic_hierarchy`) and as a final guardrail inside `compute_mindmap_layout()` — if the LLM selects a root that scores lower than any other candidate by more than 150 points, the highest-scoring candidate overrides it.
+* **Consequences:** The root node is now semantically stable. "Artificial Intelligence" always wins over "NLP" regardless of canvas placement, text length, or LLM preference. Test coverage: `test_mindmap_root_priority_ai_over_nlp`.
+
+---
+
+### ADR-020: AABB Spatial Proximity Parsing & Sequential Fallback Labels in Flow Simulator
+
+* **Status:** Implemented in [`flow_simulator.py`](file:///e:/graffiti/graffiti-aiml/app/simulation/flow_simulator.py) & [`FlowSimulatorPanel.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/FlowSimulatorPanel.tsx)
+* **Context:** Whiteboard flowchart authors frequently draw shape outlines and type text labels as separate elements rather than inline text. The original centroid-distance heuristic (60 px threshold) missed text elements positioned more than 60 px from a shape's centroid but still visually adjacent. Additionally, shapes with no resolvable text label were silently discarded, producing blank execution traces.
+* **Decision:**
+  1. **AABB Intersection Check (100 px)**: Replace the centroid-distance check with an axis-aligned bounding-box expansion: each shape's bbox is expanded by 100 px in all four directions; a text element is considered "nearby" if its own bbox intersects the expanded region. Among all candidates, the one with the smallest centroid-to-border distance is selected.
+  2. **Sequential "Step N" Fallback Labels**: Shapes that still have no resolved label after all proximity passes receive sequential labels — `"Step 1"`, `"Step 2"`, `"Step 3"` — ensuring the execution trace is always non-empty and human-readable.
+  3. **Frontend mirror**: `associateNearbyFloatingText()` in `FlowSimulatorPanel.tsx` applies the same 100 px threshold before sending elements to the backend, so the client-side pre-processing is consistent with the server-side graph extraction.
+* **Consequences:** Blank simulation traces caused by unlabelled shapes are eliminated. Test coverage: `test_flow_simulator_aabb_100px_threshold`, `test_flow_simulator_step_n_default_labels`, `test_flow_simulator_spatial_proximity_floating_text`.
+
+---
+
+### ADR-021: Shape-Interior Text Clipping & Bound-Text Drag Grouping on Canvas
+
+* **Status:** Implemented in [`canvasRenderer.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/canvasRenderer.ts) & [`WhiteboardCanvas.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/WhiteboardCanvas.tsx)
+* **Context:** Text rendered inside non-rectangular shapes (diamonds, ellipses, sticky notes) overflowed the shape's visual boundary because Canvas 2D `fillText` does not automatically clip to custom paths. This was especially visible for large font sizes or multi-line labels inside narrow diamonds.
+* **Decision:**
+  1. **Hard `context.clip()` before text rendering**: For each non-rectangular shape, construct the exact clip path before calling `fillText`:
+     - **Diamond**: Polygon clip through the four midpoint vertices (`top→right→bottom→left`).
+     - **Ellipse**: `context.ellipse(cx, cy, rx, ry, 0, 0, 2π)` clip path.
+     - **Sticky note**: Rounded-rectangle clip with `r = 10` matching the visual corner radius.
+  2. **Tighter text inset bounds**: Diamond text wraps within `width × 0.50` (inscribed square approximation); ellipse text wraps within `width × 0.707` (inscribed rectangle via $\frac{1}{\sqrt{2}}$ ratio), strictly preventing overflow before the clip even fires.
+  3. **Bound-text drag grouping** (`expandGroupWithBoundText`): When a shape is dragged, any text element with a matching `containerId` or spatially contained within the shape's bounding box is automatically included in the move group, keeping labels bound to their parent shapes.
+  4. **Text stored in `shape.text`**: On double-click commit, `commitInlineText` updates `shape.text` on the shape element itself rather than creating an independent overlay text node, eliminating duplicate rendering artefacts.
+* **Consequences:** Text is geometrically guaranteed to stay inside any shape at all zoom levels and font sizes. Labels move atomically with their shapes during drag. Zero orphaned text overlay nodes.
+
+---
+
+### ADR-022: Voice Live Storyboard with Speech Synthesis Audio Confirmation
+
+* **Status:** Implemented in [`VoiceCommander.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/VoiceCommander.tsx) & [`voice_storyboard.py`](file:///e:/graffiti/graffiti-aiml/app/voice/voice_storyboard.py)
+* **Context:** The Voice Commander originally supported discrete tool-switching commands only. Users in design and architecture review sessions needed to describe system topologies out loud and have them appear immediately as canvas blocks, completing a fully hands-free whiteboard workflow. Audio feedback was absent, requiring users to look at the screen to confirm that recognition succeeded.
+* **Decision:**
+  1. **Live Storyboard Mode toggle**: The `VoiceCommander` HUD exposes a mode pill that switches between "Commands" (tool actions) and "Live Storyboard" (architecture extraction). In Storyboard mode, any final speech recognition result triggers `triggerStoryboardExtraction(text)` instead of `processCommand(text)`.
+  2. **Backend entity extraction** (`voice_storyboard.py`): The transcript is sent to `POST /v1/ai/voice/storyboard`. Gemini 1.5 Flash extracts software entities (`gateway`, `service`, `database`, `cache`, `queue`, `client`) and their directional relationships with protocols. A heuristic keyword fallback handles offline scenarios.
+  3. **Canvas element generation**: `generate_storyboard_elements()` instantiates color-coded architecture cards and curved arrow connectors with `startBinding`/`endBinding`, positioned in a grid that avoids collision with existing canvas elements.
+  4. **`summary` field in response**: `VoiceStoryboardResponse` now carries a `summary: str` field (e.g., *"I placed 3 components on the canvas: API Gateway, Auth Service, Postgres Database. With 2 connections between them."*) for speech synthesis playback.
+  5. **Audio confirmation** (`window.speechSynthesis.speak()`): After `onInsertStoryboardElements()` succeeds, the UI calls `window.speechSynthesis.cancel()` then `window.speechSynthesis.speak(new SpeechSynthesisUtterance(summary))`, completing the fully hands-free feedback loop.
+  6. **`VoiceStoryboardHUD.tsx`**: A named re-export of `VoiceCommander` for semantic clarity when embedding storyboard-only experiences.
+* **Consequences:** Users can describe multi-component architectures verbally, see them rendered on canvas, and hear confirmation — without touching the keyboard or mouse. Test coverage: `test_voice_storyboard` (verifies `success`, `newElements`, and `summary` fields).
 

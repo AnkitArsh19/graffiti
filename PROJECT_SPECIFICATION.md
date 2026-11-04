@@ -86,12 +86,17 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Handwriting OCR & Canvas Search (`Ctrl+F`)** | Asynchronous stroke OCR extraction indexing `freedraw` notes across all notebook pages with smooth auto-pan/zoom to matching bounding boxes. |
 | **Stroke Beautification & Shape Smoothing** | Douglas-Peucker point decimation, geometric classification, and Catmull-Rom/Bezier curve smoothing (Auto-Snap on Hold). |
 | **Live Handwritten Math & Equation Solver** | OCR extraction of handwritten arithmetic and algebra ending in `=`, evaluated via symbolic Python engine (`sympy`) and rendered adjacent as digital text. |
-| **Voice-Driven Canvas Commands** | Browser-native Web Speech recognition translating spoken commands into tool changes, color selections, and page navigation with zero backend audio load. |
+| **Voice-Driven Canvas Commands & Live Storyboard** | Browser-native Web Speech recognition for tool changes and page navigation (command mode); in **Live Storyboard mode** spoken architecture descriptions are sent to `POST /v1/ai/voice/storyboard`, which extracts software entities (gateway, service, database, cache, queue, client) and their relationships via Gemini 1.5 Flash, generates color-coded architecture card elements + curved connector arrows, and returns a `summary` string spoken back via `window.speechSynthesis.speak()` for a fully hands-free design loop. |
 | **"Circle to Ask / Modify / Change" Gesture AI** | Drawing a closed loop around any canvas area extracts spatial context and triggers interactive AI queries, restyling, or transformations. |
 | **Text-to-Diagram Synthesis** | Synthesizing structured flowcharts and architecture diagrams from natural language prompts via Mermaid/Sugiyama layout. |
-| **Conversational Text-to-Diagram (TTD) Streaming** | Multi-turn conversational chat streaming generating structured Mermaid flowchart syntax and real-time previews via Server-Sent Events (SSE). |
+| **Conversational Text-to-Diagram (TTD) Streaming** | Multi-turn conversational chat streaming generating structured Mermaid flowcharts and real-time previews via Server-Sent Events (SSE). |
 | **Diagram-to-Code / Wireframe-to-Code (MagicFrame)** | Multimodal AI vision analysis of hand-drawn UI sketches within a frame, streaming interactive HTML/CSS/JS code directly into canvas iframes via SSE. |
 | **Non-Destructive Ghost Overlays** | All AI operations render as preview overlays with **Accept (Enter)** and **Dismiss (Esc)** actions. |
+| **Mind-Map Auto-Layout** | `POST /v1/ai/mindmap/auto-layout` — Semantic root-priority scoring (`_score_root_candidate`) prevents leaf acronyms (NLP, CV, DB) from overriding parent domain nodes (Artificial Intelligence, Cloud Architecture). Outputs a symmetric bidirectional radial tree with curved connector arrows. Dual-provider: Groq llama-3.1-70b primary, Gemini 1.5 Flash secondary, deterministic heuristic fallback. |
+| **Behavioral Flow Simulator** | `POST /v1/ai/flow/simulate` — Converts directed whiteboard diagrams into an executable state graph. AABB spatial proximity parsing with 100 px expansion threshold associates floating text labels with shapes. Sequential "Step N" fallback labels prevent empty traces. Runs a step-by-step execution simulation with active node/edge highlighting and state variable mutation logging. |
+| **AI Notebook Briefing** | `POST /v1/ai/notebook/summarize` — Extracts action items (task, assignee, priority), key decisions (with rationale context), open questions, and an executive summary from multi-page lecture or meeting notes. |
+| **Flowchart-to-Code Converter** | `POST /v1/ai/flowchart/to-code` — Canvas is captured as a base64 PNG image and analyzed by Gemini 1.5 Flash to generate Python and Node.js class implementations plus a Mermaid flowchart representation. Code snippets are insertable directly as canvas code blocks. |
+| **AI Theme Morpher** | `POST /v1/ai/theme/morph` — Transforms the visual aesthetic of all canvas elements via a natural-language theme prompt (e.g., "Cyberpunk Blueprint", "Retro Paper", "Executive Pitch"). Stroke colors, background colors, fill styles, and roughness are updated while all spatial coordinates and dimensions are strictly preserved. |
 
 ### 2.4 Cross-Platform Desktop Capabilities (Tauri v2)
 
@@ -139,6 +144,30 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Entity Relationship (ERD) Schema Tables** | Dedicated database table shapes with typed columns (`UUID PK`, `VARCHAR`, `INT`, `FK`), table headers, and crow's foot relational connectors. |
 | **Browser & Mobile Device Mockup Frames** | Framed wireframe containers (Desktop browser with URL bar/traffic lights, iPhone, iPad) integrating with Diagram-to-Code (`MagicFrame`) for live HTML rendering. |
 | **AI Assistant Chat Sidebar (`Ctrl + J`)** | Persistent slide-out AI conversation panel powered by Gemini 3.8 Flash for continuous iterative diagram generation and code assistance. |
+
+### 2.8 AI Canvas Intelligence Panels (feature/new-aiml-features)
+
+The following six AI-powered panels are delivered by the `feature/new-aiml-features` branch, each backed by a dedicated FastAPI module with Groq → Gemini → deterministic fallback provider chains and full pytest integration test coverage.
+
+| Panel | Trigger | Backend Endpoint | Key Behaviour |
+| :--- | :--- | :--- | :--- |
+| **Mind-Map Auto-Layout** (`MindMapPanel`) | Toolbar / AI menu | `POST /v1/ai/mindmap/auto-layout` | Semantic root scoring (`PARENT_DOMAINS`, `LEAF_ACRONYMS` penalty −250, hub keyword bonus +100); symmetric left/right branch distribution; curved arrow connectors with `startBinding`/`endBinding`. |
+| **Flow Simulator** (`FlowSimulatorPanel`) | Toolbar / AI menu | `POST /v1/ai/flow/simulate` | AABB 100 px proximity parse; `containerId` explicit binding; `"Step N"` sequential fallback labels; active node/edge highlighting during playback; decision branching on "yes/true/valid" edges. |
+| **Notebook Briefing** (`NotebookBriefingWidget`) | Notebook toolbar | `POST /v1/ai/notebook/summarize` | Extracts `actionItems` (task, assignee, priority), `keyDecisions` (decision + context), `openQuestions`, and `executiveSummary` from page text. |
+| **Flowchart-to-Code** (`FlowchartToCodePanel`) | Toolbar / AI menu | `POST /v1/ai/flowchart/to-code` | Canvas PNG capture → Gemini vision → Python class + Node.js class + Mermaid diagram; insertable as canvas code blocks. |
+| **Theme Morpher** (`ThemeMorphPanel`) | Toolbar / AI menu | `POST /v1/ai/theme/morph` | Six built-in presets + free-text prompt; LLM rewrites `strokeColor`, `backgroundColor`, `fillStyle`, `roughness` while `x`, `y`, `width`, `height` are **immutable**. |
+| **Voice Live Storyboard** (`VoiceCommander` / `VoiceStoryboardHUD`) | Mic button / `Alt+V` | `POST /v1/ai/voice/storyboard` | Speech transcript → entity/relationship extraction → color-coded architecture cards + curved arrows; `summary` field returned and spoken via `window.speechSynthesis.speak()`. |
+
+#### Canvas Rendering Contracts (enforced in `canvasRenderer.ts`)
+
+| Shape | Text Wrap `maxWidth` | Clip Path |
+| :--- | :--- | :--- |
+| Rectangle | `width − 2 × padding` | None (rectangular bounds) |
+| Ellipse | `width × 0.707` (inscribed rectangle: $\frac{1}{\sqrt{2}}$) | `context.ellipse()` clip |
+| Diamond | `width × 0.50` (inscribed square) | Polygon clip through 4 midpoints |
+| Sticky Note | `width − 2 × padding` | Rounded-rect clip (`r = 10`) |
+
+All text is vertically centered within the shape (`startY = max(padding, (height − totalTextHeight) / 2)`). Text is stored directly in `shape.text`, never as an independent overlay node.
 
 ---
 
