@@ -251,7 +251,7 @@ async def generate_voice_storyboard(req: VoiceStoryboardRequest) -> VoiceStorybo
                         relationshipsDetected=rel_names,
                         transcriptSnippet=transcript[:100],
                         summary=summary,
-                        aiProvider="gemini-1.5-flash"
+                        aiProvider=f"gemini-{settings.gemini_model}"
                     )
         except Exception:
             pass
@@ -284,5 +284,5 @@ async def generate_voice_storyboard(req: VoiceStoryboardRequest) -> VoiceStorybo
         relationshipsDetected=rel_names,
         transcriptSnippet=transcript[:100],
         summary=summary,
-        aiProvider="gemini-1.5-flash-offline"
+        aiProvider=f"gemini-{settings.gemini_model}-offline"
     )

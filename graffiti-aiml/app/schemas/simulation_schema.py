@@ -38,4 +38,4 @@ class FlowSimulateResponse(BaseModel):
     executionSteps: List[SimulationStep] = Field(default_factory=list)
     totalSteps: int = 0
     flowSummary: str = ""
-    aiProvider: str = "groq-llama-3.1-70b-versatile"
+    aiProvider: str = "groq-llama-3.3-70b-versatile"

@@ -155,7 +155,7 @@ async def morph_theme(req: ThemeMorphRequest) -> ThemeMorphResponse:
             canvasBackground=matched["canvasBackground"],
             palette=ThemePalette(**matched["palette"]),
             updatedElements=updated_elems,
-            aiProvider="gemini-1.5-flash-preset"
+            aiProvider=f"gemini-{settings.gemini_model}-preset"
         )
 
     # Use Gemini 1.5 Flash for dynamic theme synthesis
@@ -206,7 +206,7 @@ async def morph_theme(req: ThemeMorphRequest) -> ThemeMorphResponse:
                         canvasBackground=theme_dict["canvasBackground"],
                         palette=ThemePalette(**pal_data),
                         updatedElements=updated_elems,
-                        aiProvider="gemini-1.5-flash"
+                        aiProvider=f"gemini-{settings.gemini_model}"
                     )
         except Exception:
             pass
@@ -220,5 +220,5 @@ async def morph_theme(req: ThemeMorphRequest) -> ThemeMorphResponse:
         canvasBackground=fallback_theme["canvasBackground"],
         palette=ThemePalette(**fallback_theme["palette"]),
         updatedElements=updated_elems,
-        aiProvider="gemini-1.5-flash-offline"
+        aiProvider=f"gemini-{settings.gemini_model}-offline"
     )

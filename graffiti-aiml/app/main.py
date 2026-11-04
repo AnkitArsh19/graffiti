@@ -56,9 +56,25 @@ async def health_check():
         "status": "UP",
         "service": settings.app_name,
         "environment": settings.environment,
-        "free_providers": {
-            "gemini_api_key_configured": bool(settings.get_gemini_key()),
-            "groq_api_key_configured": bool(settings.get_groq_key())
+        "mock_mode": settings.enable_mock_llm,
+        "providers": {
+            "gemini": {
+                "configured": bool(settings.get_gemini_key()),
+                "model": settings.gemini_model
+            },
+            "groq": {
+                "configured": bool(settings.get_groq_key()),
+                "model": settings.groq_model,
+                "fast_model": settings.groq_fast_model
+            },
+            "openai": {
+                "configured": bool(settings.get_openai_key()),
+                "model": settings.openai_model
+            },
+            "anthropic": {
+                "configured": bool(settings.get_anthropic_key()),
+                "model": settings.anthropic_model
+            }
         }
     }
 

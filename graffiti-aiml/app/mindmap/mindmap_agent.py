@@ -164,7 +164,7 @@ async def _llm_hierarchy(nodes: List[MindMapNodeInput], preferred_model: str = "
             )
             raw = completion.choices[0].message.content
             parsed = json.loads(raw)
-            parsed["aiProvider"] = "groq-llama-3.1-70b-versatile"
+            parsed["aiProvider"] = f"groq-{settings.groq_model}"
             return parsed
         except Exception:
             pass
@@ -183,7 +183,7 @@ async def _llm_hierarchy(nodes: List[MindMapNodeInput], preferred_model: str = "
                     data = res.json()
                     text_out = data["candidates"][0]["content"]["parts"][0]["text"]
                     parsed = json.loads(text_out)
-                    parsed["aiProvider"] = "gemini-1.5-flash"
+                    parsed["aiProvider"] = f"gemini-{settings.gemini_model}"
                     return parsed
         except Exception:
             pass
@@ -423,7 +423,7 @@ def compute_mindmap_layout(
         nodes=updated_nodes,
         connectors=connectors,
         relationships=generated_relationships,
-        aiProvider=hierarchy_data.get("aiProvider", "groq-llama-3.1-70b-versatile"),
+        aiProvider=hierarchy_data.get("aiProvider", f"groq-{settings.groq_model}"),
         summary=f"Organized {len(updated_nodes)} nodes into symmetrical balanced bidirectional mind-map around '{root_node.get('text', 'Central Theme')}'."
     )
 

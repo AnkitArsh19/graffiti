@@ -196,7 +196,7 @@ async def convert_flowchart_to_code(req: FlowchartToCodeRequest) -> FlowchartToC
                             detectedNodes=nodes,
                             detectedEdges=edges,
                             summary=parsed.get("summary", "Successfully parsed flowchart into code."),
-                            aiProvider="gemini-1.5-flash"
+                            aiProvider=f"gemini-{settings.gemini_model}"
                         )
         except Exception:
             pass
@@ -223,5 +223,5 @@ async def convert_flowchart_to_code(req: FlowchartToCodeRequest) -> FlowchartToC
             FlowchartEdge(source="n5", target="n6"),
         ],
         summary="Synthesized starter workflow code and Mermaid diagram from flowchart diagram.",
-        aiProvider="gemini-1.5-flash-offline"
+        aiProvider=f"gemini-{settings.gemini_model}-offline"
     )

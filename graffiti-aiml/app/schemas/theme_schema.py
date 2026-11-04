@@ -52,4 +52,4 @@ class ThemeMorphResponse(BaseModel):
     canvasBackground: str
     palette: Optional[ThemePalette] = None
     updatedElements: List[Dict[str, Any]] = Field(..., description="Elements with updated aesthetic attributes, exact coordinates preserved")
-    aiProvider: str = "gemini-1.5-flash"
+    aiProvider: str = "gemini-3.8-flash"

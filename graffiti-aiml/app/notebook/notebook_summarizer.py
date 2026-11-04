@@ -99,7 +99,7 @@ async def summarize_notebook(req: NotebookSummarizeRequest) -> NotebookSummarize
             actionItems=[],
             keyDecisions=[],
             openQuestions=[],
-            aiProvider="groq-llama-3.1-8b-instant",
+            aiProvider=f"groq-{settings.groq_fast_model}",
             latencyMs=1.0
         )
 
@@ -190,7 +190,7 @@ async def summarize_notebook(req: NotebookSummarizeRequest) -> NotebookSummarize
                         actionItems=action_items,
                         keyDecisions=key_decisions,
                         openQuestions=open_questions,
-                        aiProvider="gemini-1.5-flash",
+                        aiProvider=f"gemini-{settings.gemini_model}",
                         latencyMs=dt
                     )
         except Exception:

@@ -369,7 +369,7 @@ async def simulate_flow(req: FlowSimulateRequest) -> FlowSimulateResponse:
                 executionSteps=sim_steps,
                 totalSteps=len(sim_steps),
                 flowSummary=parsed.get("flowSummary", "Simulation executed successfully."),
-                aiProvider="groq-llama-3.1-70b-versatile"
+                aiProvider=f"groq-{settings.groq_model}"
             )
         except Exception:
             pass
@@ -397,7 +397,7 @@ async def simulate_flow(req: FlowSimulateRequest) -> FlowSimulateResponse:
                         executionSteps=sim_steps,
                         totalSteps=len(sim_steps),
                         flowSummary=parsed.get("flowSummary", "Simulation executed successfully."),
-                        aiProvider="gemini-1.5-flash"
+                        aiProvider=f"gemini-{settings.gemini_model}"
                     )
         except Exception:
             pass

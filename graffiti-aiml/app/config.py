@@ -11,15 +11,17 @@ class Settings(BaseSettings):
     
     # FREE Model Provider Configurations (Google Gemini & Groq)
     gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-3.8-flash"
     
     groq_api_key: Optional[str] = None
-    groq_model: str = "llama-3.1-70b-versatile"
-    groq_fast_model: str = "llama-3.1-8b-instant"
+    groq_model: str = "llama-3.3-70b-versatile"
+    groq_fast_model: str = "llama-3.3-70b-versatile"
 
-    # Backward compatibility with existing mock fallbacks (strictly None to enforce free APIs only)
+    # Optional Fallbacks (OpenAI & Anthropic)
     openai_api_key: Optional[str] = None
+    openai_model: str = "gpt-4o"
     anthropic_api_key: Optional[str] = None
+    anthropic_model: str = "claude-3-5-sonnet-20241022"
     
     # Backend Integration
     backend_url: str = "http://localhost:8080"
@@ -39,6 +41,12 @@ class Settings(BaseSettings):
 
     def get_groq_key(self) -> Optional[str]:
         return os.environ.get("GROQ_API_KEY") or self.groq_api_key
+
+    def get_openai_key(self) -> Optional[str]:
+        return os.environ.get("OPENAI_API_KEY") or self.openai_api_key
+
+    def get_anthropic_key(self) -> Optional[str]:
+        return os.environ.get("ANTHROPIC_API_KEY") or self.anthropic_api_key
 
 
 settings = Settings()

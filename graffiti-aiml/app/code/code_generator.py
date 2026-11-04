@@ -166,8 +166,11 @@ async def stream_diagram_to_code(
     theme: str = "light"
 ) -> AsyncGenerator[str, None]:
     """Streams SSE events conforming to 2D vector canvas engine (in docs_archive)'s StreamChunk specification."""
+    gemini_key = settings.get_gemini_key()
+    openai_key = settings.get_openai_key()
+
     # 1. Primary: If Gemini API key is configured and not in mock mode, stream from Gemini
-    if settings.gemini_api_key and not settings.enable_mock_llm:
+    if gemini_key and not settings.enable_mock_llm:
         try:
             parts = [{"text": f"Extracted labels: {', '.join(texts)}. Theme: {theme}"}]
             if image:
@@ -202,7 +205,7 @@ async def stream_diagram_to_code(
 
             url = (
                 f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}"
-                f":streamGenerateContent?alt=sse&key={settings.gemini_api_key}"
+                f":streamGenerateContent?alt=sse&key={gemini_key}"
             )
             async with httpx.AsyncClient(timeout=30.0) as client:
                 async with client.stream("POST", url, json=gemini_payload) as resp:
@@ -228,7 +231,7 @@ async def stream_diagram_to_code(
             pass
 
     # 2. Secondary: Check if OpenAI is configured
-    if settings.openai_api_key and not settings.enable_mock_llm:
+    if openai_key and not settings.enable_mock_llm:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 messages = [
@@ -249,7 +252,7 @@ async def stream_diagram_to_code(
                 async with client.stream(
                     "POST",
                     "https://api.openai.com/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+                    headers={"Authorization": f"Bearer {openai_key}"},
                     json={
                         "model": settings.openai_model,
                         "messages": messages,
