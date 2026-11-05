@@ -130,37 +130,49 @@ async def summarize_notebook(req: NotebookSummarizeRequest) -> NotebookSummarize
         f"Content:\n{text}"
     )
 
-    # 1. Primary: Groq API (llama-3.1-8b-instant)
+    # 1. Primary: Groq API
     if groq_key:
         try:
             from groq import AsyncGroq
             client = AsyncGroq(api_key=groq_key)
-            completion = await client.chat.completions.create(
-                model=settings.groq_fast_model,  # llama-3.1-8b-instant
-                messages=[
-                    {"role": "system", "content": "You return strictly valid JSON matching the requested schema with no extra commentary."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.1,
-                response_format={"type": "json_object"}
-            )
-            raw = completion.choices[0].message.content
-            parsed = json.loads(raw)
-            dt = round((time.time() - t0) * 1000, 1)
+            models_to_try = [
+                settings.groq_fast_model,
+                settings.groq_model,
+                "openai/gpt-oss-120b",
+                "openai/gpt-oss-20b",
+                "llama-3.3-70b-versatile",
+                "qwen/qwen3.8-27b",
+            ]
+            for m in models_to_try:
+                try:
+                    completion = await client.chat.completions.create(
+                        model=m,
+                        messages=[
+                            {"role": "system", "content": "You return strictly valid JSON matching the requested schema with no extra commentary."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.1,
+                        response_format={"type": "json_object"}
+                    )
+                    raw = completion.choices[0].message.content
+                    parsed = json.loads(raw)
+                    dt = round((time.time() - t0) * 1000, 1)
 
-            action_items = [ActionItem(**item) for item in parsed.get("actionItems", [])]
-            key_decisions = [KeyDecision(**item) for item in parsed.get("keyDecisions", [])]
-            open_questions = [OpenQuestion(**item) for item in parsed.get("openQuestions", [])]
+                    action_items = [ActionItem(**item) for item in parsed.get("actionItems", [])]
+                    key_decisions = [KeyDecision(**item) for item in parsed.get("keyDecisions", [])]
+                    open_questions = [OpenQuestion(**item) for item in parsed.get("openQuestions", [])]
 
-            return NotebookSummarizeResponse(
-                success=True,
-                executiveSummary=parsed.get("executiveSummary", "Executive briefing extracted."),
-                actionItems=action_items,
-                keyDecisions=key_decisions,
-                openQuestions=open_questions,
-                aiProvider="groq-llama-3.1-8b-instant",
-                latencyMs=dt
-            )
+                    return NotebookSummarizeResponse(
+                        success=True,
+                        executiveSummary=parsed.get("executiveSummary", "Executive briefing extracted."),
+                        actionItems=action_items,
+                        keyDecisions=key_decisions,
+                        openQuestions=open_questions,
+                        aiProvider=f"groq-{m}",
+                        latencyMs=dt
+                    )
+                except Exception:
+                    continue
         except Exception:
             pass
 

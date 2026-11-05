@@ -90,6 +90,22 @@ PRESET_THEMES: Dict[str, Dict[str, Any]] = {
             "strokeWidth": 1.5,
             "fillStyle": "solid"
         }
+    },
+    "pastel creative": {
+        "themeName": "Pastel Creative",
+        "canvasBackground": "#faf5ff",
+        "palette": {
+            "primaryStroke": "#7c3aed",
+            "secondaryStroke": "#059669",
+            "primaryBackground": "#f3e8ff",
+            "secondaryBackground": "#d1fae5",
+            "accentColor": "#f59e0b",
+            "canvasBackground": "#faf5ff",
+            "fontFamily": "clean",
+            "roughness": 0.8,
+            "strokeWidth": 2.0,
+            "fillStyle": "semi"
+        }
     }
 }
 
@@ -143,44 +159,91 @@ def apply_palette_to_elements(elements: List[ThemeElementMeta], theme_info: Dict
 
 
 async def morph_theme(req: ThemeMorphRequest) -> ThemeMorphResponse:
-    """Generates cohesive aesthetic styling matching the prompt using Gemini 1.5 Flash."""
+    """Generates cohesive aesthetic styling matching the prompt using Groq Llama 3.3 / Gemini."""
     matched = _match_preset(req.themePrompt)
-    gemini_key = settings.get_gemini_key()
-
-    if matched and not gemini_key:
+    if matched:
         updated_elems = apply_palette_to_elements(req.elements, matched)
         return ThemeMorphResponse(
             success=True,
             themeName=matched["themeName"],
             canvasBackground=matched["canvasBackground"],
             palette=ThemePalette(**matched["palette"]),
+            elementsMorphed=len(updated_elems),
             updatedElements=updated_elems,
-            aiProvider=f"gemini-{settings.gemini_model}-preset"
+            aiProvider="preset-instant"
         )
 
-    # Use Gemini 1.5 Flash for dynamic theme synthesis
+    groq_key = settings.get_groq_key()
+    gemini_key = settings.get_gemini_key()
+
+    prompt = (
+        "You are an expert generative design technologist and visual UI artist.\n"
+        f"Design an aesthetic theme for whiteboard canvas elements based on this prompt: '{req.themePrompt}'.\n"
+        "Return strictly valid JSON with this palette schema:\n"
+        "{\n"
+        f'  "themeName": "{req.themePrompt}",\n'
+        '  "canvasBackground": "<hex color for canvas bg>",\n'
+        '  "primaryStroke": "<hex color for dominant shape borders/text>",\n'
+        '  "secondaryStroke": "<hex color for connectors/accents>",\n'
+        '  "primaryBackground": "<hex or rgba color for shape fills>",\n'
+        '  "secondaryBackground": "<hex or rgba color for secondary fills>",\n'
+        '  "accentColor": "<hex color>",\n'
+        '  "fontFamily": "<clean|rough|mono>",\n'
+        '  "roughness": <float between 0.0 (sleek) and 2.5 (sketchy)>,\n'
+        '  "strokeWidth": <float between 1.0 and 3.5>,\n'
+        '  "fillStyle": "<solid|semi|hachure|cross-hatch|transparent>"\n'
+        "}"
+    )
+
+    # 1. Primary for fast JSON synthesis: Groq
+    if groq_key:
+        try:
+            from groq import AsyncGroq
+            client = AsyncGroq(api_key=groq_key)
+            models_to_try = [
+                settings.groq_model,
+                "openai/gpt-oss-120b",
+                "llama-3.3-70b-versatile",
+                "qwen/qwen3.8-27b",
+                "openai/gpt-oss-20b",
+            ]
+            for m in models_to_try:
+                try:
+                    completion = await client.chat.completions.create(
+                        model=m,
+                        messages=[
+                            {"role": "system", "content": "You output strictly valid JSON with no markdown formatting."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.3,
+                        response_format={"type": "json_object"}
+                    )
+                    raw = completion.choices[0].message.content
+                    pal_data = json.loads(raw)
+                    theme_dict = {
+                        "themeName": pal_data.get("themeName", req.themePrompt),
+                        "canvasBackground": pal_data.get("canvasBackground", "#0d1117"),
+                        "palette": pal_data
+                    }
+                    updated_elems = apply_palette_to_elements(req.elements, theme_dict)
+                    return ThemeMorphResponse(
+                        success=True,
+                        themeName=theme_dict["themeName"],
+                        canvasBackground=theme_dict["canvasBackground"],
+                        palette=ThemePalette(**pal_data),
+                        elementsMorphed=len(updated_elems),
+                        updatedElements=updated_elems,
+                        aiProvider=f"groq-{m}"
+                    )
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    # 2. Secondary: Gemini Flash
     if gemini_key:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent?key={gemini_key}"
-            prompt = (
-                "You are an expert generative design technologist and visual UI artist.\n"
-                f"Design an aesthetic theme for whiteboard canvas elements based on this prompt: '{req.themePrompt}'.\n"
-                "Return strictly valid JSON with this palette schema:\n"
-                "{\n"
-                f'  "themeName": "{req.themePrompt}",\n'
-                '  "canvasBackground": "<hex color for canvas bg>",\n'
-                '  "primaryStroke": "<hex color for dominant shape borders/text>",\n'
-                '  "secondaryStroke": "<hex color for connectors/accents>",\n'
-                '  "primaryBackground": "<hex or rgba color for shape fills>",\n'
-                '  "secondaryBackground": "<hex or rgba color for secondary fills>",\n'
-                '  "accentColor": "<hex color>",\n'
-                '  "fontFamily": "<clean|rough|mono>",\n'
-                '  "roughness": <float between 0.0 (sleek) and 2.5 (sketchy)>,\n'
-                '  "strokeWidth": <float between 1.0 and 3.5>,\n'
-                '  "fillStyle": "<solid|semi|hachure|cross-hatch|transparent>"\n'
-                "}"
-            )
-
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"responseMimeType": "application/json", "temperature": 0.4}
@@ -205,13 +268,14 @@ async def morph_theme(req: ThemeMorphRequest) -> ThemeMorphResponse:
                         themeName=theme_dict["themeName"],
                         canvasBackground=theme_dict["canvasBackground"],
                         palette=ThemePalette(**pal_data),
+                        elementsMorphed=len(updated_elems),
                         updatedElements=updated_elems,
                         aiProvider=f"gemini-{settings.gemini_model}"
                     )
         except Exception:
             pass
 
-    # Default fallback to Cyberpunk or Retro if no match
+    # 3. Preset match or default fallback
     fallback_theme = matched or PRESET_THEMES["cyberpunk blueprint"]
     updated_elems = apply_palette_to_elements(req.elements, fallback_theme)
     return ThemeMorphResponse(
@@ -219,6 +283,7 @@ async def morph_theme(req: ThemeMorphRequest) -> ThemeMorphResponse:
         themeName=fallback_theme["themeName"],
         canvasBackground=fallback_theme["canvasBackground"],
         palette=ThemePalette(**fallback_theme["palette"]),
+        elementsMorphed=len(updated_elems),
         updatedElements=updated_elems,
-        aiProvider=f"gemini-{settings.gemini_model}-offline"
+        aiProvider="preset-rule-engine"
     )

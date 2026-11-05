@@ -28,7 +28,7 @@ def build_graffiti_elements(
         bg = node_bg_colors[color_idx]
         stroke = node_stroke_colors[color_idx]
 
-        # Shape element (rectangle, ellipse, or diamond)
+        # Shape element (rectangle, ellipse, or diamond) with direct text binding
         shape_elem = {
             "id": shape_uuid,
             "type": layout.shape,
@@ -37,14 +37,18 @@ def build_graffiti_elements(
             "width": layout.width,
             "height": layout.height,
             "angle": 0,
+            "text": layout.label,
+            "fontSize": "medium",
+            "fontFamily": "clean",
+            "textAlign": "center",
             "strokeColor": stroke,
             "backgroundColor": bg,
-            "fillStyle": "hachure",
+            "fillStyle": "semi",
             "strokeWidth": 2,
             "strokeStyle": "solid",
-            "roughness": 1,
+            "roughness": 0,
             "opacity": 100,
-            "roundness": {"type": 3},
+            "roundness": "round",
             "seed": random.randint(100000, 999999),
             "version": 1,
             "versionNonce": random.randint(100000, 999999),
@@ -52,9 +56,7 @@ def build_graffiti_elements(
             "isDeleted": False,
             "groupIds": [],
             "frameId": None,
-            "boundElements": [
-                {"id": text_uuid, "type": "text"}
-            ],
+            "boundElements": [],
             "updated": now,
             "link": None,
             "locked": False,
@@ -65,42 +67,6 @@ def build_graffiti_elements(
             }
         }
         elements.append(shape_elem)
-
-        # Centered text element bound to shape
-        text_elem = {
-            "id": text_uuid,
-            "type": "text",
-            "x": layout.x + 10,
-            "y": layout.y + (layout.height / 2.0) - 10,
-            "width": max(len(layout.label) * 9.0, 40.0),
-            "height": 24.0,
-            "text": layout.label,
-            "fontSize": 16,
-            "fontFamily": 1,
-            "textAlign": "center",
-            "verticalAlign": "middle",
-            "containerId": shape_uuid,
-            "angle": 0,
-            "strokeColor": "#1e1e1e",
-            "backgroundColor": "transparent",
-            "strokeWidth": 1,
-            "strokeStyle": "solid",
-            "roughness": 0,
-            "opacity": 100,
-            "seed": random.randint(100000, 999999),
-            "version": 1,
-            "versionNonce": random.randint(100000, 999999),
-            "index": f"a{idx:02d}_t",
-            "isDeleted": False,
-            "groupIds": [],
-            "frameId": None,
-            "boundElements": [],
-            "updated": now,
-            "customData": {
-                "aiGenerated": True
-            }
-        }
-        elements.append(text_elem)
 
     # Build Arrows / Connectors
     for edge_idx, edge in enumerate(diagram.edges):
@@ -121,12 +87,16 @@ def build_graffiti_elements(
             src_cy = src_layout.y + (src_layout.height / 2.0)
             tgt_cx = tgt_layout.x
             tgt_cy = tgt_layout.y + (tgt_layout.height / 2.0)
+            start_point_id = "right"
+            end_point_id = "left"
         else:
             # Vertical (TD/TB): bottom of source to top of target
             src_cx = src_layout.x + (src_layout.width / 2.0)
             src_cy = src_layout.y + src_layout.height
             tgt_cx = tgt_layout.x + (tgt_layout.width / 2.0)
             tgt_cy = tgt_layout.y
+            start_point_id = "bottom"
+            end_point_id = "top"
 
         dx = tgt_cx - src_cx
         dy = tgt_cy - src_cy
@@ -144,12 +114,12 @@ def build_graffiti_elements(
                 "width": max(len(edge.label) * 8.0, 30.0),
                 "height": 20.0,
                 "text": edge.label,
-                "fontSize": 14,
-                "fontFamily": 1,
+                "fontSize": "small",
+                "fontFamily": "clean",
                 "textAlign": "center",
                 "verticalAlign": "middle",
                 "containerId": arrow_uuid,  # Binds text to arrow container
-                "strokeColor": "#1e1e1e",
+                "strokeColor": "#f4f4f5",
                 "backgroundColor": "transparent",
                 "customData": {"aiGenerated": True}
             }
@@ -161,14 +131,16 @@ def build_graffiti_elements(
             "type": "arrow",
             "x": src_cx,
             "y": src_cy,
-            "points": [[0.0, 0.0], [dx, dy]],
+            "width": max(abs(dx), 2.0),
+            "height": max(abs(dy), 2.0),
+            "points": [{"x": 0.0, "y": 0.0}, {"x": dx, "y": dy}],
             "angle": 0,
-            "strokeColor": "#495057",
+            "strokeColor": "#a1a1aa",
             "backgroundColor": "transparent",
-            "fillStyle": "hachure",
+            "fillStyle": "solid",
             "strokeWidth": 2,
             "strokeStyle": edge.style,
-            "roughness": 1,
+            "roughness": 0,
             "opacity": 100,
             "seed": random.randint(100000, 999999),
             "version": 1,
@@ -180,11 +152,13 @@ def build_graffiti_elements(
             "boundElements": arrow_bound_elements,
             "startBinding": {
                 "elementId": src_shape_id,
+                "pointId": start_point_id,
                 "focus": 0.0,
                 "gap": 4.0
             } if src_shape_id else None,
             "endBinding": {
                 "elementId": tgt_shape_id,
+                "pointId": end_point_id,
                 "focus": 0.0,
                 "gap": 4.0
             } if tgt_shape_id else None,

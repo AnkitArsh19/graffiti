@@ -12,7 +12,8 @@ async def solve_math(req: MathSolveRequest):
     result_str, proposed_elem = solve_math_expression(
         req.equation,
         pos.x,
-        pos.y
+        pos.y,
+        variables=req.variables
     )
     return MathSolveResponse(
         equation=req.equation,

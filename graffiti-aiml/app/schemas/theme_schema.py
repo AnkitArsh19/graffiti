@@ -1,8 +1,10 @@
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any, Union
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ThemeElementMeta(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     id: str
     type: str
     strokeColor: Optional[str] = None
@@ -12,9 +14,9 @@ class ThemeElementMeta(BaseModel):
     fillStyle: Optional[str] = None
     roughness: Optional[float] = None
     fontFamily: Optional[str] = None
-    fontSize: Optional[str] = None
+    fontSize: Optional[Union[str, int, float]] = None
     opacity: Optional[float] = None
-    roundness: Optional[str] = None
+    roundness: Optional[Any] = None
     arrowType: Optional[str] = None
     cardTheme: Optional[str] = None
     # Spatial coordinates must be passed so returned elements remain intact, but MUST NOT be altered
@@ -51,5 +53,6 @@ class ThemeMorphResponse(BaseModel):
     themeName: str
     canvasBackground: str
     palette: Optional[ThemePalette] = None
+    elementsMorphed: int = 0
     updatedElements: List[Dict[str, Any]] = Field(..., description="Elements with updated aesthetic attributes, exact coordinates preserved")
-    aiProvider: str = "gemini-3.8-flash"
+    aiProvider: str = "groq-llama-3.3-70b-versatile"

@@ -210,6 +210,68 @@ async def generate_voice_storyboard(req: VoiceStoryboardRequest) -> VoiceStorybo
         f"Spoken Transcript:\n\"{transcript}\""
     )
 
+    groq_key = settings.get_groq_key()
+
+    # 1. Primary: Groq for ultrafast JSON synthesis
+    if groq_key:
+        try:
+            from groq import AsyncGroq
+            client = AsyncGroq(api_key=groq_key)
+            models_to_try = [
+                settings.groq_model,
+                "openai/gpt-oss-120b",
+                "llama-3.3-70b-versatile",
+                "qwen/qwen3.8-27b",
+                "openai/gpt-oss-20b",
+            ]
+            for m in models_to_try:
+                try:
+                    completion = await client.chat.completions.create(
+                        model=m,
+                        messages=[
+                            {"role": "system", "content": "You output strictly valid JSON with no markdown formatting."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.2,
+                        response_format={"type": "json_object"}
+                    )
+                    raw = completion.choices[0].message.content
+                    data = json.loads(raw)
+
+                    new_elements = generate_storyboard_elements(
+                        data,
+                        anchor_x=anchor_x,
+                        anchor_y=anchor_y,
+                        existing_elements=req.existingElements
+                    )
+
+                    entity_names = [e["name"] for e in data.get("entities", [])]
+                    rel_names = [f"{r.get('source')} -> {r.get('target')} ({r.get('protocol', '')})" for r in data.get("relationships", [])]
+
+                    entity_count = len(entity_names)
+                    rel_count = len(rel_names)
+                    summary = (
+                        f"I placed {entity_count} component{'s' if entity_count != 1 else ''} on the canvas: "
+                        + ", ".join(entity_names[:3])
+                        + (f", and {entity_count - 3} more" if entity_count > 3 else "")
+                        + f". With {rel_count} connection{'s' if rel_count != 1 else ''} between them."
+                    )
+
+                    return VoiceStoryboardResponse(
+                        success=True,
+                        newElements=new_elements,
+                        entitiesDetected=entity_names,
+                        relationshipsDetected=rel_names,
+                        transcriptSnippet=transcript[:100],
+                        summary=summary,
+                        aiProvider=f"groq-{m}"
+                    )
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    # 2. Secondary: Gemini Flash
     if gemini_key:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent?key={gemini_key}"
@@ -284,5 +346,5 @@ async def generate_voice_storyboard(req: VoiceStoryboardRequest) -> VoiceStorybo
         relationshipsDetected=rel_names,
         transcriptSnippet=transcript[:100],
         summary=summary,
-        aiProvider=f"gemini-{settings.gemini_model}-offline"
+        aiProvider=f"groq-{settings.groq_model}-offline"
     )

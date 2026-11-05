@@ -9,6 +9,7 @@ from app.config import settings
 from app.schemas.mindmap_schema import (
     MindMapNodeInput,
     MindMapAutoLayoutRequest,
+    MindMapGenerateRequest,
     MindMapAutoLayoutResponse,
     MindMapRelationship,
 )
@@ -148,24 +149,35 @@ async def _llm_hierarchy(nodes: List[MindMapNodeInput], preferred_model: str = "
     groq_key = settings.get_groq_key()
     gemini_key = settings.get_gemini_key()
 
-    # 1. Groq (llama-3.1-70b-versatile)
+    # 1. Groq
     if (preferred_model in ["groq", "auto"] and groq_key) or (not gemini_key and groq_key):
         try:
             from groq import AsyncGroq
             client = AsyncGroq(api_key=groq_key)
-            completion = await client.chat.completions.create(
-                model=settings.groq_model,
-                messages=[
-                    {"role": "system", "content": "You output strictly valid JSON with no markdown backticks."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.2,
-                response_format={"type": "json_object"}
-            )
-            raw = completion.choices[0].message.content
-            parsed = json.loads(raw)
-            parsed["aiProvider"] = f"groq-{settings.groq_model}"
-            return parsed
+            models_to_try = [
+                settings.groq_model,
+                "openai/gpt-oss-120b",
+                "llama-3.3-70b-versatile",
+                "qwen/qwen3.8-27b",
+                "openai/gpt-oss-20b",
+            ]
+            for m in models_to_try:
+                try:
+                    completion = await client.chat.completions.create(
+                        model=m,
+                        messages=[
+                            {"role": "system", "content": "You output strictly valid JSON with no markdown backticks."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.2,
+                        response_format={"type": "json_object"}
+                    )
+                    raw = completion.choices[0].message.content
+                    parsed = json.loads(raw)
+                    parsed["aiProvider"] = f"groq-{m}"
+                    return parsed
+                except Exception:
+                    continue
         except Exception:
             pass
 
@@ -275,15 +287,25 @@ def compute_mindmap_layout(
     generated_relationships: List[MindMapRelationship] = []
 
     horizontal_gap = 160.0
-    spacing_y = 130.0
+
+    def get_branch_height(node_id: str) -> float:
+        subs = children_by_parent.get(node_id, [])
+        node_h = float(node_map.get(node_id, {}).get("height") or 70.0)
+        if not subs:
+            return node_h
+        # Symmetrically centered sub-children span
+        sub_span_y = (len(subs) - 1) * 90.0 + 60.0
+        return max(node_h, sub_span_y)
 
     def layout_side(side_ids: List[str], side: str):
         k = len(side_ids)
         if k == 0:
             return
 
-        total_span_y = (k - 1) * spacing_y
-        start_center_y = (root_y + root_h / 2.0) - (total_span_y / 2.0)
+        branch_heights = [get_branch_height(c_id) for c_id in side_ids]
+        margin_y = 35.0
+        total_span_y = sum(branch_heights) + max(0, k - 1) * margin_y
+        current_y = (root_y + root_h / 2.0) - (total_span_y / 2.0)
 
         for i, c_id in enumerate(side_ids):
             c_node = node_map.get(c_id)
@@ -291,8 +313,11 @@ def compute_mindmap_layout(
                 continue
             c_w = float(c_node.get("width") or 160.0)
             c_h = float(c_node.get("height") or 70.0)
+            b_height = branch_heights[i]
 
-            branch_center_y = start_center_y + i * spacing_y
+            branch_center_y = current_y + b_height / 2.0
+            current_y += b_height + margin_y
+
             target_y = branch_center_y - (c_h / 2.0)
 
             if side == "right":
@@ -445,3 +470,222 @@ async def auto_layout_mindmap(request: MindMapAutoLayoutRequest) -> MindMapAutoL
         anchor_x=request.anchorX,
         anchor_y=request.anchorY
     )
+
+
+def _parse_markdown_tree(markdown_text: str) -> Dict[str, Any]:
+    """Parses markmap-style markdown (# Root, ## Branch, - Subtopic) into structured tree."""
+    lines = [ln.rstrip() for ln in (markdown_text or "").splitlines() if ln.strip()]
+    root_title = "Central Theme"
+    branches: List[Dict[str, Any]] = []
+    current_branch: Optional[Dict[str, Any]] = None
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("# ") and not stripped.startswith("## "):
+            root_title = stripped[2:].strip()
+        elif stripped.startswith("## ") and not stripped.startswith("### "):
+            current_branch = {"title": stripped[3:].strip(), "children": []}
+            branches.append(current_branch)
+        elif stripped.startswith("### "):
+            if current_branch is None:
+                current_branch = {"title": "Main Topic", "children": []}
+                branches.append(current_branch)
+            current_branch["children"].append(stripped[4:].strip())
+        elif stripped.startswith("- ") or stripped.startswith("* "):
+            item = stripped[2:].strip()
+            indent = len(line) - len(line.lstrip())
+            if indent >= 4 and current_branch is not None:
+                current_branch["children"].append(item)
+            else:
+                if current_branch is None or indent == 0:
+                    current_branch = {"title": item, "children": []}
+                    branches.append(current_branch)
+                else:
+                    current_branch["children"].append(item)
+
+    if not branches and root_title:
+        branches = [{"title": "Overview", "children": []}]
+
+    return {"root": root_title, "branches": branches}
+
+
+def _fallback_topic_tree(prompt_text: str) -> Dict[str, Any]:
+    """Deterministic topic decomposition fallback when no LLM key is reachable."""
+    clean = (prompt_text or "System Architecture").strip().title()
+    return {
+        "root": clean,
+        "branches": [
+            {"title": "Core Architecture", "children": ["Data Models", "State Flow", "API Gateway"]},
+            {"title": "Services & Logic", "children": ["Authentication", "Business Logic", "Event Pipeline"]},
+            {"title": "Infrastructure", "children": ["Database", "Cache / Redis", "Deployment"]},
+            {"title": "Observability", "children": ["Metrics & Logs", "E2E Testing", "Health Checks"]}
+        ]
+    }
+
+
+async def _generate_hierarchy_llm(prompt_text: str, preferred_model: str = "auto") -> Dict[str, Any]:
+    """Generates structured mind-map hierarchy from topic prompt using Groq or Gemini."""
+    prompt = (
+        "You are an expert cognitive mind-mapping and information architecture agent.\n"
+        f"Create a structured mind-map hierarchy for the topic: '{prompt_text}'.\n"
+        "Return ONLY a strictly valid JSON object with this exact structure:\n"
+        "{\n"
+        '  "root": "<Impactful short title for the central node (1-3 words)>",\n'
+        '  "branches": [\n'
+        '    {\n'
+        '      "title": "<Main branch 1 name (1-3 words)>",\n'
+        '      "children": ["<Subtopic 1a>", "<Subtopic 1b>"]\n'
+        '    },\n'
+        '    {\n'
+        '      "title": "<Main branch 2 name (1-3 words)>",\n'
+        '      "children": ["<Subtopic 2a>", "<Subtopic 2b>"]\n'
+        '    }\n'
+        '  ]\n'
+        "}\n"
+        "Generate 4 to 6 main branches with 2 to 3 subtopics each. Keep every title concise, clear, and impactful."
+    )
+
+    groq_key = settings.get_groq_key()
+    gemini_key = settings.get_gemini_key()
+
+    if (preferred_model in ["groq", "auto"] and groq_key) or (not gemini_key and groq_key):
+        try:
+            from groq import AsyncGroq
+            client = AsyncGroq(api_key=groq_key)
+            models_to_try = [
+                settings.groq_model,
+                "openai/gpt-oss-120b",
+                "llama-3.3-70b-versatile",
+                "qwen/qwen3.8-27b",
+                "openai/gpt-oss-20b",
+            ]
+            for m in models_to_try:
+                try:
+                    completion = await client.chat.completions.create(
+                        model=m,
+                        messages=[
+                            {"role": "system", "content": "You output strictly valid JSON with no markdown formatting."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.3,
+                        response_format={"type": "json_object"}
+                    )
+                    raw = completion.choices[0].message.content
+                    tree = json.loads(raw)
+                    if "root" in tree and "branches" in tree:
+                        tree["aiProvider"] = f"groq-{m}"
+                        return tree
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    if gemini_key:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent?key={gemini_key}"
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"responseMimeType": "application/json", "temperature": 0.3}
+            }
+            async with httpx.AsyncClient(timeout=15.0) as http_client:
+                res = await http_client.post(url, json=payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    text_out = data["candidates"][0]["content"]["parts"][0]["text"]
+                    tree = json.loads(text_out)
+                    if "root" in tree and "branches" in tree:
+                        tree["aiProvider"] = f"gemini-{settings.gemini_model}"
+                        return tree
+        except Exception:
+            pass
+
+    fallback = _fallback_topic_tree(prompt_text)
+    fallback["aiProvider"] = "offline-heuristic"
+    return fallback
+
+
+async def generate_mindmap(request: MindMapGenerateRequest) -> MindMapAutoLayoutResponse:
+    """Generates a complete mind-map (nodes + arrows) from a topic prompt or markdown outline."""
+    ai_provider = "offline-heuristic"
+    if request.markdown and request.markdown.strip():
+        tree = _parse_markdown_tree(request.markdown)
+        ai_provider = "markdown-parser"
+    elif request.prompt and request.prompt.strip():
+        tree = await _generate_hierarchy_llm(request.prompt, preferred_model=request.preferredModel or "auto")
+        ai_provider = tree.get("aiProvider", "groq-llm")
+    else:
+        tree = _fallback_topic_tree("Mind Map")
+
+    root_title = tree.get("root") or "Central Theme"
+    branches = tree.get("branches", [])
+
+    root_id = f"mm_root_{uuid.uuid4().hex[:6]}"
+    anchor_x = request.anchorX or 400.0
+    anchor_y = request.anchorY or 300.0
+
+    root_node_input = MindMapNodeInput(
+        id=root_id,
+        text=root_title,
+        type="rectangle",
+        x=anchor_x - 90.0,
+        y=anchor_y - 40.0,
+        width=180.0,
+        height=80.0,
+        strokeColor="#6366f1",
+        backgroundColor="rgba(99, 102, 241, 0.15)"
+    )
+
+    all_node_inputs: List[MindMapNodeInput] = [root_node_input]
+    hierarchy: List[Dict[str, Any]] = [{"id": root_id, "parentId": None, "depth": 0, "order": 0}]
+    relationships: List[MindMapRelationship] = []
+
+    for b_idx, b in enumerate(branches):
+        b_title = b.get("title") or f"Branch {b_idx + 1}"
+        b_id = f"mm_branch_{uuid.uuid4().hex[:6]}"
+        b_node = MindMapNodeInput(
+            id=b_id,
+            text=b_title,
+            type="rectangle",
+            x=anchor_x,
+            y=anchor_y,
+            width=160.0,
+            height=65.0,
+            strokeColor="#8b5cf6",
+            backgroundColor="rgba(139, 92, 246, 0.12)"
+        )
+        all_node_inputs.append(b_node)
+        hierarchy.append({"id": b_id, "parentId": root_id, "depth": 1, "order": b_idx})
+        relationships.append(MindMapRelationship(sourceId=root_id, targetId=b_id, label="branch"))
+
+        for s_idx, s_title in enumerate(b.get("children", [])):
+            s_id = f"mm_sub_{uuid.uuid4().hex[:6]}"
+            s_node = MindMapNodeInput(
+                id=s_id,
+                text=str(s_title),
+                type="rectangle",
+                x=anchor_x,
+                y=anchor_y,
+                width=140.0,
+                height=55.0,
+                strokeColor="#a855f7",
+                backgroundColor="rgba(168, 85, 247, 0.08)"
+            )
+            all_node_inputs.append(s_node)
+            hierarchy.append({"id": s_id, "parentId": b_id, "depth": 2, "order": s_idx})
+            relationships.append(MindMapRelationship(sourceId=b_id, targetId=s_id, label="detail"))
+
+    hierarchy_data = {
+        "rootId": root_id,
+        "hierarchy": hierarchy,
+        "relationships": relationships,
+        "aiProvider": ai_provider
+    }
+
+    result = compute_mindmap_layout(
+        all_node_inputs,
+        hierarchy_data,
+        anchor_x=anchor_x,
+        anchor_y=anchor_y
+    )
+    result.summary = f"Generated mind-map for '{root_title}' with {len(branches)} branches ({len(all_node_inputs)} nodes total)."
+    return result

@@ -8,7 +8,7 @@ router = APIRouter(tags=["OCR"])
 @router.post("/ocr/extract", response_model=OCRResultResponse)
 @router.post("/v1/ai/ocr/recognize", response_model=OCRResultResponse)
 async def extract_ocr(req: OCRStrokeRequest):
-    ocr_text, conf = recognize_stroke_text(req.shapeId, req.points, req.pressures)
+    ocr_text, conf = recognize_stroke_text(req.shapeId, req.points, req.pressures, req.image)
     return OCRResultResponse(
         shapeId=req.shapeId,
         ocrText=ocr_text,

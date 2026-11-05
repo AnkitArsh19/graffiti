@@ -166,10 +166,35 @@ async def stream_diagram_to_code(
     theme: str = "light"
 ) -> AsyncGenerator[str, None]:
     """Streams SSE events conforming to 2D vector canvas engine (in docs_archive)'s StreamChunk specification."""
+    groq_key = settings.get_groq_key()
     gemini_key = settings.get_gemini_key()
     openai_key = settings.get_openai_key()
 
-    # 1. Primary: If Gemini API key is configured and not in mock mode, stream from Gemini
+    # 1. Primary: If Groq key is present, stream from Groq (llama-3.3-70b-versatile)
+    if groq_key:
+        try:
+            from groq import AsyncGroq
+            client = AsyncGroq(api_key=groq_key)
+            prompt = f"Generate responsive modern single-page HTML/CSS based on these wireframe components and labels: {', '.join(texts) if texts else 'Dashboard with navigation, metrics, and data table'}. Theme: {theme}."
+            stream = await client.chat.completions.create(
+                model=settings.groq_model,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt}
+                ],
+                stream=True,
+                temperature=0.2,
+            )
+            async for chunk in stream:
+                content = chunk.choices[0].delta.content or ""
+                if content:
+                    yield f"data: {json.dumps({'chunk': content})}\n\n"
+            yield f"data: {json.dumps({'chunk': '', 'is_done': True})}\n\n"
+            return
+        except Exception:
+            pass
+
+    # 2. Secondary: If Gemini API key is configured and not in mock mode, stream from Gemini
     if gemini_key and not settings.enable_mock_llm:
         try:
             parts = [{"text": f"Extracted labels: {', '.join(texts)}. Theme: {theme}"}]

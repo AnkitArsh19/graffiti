@@ -10,6 +10,8 @@ class AnchorPosition(BaseModel):
 class DiagramSynthesizeRequest(BaseModel):
     roomId: Optional[str] = None
     prompt: str = Field(..., description="Prompt describing the diagram to generate")
+    direction: Optional[str] = Field("TD", description="Flowchart direction: 'TD' (top-down) or 'LR' (left-right)")
+    mermaid: Optional[str] = Field(None, description="Optional raw Mermaid.js syntax to parse directly")
     anchorPosition: Optional[AnchorPosition] = None
     anchor: Optional[AnchorPosition] = None
 

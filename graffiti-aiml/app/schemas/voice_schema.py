@@ -15,4 +15,4 @@ class VoiceStoryboardResponse(BaseModel):
     relationshipsDetected: List[str] = Field(default_factory=list)
     transcriptSnippet: str = ""
     summary: str = Field(default="", description="Human-readable summary for text-to-speech playback")
-    aiProvider: str = "gemini-3.8-flash"
+    aiProvider: str = "groq-llama-3.3-70b-versatile"

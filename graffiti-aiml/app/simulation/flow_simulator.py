@@ -344,35 +344,56 @@ async def simulate_flow(req: FlowSimulateRequest) -> FlowSimulateResponse:
         f"Edges:\n{json.dumps([{'id': e['id'], 'from': e['sourceId'], 'to': e['targetId'], 'label': e['label']} for e in edges])}"
     )
 
-    # 1. Primary: Groq (llama-3.1-70b-versatile)
+    # 1. Primary: Groq (openai/gpt-oss-120b / llama-3.3-70b-versatile / qwen)
     if groq_key:
         try:
             from groq import AsyncGroq
             client = AsyncGroq(api_key=groq_key)
-            completion = await client.chat.completions.create(
-                model=settings.groq_model,
-                messages=[
-                    {"role": "system", "content": "You output strictly valid JSON with no markdown formatting."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.2,
-                response_format={"type": "json_object"}
-            )
-            raw = completion.choices[0].message.content
-            parsed = json.loads(raw)
-            sim_steps = [SimulationStep(**s) for s in parsed.get("executionSteps", [])]
+            models_to_try = [
+                settings.groq_model,
+                "openai/gpt-oss-120b",
+                "llama-3.3-70b-versatile",
+                "qwen/qwen3.8-27b",
+                "openai/gpt-oss-20b",
+            ]
+            seen = set()
+            completion = None
+            used_model = settings.groq_model
+            for m in models_to_try:
+                if not m or m in seen:
+                    continue
+                seen.add(m)
+                try:
+                    completion = await client.chat.completions.create(
+                        model=m,
+                        messages=[
+                            {"role": "system", "content": "You output strictly valid JSON with no markdown formatting."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.2,
+                        response_format={"type": "json_object"}
+                    )
+                    used_model = m
+                    break
+                except Exception as model_err:
+                    print(f"[FlowSimulator] Model {m} failed: {model_err}", flush=True)
 
-            return FlowSimulateResponse(
-                success=True,
-                graphNodes=[StateGraphNode(**n) for n in nodes],
-                graphEdges=[StateGraphEdge(**e) for e in edges],
-                executionSteps=sim_steps,
-                totalSteps=len(sim_steps),
-                flowSummary=parsed.get("flowSummary", "Simulation executed successfully."),
-                aiProvider=f"groq-{settings.groq_model}"
-            )
-        except Exception:
-            pass
+            if completion:
+                raw = completion.choices[0].message.content
+                parsed = json.loads(raw)
+                sim_steps = [SimulationStep(**s) for s in parsed.get("executionSteps", [])]
+
+                return FlowSimulateResponse(
+                    success=True,
+                    graphNodes=[StateGraphNode(**n) for n in nodes],
+                    graphEdges=[StateGraphEdge(**e) for e in edges],
+                    executionSteps=sim_steps,
+                    totalSteps=len(sim_steps),
+                    flowSummary=parsed.get("flowSummary", "Simulation executed successfully."),
+                    aiProvider=f"groq-{used_model}"
+                )
+        except Exception as e:
+            print(f"[FlowSimulator] Groq error: {e}", flush=True)
 
     # 2. Secondary: Gemini 1.5 Flash
     if gemini_key:

@@ -3,7 +3,8 @@ from pydantic import BaseModel, Field
 
 
 class FlowchartToCodeRequest(BaseModel):
-    image: str = Field(..., description="Base64 encoded PNG of the canvas or selection")
+    image: Optional[str] = Field(None, description="Base64 encoded PNG of the canvas or selection")
+    elements: Optional[List[Dict[str, Any]]] = Field(None, description="Structured whiteboard elements (shapes, arrows, text)")
     targetLanguage: Optional[str] = Field("both", description="'python', 'nodejs', or 'both'")
     prompt: Optional[str] = Field(None, description="Optional extra instructions")
 
@@ -28,4 +29,4 @@ class FlowchartToCodeResponse(BaseModel):
     detectedNodes: List[FlowchartNode] = Field(default_factory=list)
     detectedEdges: List[FlowchartEdge] = Field(default_factory=list)
     summary: str = ""
-    aiProvider: str = "gemini-1.5-flash"
+    aiProvider: str = "groq-llama-3.3-70b-versatile"
