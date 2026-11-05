@@ -1,4 +1,4 @@
-# Graffiti — Real-Time Collaborative Whiteboard & Notebook with AI Assist
+# Graffiti — Real-Time Collaborative Whiteboard and Notebook with AI Assist
 
 [![Java](https://img.shields.io/badge/Java-25-orange.svg)](https://openjdk.org/projects/jdk/25/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.0-brightgreen.svg)](https://spring.io/projects/spring-boot)
