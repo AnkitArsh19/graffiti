@@ -589,7 +589,10 @@ export function drawShapeOnCanvas(
       break;
     }
     case "pen": {
-      if (element.points && element.points.length > 0) {
+      if (element.customData?.isPolygon && element.points && element.points.length >= 3) {
+        const polyPts = element.points.map((p) => [p.x, p.y] as [number, number]);
+        rc.draw(generator.polygon(polyPts, options));
+      } else if (element.points && element.points.length > 0) {
         const outlinePoints = getFreedrawOutline(element.points, element.strokeWidth);
         const pathData = getSvgPathFromStroke(outlinePoints);
         if (pathData) {
@@ -846,6 +849,55 @@ export function renderSelectionBox(
   context.arc(w / 2, -rotDistance, rotRadius, 0, Math.PI * 2);
   context.fill();
   context.stroke();
+
+  context.restore();
+}
+
+/**
+ * Renders an animated active token pulse and halo around nodes during flowchart simulation.
+ */
+export function renderSimulationTokenHalo(
+  context: CanvasRenderingContext2D,
+  element: CanvasElement,
+  zoom: number,
+  _theme: "dark" | "light"
+) {
+  context.save();
+  const haloColor = "#10b981"; // Vibrant Emerald Token Green
+  const x = element.x;
+  const y = element.y;
+  const w = element.width;
+  const h = element.height;
+
+  context.strokeStyle = haloColor;
+  context.lineWidth = 3 / zoom;
+  context.shadowColor = haloColor;
+  context.shadowBlur = 14;
+  context.setLineDash([6 / zoom, 4 / zoom]);
+
+  if (element.type === "ellipse") {
+    context.beginPath();
+    context.ellipse(x + w / 2, y + h / 2, w / 2 + 6 / zoom, h / 2 + 6 / zoom, 0, 0, Math.PI * 2);
+    context.stroke();
+  } else if (element.type === "diamond") {
+    context.beginPath();
+    context.moveTo(x + w / 2, y - 6 / zoom);
+    context.lineTo(x + w + 6 / zoom, y + h / 2);
+    context.lineTo(x + w / 2, y + h + 6 / zoom);
+    context.lineTo(x - 6 / zoom, y + h / 2);
+    context.closePath();
+    context.stroke();
+  } else {
+    context.strokeRect(x - 6 / zoom, y - 6 / zoom, w + 12 / zoom, h + 12 / zoom);
+  }
+
+  // Draw an active token indicator circle on top right
+  const badgeR = 6 / zoom;
+  context.beginPath();
+  context.arc(x + w + 2 / zoom, y - 2 / zoom, badgeR, 0, Math.PI * 2);
+  context.fillStyle = haloColor;
+  context.shadowBlur = 8;
+  context.fill();
 
   context.restore();
 }

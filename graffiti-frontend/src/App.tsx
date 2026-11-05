@@ -86,6 +86,7 @@ import {
   apiGetRoomPages,
   apiUpdateRoomPage,
   apiExportDrive,
+  apiSolveMath,
   apiCreateWorkspace,
   apiDeleteWorkspace,
   apiCreateFolder,
@@ -125,6 +126,12 @@ import {
   updateBoundArrows,
 } from "./lib/geometry";
 import { executeAiRequest } from "./lib/aiClient";
+import { beautifyStroke } from "./lib/beautifier";
+import { evaluateMathExpression } from "./lib/mathEvaluator";
+import {
+  evaluateHandwrittenMathOnStroke,
+  extractVariablesFromElements,
+} from "./lib/handwrittenMath";
 import type {
   CanvasElement,
   DockPosition,
@@ -1436,6 +1443,193 @@ export default function App() {
     [updateActivePage, sendOp, present.activePageId],
   );
 
+  const beautifySelectedElement = useCallback(
+    (targetEl?: CanvasElement | null) => {
+      const target = targetEl || selectedElement;
+      if (!target) return;
+
+      // 1. Hand-drawn pen stroke: convert using world points and preserve all styling
+      if (target.type === "pen" && target.points && target.points.length > 1) {
+        const worldPoints = target.points.map((pt) => ({
+          x: target.x + pt.x,
+          y: target.y + pt.y,
+          pressure: pt.pressure,
+        }));
+
+        const result = beautifyStroke(
+          worldPoints,
+          {
+            id: target.id,
+            strokeColor: target.strokeColor,
+            strokeWidth: target.strokeWidth,
+            strokeStyle: target.strokeStyle,
+            fillStyle: target.fillStyle,
+            backgroundColor: target.backgroundColor,
+            roughness: 0,
+            opacity: target.opacity,
+            roundness: target.roundness,
+          },
+          activePage.id
+        );
+
+        const replacement: CanvasElement = {
+          ...result.element,
+          id: target.id,
+          pageId: activePage.id,
+          strokeColor: target.strokeColor,
+          strokeWidth: target.strokeWidth,
+          strokeStyle: target.strokeStyle,
+          fillStyle: target.fillStyle,
+          backgroundColor: target.backgroundColor,
+          opacity: target.opacity,
+          customData: {
+            ...result.element.customData,
+            autoBeautified: true,
+            originalElement: target,
+          },
+        };
+
+        updateActivePage((page) => ({
+          ...page,
+          elements: page.elements.map((el) => (el.id === target.id ? replacement : el)),
+        }));
+
+        sendOp(replacement.id, "CREATE_OR_UPDATE", replacement);
+        return;
+      }
+
+      // 2. Existing geometric shape: regularize aspect ratio & straightness in-place around centroid
+      let regularized: CanvasElement = { ...target, roughness: 0 };
+      const cx = target.x + target.width / 2;
+      const cy = target.y + target.height / 2;
+
+      if (target.type === "rectangle") {
+        const maxDim = Math.max(target.width, target.height);
+        const minDim = Math.min(target.width, target.height);
+        if (maxDim / Math.max(minDim, 1) < 1.15) {
+          regularized.width = maxDim;
+          regularized.height = maxDim;
+          regularized.x = cx - maxDim / 2;
+          regularized.y = cy - maxDim / 2;
+        }
+        if (regularized.angle) {
+          const deg = (regularized.angle * 180) / Math.PI;
+          if (Math.abs(deg % 90) < 6 || Math.abs(deg % 90) > 84) {
+            regularized.angle = 0;
+          }
+        }
+      } else if (target.type === "ellipse") {
+        const maxDim = Math.max(target.width, target.height);
+        const minDim = Math.min(target.width, target.height);
+        if (maxDim / Math.max(minDim, 1) < 1.18) {
+          regularized.width = maxDim;
+          regularized.height = maxDim;
+          regularized.x = cx - maxDim / 2;
+          regularized.y = cy - maxDim / 2;
+        }
+        if (regularized.angle && Math.abs(((regularized.angle * 180) / Math.PI) % 90) < 6) {
+          regularized.angle = 0;
+        }
+      } else if (target.type === "diamond") {
+        if (regularized.angle && Math.abs(((regularized.angle * 180) / Math.PI) % 90) < 6) {
+          regularized.angle = 0;
+        }
+      } else if ((target.type === "line" || target.type === "arrow") && target.points && target.points.length >= 2) {
+        const p1 = target.points[0];
+        const p2 = { ...target.points[target.points.length - 1] };
+        const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        const snapAngles = [0, Math.PI / 4, Math.PI / 2, (3 * Math.PI) / 4, Math.PI, -Math.PI / 4, -Math.PI / 2, -(3 * Math.PI) / 4, -Math.PI];
+        const bestSnap = snapAngles.find((a) => Math.abs(a - angle) < 0.15);
+        if (bestSnap !== undefined) {
+          const length = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+          p2.x = p1.x + length * Math.cos(bestSnap);
+          p2.y = p1.y + length * Math.sin(bestSnap);
+          regularized.points = [p1, p2];
+        }
+      }
+
+      updateActivePage((page) => ({
+        ...page,
+        elements: page.elements.map((el) => (el.id === target.id ? regularized : el)),
+      }));
+
+      sendOp(regularized.id, "CREATE_OR_UPDATE", regularized);
+    },
+    [selectedElement, activePage.id, updateActivePage, sendOp]
+  );
+
+  const solveSelectedMath = useCallback(
+    async (targetEl?: CanvasElement | null) => {
+      const target = targetEl || selectedElement;
+      if (!target) return;
+
+      const pageVars = extractVariablesFromElements(activePage.elements);
+
+      if (target.type === "text") {
+        let raw = (target.text || "").trim();
+        const cleanNoEquals = raw.replace(/=\s*(\?.*)?$/, "").trim();
+
+        // 1. First attempt deterministic local evaluation with page variable scope
+        const solved = evaluateMathExpression(raw, pageVars);
+        if (solved.success && solved.formatted !== undefined) {
+          const updatedText = `${cleanNoEquals} = ${solved.formatted}`;
+          const newWidth = Math.max(target.width, updatedText.length * 11 + 24);
+          const updated: CanvasElement = {
+            ...target,
+            text: updatedText,
+            width: newWidth,
+          };
+          updateActivePage((page) => ({
+            ...page,
+            elements: page.elements.map((el) => (el.id === target.id ? updated : el)),
+          }));
+          sendOp(updated.id, "CREATE_OR_UPDATE", updated);
+          return;
+        }
+
+        // 2. If local arithmetic failed (e.g. algebraic equation 'x^2 - 5x + 6 = 0', calculus 'diff(...)', 'int(...)')
+        // Call backend SymPy solver
+        try {
+          const apiRes = await apiSolveMath({
+            equation: raw,
+            variables: pageVars,
+            anchorPosition: { x: target.x + target.width, y: target.y },
+          });
+
+          if (apiRes && apiRes.result && apiRes.result !== "Error") {
+            const hasAlgebraRoots = apiRes.result.includes("=");
+            const updatedText = hasAlgebraRoots
+              ? `${cleanNoEquals}  ⇒  ${apiRes.result}`
+              : `${cleanNoEquals} = ${apiRes.result}`;
+            const newWidth = Math.max(target.width, updatedText.length * 11 + 24);
+            const updated: CanvasElement = {
+              ...target,
+              text: updatedText,
+              width: newWidth,
+            };
+            updateActivePage((page) => ({
+              ...page,
+              elements: page.elements.map((el) => (el.id === target.id ? updated : el)),
+            }));
+            sendOp(updated.id, "CREATE_OR_UPDATE", updated);
+          }
+        } catch (err) {
+          console.warn("Backend math solver fallback failed:", err);
+        }
+        return;
+      }
+
+      // If selected element is pen stroke or other element:
+      if (target.type === "pen") {
+        const solved = evaluateHandwrittenMathOnStroke(target, activePage.elements, activePage.id);
+        if (solved) {
+          commitElement(solved);
+        }
+      }
+    },
+    [selectedElement, activePage.elements, activePage.id, commitElement, updateActivePage, sendOp]
+  );
+
   // Automatically import strokes transferred from Desktop Overlay
   useEffect(() => {
     const checkImportedOverlayElements = () => {
@@ -1805,10 +1999,14 @@ export default function App() {
   }, [selectedId, updateActivePage]);
 
   const clearCanvas = useCallback(() => {
+    if (slug && activePage.elements.length > 0) {
+      activePage.elements.forEach((el) => sendOp(el.id, "DELETE", null));
+    }
     updateActivePage((page) => ({ ...page, elements: [] }));
     setSelectedId(null);
+    setSelectedIds([]);
     setIsMenuOpen(false);
-  }, [updateActivePage]);
+  }, [activePage.elements, slug, sendOp, updateActivePage]);
 
   const handleToggleOverlay = useCallback(() => {
     if (isTauri()) {
@@ -1937,13 +2135,24 @@ export default function App() {
         return;
       }
 
-      if (event.key === "Enter" && ghostElements.length) {
-        event.preventDefault(); acceptGhosts(); return;
+      if (event.key === "Enter") {
+        if (ghostElements.length) {
+          event.preventDefault(); acceptGhosts(); return;
+        }
+        if (selectedElement && (selectedElement.type === "text" || selectedElement.type === "sticky" || selectedElement.text !== undefined)) {
+          event.preventDefault();
+          canvasRef.current?.startEditingText(selectedElement.id);
+          return;
+        }
       }
 
-      if (event.key === "=" && selectedElement && (selectedElement.type === "pen" || selectedElement.type === "text")) {
+      if (event.key === "=" && selectedElement) {
         event.preventDefault();
-        handleAiRequest(selectedElement.id, selectedElement.type === "text" ? { feature: "math", equation: selectedElement.text, anchor: { x: selectedElement.x, y: selectedElement.y } } : { feature: "beautify", shapeId: selectedElement.id, points: selectedElement.points || [] });
+        if (selectedElement.type === "text") {
+          solveSelectedMath(selectedElement);
+        } else {
+          beautifySelectedElement(selectedElement);
+        }
         return;
       }
 
@@ -2047,7 +2256,7 @@ export default function App() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("mousedown", onMouseDown);
     };
-  }, [acceptGhosts, addPage, deleteSelectedElements, dismissGhosts, duplicatePage, duplicateSelected, ghostElements.length, redo, selectedElement, selectedId, selectedIds.length, handleAiRequest, undo, shortcuts, openSettings, handleToggleOverlay]);
+  }, [acceptGhosts, addPage, deleteSelectedElements, dismissGhosts, duplicatePage, duplicateSelected, ghostElements.length, redo, selectedElement, selectedId, selectedIds.length, handleAiRequest, beautifySelectedElement, solveSelectedMath, undo, shortcuts, openSettings, handleToggleOverlay]);
 
   const exportSvg = () => {
     downloadFile(
@@ -2110,12 +2319,20 @@ export default function App() {
       return el;
     });
 
+    const existingIds = new Set(activePage.elements.map((el) => el.id));
+    const newNodes: CanvasElement[] = updatedNodes
+      .filter((n) => !existingIds.has(n.id))
+      .map((n) => ({
+        ...n,
+        pageId: activePage.id,
+      }));
+
     const styledConnectors: CanvasElement[] = connectors.map((c) => ({
       ...c,
       pageId: activePage.id,
     }));
 
-    commitElements([...updatedPageElements, ...styledConnectors]);
+    commitElements([...updatedPageElements, ...newNodes, ...styledConnectors]);
   };
 
   const handleApplyTheme = (updatedElements: CanvasElement[]) => {
@@ -2420,7 +2637,7 @@ export default function App() {
                   }}
                 >
                   <Sparkles size={14} style={{ color: "var(--accent-primary)" }} />
-                  <span>Text-to-Diagram AI</span>
+                  <span>Text-to-Flowchart AI</span>
                 </button>
 
                 <button
@@ -2444,11 +2661,7 @@ export default function App() {
                   disabled={!selectedElement}
                   onClick={() => {
                     if (selectedElement) {
-                      handleAiRequest(selectedElement.id, {
-                        feature: "beautify",
-                        shapeId: selectedElement.id,
-                        points: selectedElement.points || [],
-                      });
+                      beautifySelectedElement(selectedElement);
                     }
                     setIsToolsOpen(false);
                   }}
@@ -2527,19 +2740,14 @@ export default function App() {
                   type="button"
                   className="dropdown-item-btn"
                   role="menuitem"
-                  disabled={!selectedElement || (selectedElement.type !== "text" && selectedElement.type !== "pen")}
+                  disabled={!selectedElement}
                   onClick={() => {
                     if (selectedElement) {
-                      handleAiRequest(
-                        selectedElement.id,
-                        selectedElement.type === "text"
-                          ? { feature: "math", equation: selectedElement.text, anchor: { x: selectedElement.x, y: selectedElement.y } }
-                          : { feature: "beautify", shapeId: selectedElement.id, points: selectedElement.points || [] }
-                      );
+                      solveSelectedMath(selectedElement);
                     }
                     setIsToolsOpen(false);
                   }}
-                  title={selectedElement?.type === "text" ? "Solve mathematical expression" : "Solve equation or beautify shape"}
+                  title={selectedElement?.type === "text" ? "Solve mathematical expression" : "Solve equation"}
                 >
                   <Calculator size={14} style={{ color: selectedElement ? "var(--accent-primary)" : "var(--text-muted)" }} />
                   <span>Solve Math</span>
@@ -3194,6 +3402,7 @@ export default function App() {
           remoteDrafts={remoteDrafts}
           onStreamDraft={(draft) => streamDraft(draft, activePage.id)}
           autoBeautify={autoBeautify}
+          simulatedActiveNodeId={simulatedActiveNodeId}
         />
 
         {ghostElements.length > 0 && (
@@ -3463,23 +3672,15 @@ export default function App() {
         onZoomOut={() => canvasRef.current?.zoomOut()}
         onResetView={() => canvasRef.current?.resetView()}
         onNewPage={addPage}
+        onClearCanvas={clearCanvas}
         onBeautify={() => {
           if (selectedElement) {
-            handleAiRequest(selectedElement.id, {
-              feature: "beautify",
-              shapeId: selectedElement.id,
-              points: selectedElement.points || [],
-            });
+            beautifySelectedElement(selectedElement);
           }
         }}
         onSolveMath={() => {
           if (selectedElement) {
-            handleAiRequest(
-              selectedElement.id,
-              selectedElement.type === "text"
-                ? { feature: "math", equation: selectedElement.text, anchor: { x: selectedElement.x, y: selectedElement.y } }
-                : { feature: "beautify", shapeId: selectedElement.id, points: selectedElement.points || [] }
-            );
+            solveSelectedMath(selectedElement);
           }
         }}
         onInsertStoryboardElements={(els) => commitElements(els.map((e) => ({ ...e, pageId: activePage.id })))}
@@ -3512,6 +3713,8 @@ export default function App() {
         onClose={() => setIsFlowchartToCodeOpen(false)}
         onCaptureCanvasImage={captureCanvasPng}
         onInsertCodeSnippet={handleAddAiSticky}
+        elements={activePage.elements}
+        selectedIds={selectedIds}
       />
 
       {/* Live Executive Briefing Widget */}

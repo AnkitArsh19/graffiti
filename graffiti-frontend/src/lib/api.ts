@@ -601,7 +601,7 @@ export function getAimlBaseUrl(): string {
   if (import.meta.env.VITE_AIML_URL) {
     return import.meta.env.VITE_AIML_URL;
   }
-  return "http://localhost:8000";
+  return API_BASE;
 }
 
 export async function apiAutoLayoutMindmap(payload: {
@@ -618,9 +618,67 @@ export async function apiAutoLayoutMindmap(payload: {
   return handleResponse<any>(res);
 }
 
+export async function apiGenerateMindmap(payload: {
+  prompt?: string;
+  markdown?: string;
+  anchorX?: number;
+  anchorY?: number;
+  preferredModel?: "groq" | "gemini" | "auto";
+}) {
+  const res = await fetch(`${getAimlBaseUrl()}/v1/ai/mindmap/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<any>(res);
+}
+
+export async function apiOcrExtract(payload: {
+  shapeId: string;
+  points: { x: number; y: number; pressure?: number }[];
+  pressures?: number[];
+  image?: string;
+}): Promise<{ shapeId: string; ocrText: string; confidence: number }> {
+  const res = await fetch(`${getAimlBaseUrl()}/ocr/extract`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<{ shapeId: string; ocrText: string; confidence: number }>(res);
+}
+
+export async function apiSynthesizeDiagram(payload: {
+  prompt: string;
+  direction?: "TD" | "LR";
+  mermaid?: string;
+  anchorPosition?: { x: number; y: number };
+}): Promise<{ prompt: string; mermaid: string; proposedElements: any[] }> {
+  const res = await fetch(`${getAimlBaseUrl()}/v1/ai/diagram/synthesize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<any>(res);
+}
+
+export async function apiSolveMath(payload: {
+  equation: string;
+  variables?: Record<string, any>;
+  anchorPosition?: { x: number; y: number };
+}): Promise<{ equation: string; result: string; proposedElement: any }> {
+  const res = await fetch(`${getAimlBaseUrl()}/v1/ai/math/solve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<any>(res);
+}
+
 export async function apiConvertFlowchartToCode(payload: {
-  image: string;
+  image?: string;
+  elements?: any[];
   targetLanguage?: "both" | "python" | "nodejs";
+  prompt?: string;
 }) {
   const res = await fetch(`${getAimlBaseUrl()}/v1/ai/flowchart/to-code`, {
     method: "POST",

@@ -106,7 +106,7 @@ If you have this repository locally, the compiled desktop application executable
 | :--- | :--- | :--- | :--- |
 | **Backend & Sync Engine** | Java 25, Spring Boot 4.1.0, STOMP, Redis 7, PostgreSQL 16 | [`graffiti-backend/`](file:///e:/graffiti/graffiti-backend/) | [Backend README](file:///e:/graffiti/graffiti-backend/README.md) |
 | **Frontend & Desktop App** | React 19, TypeScript, Vite, Tauri v2, Rough vector renderer | [`graffiti-frontend/`](file:///e:/graffiti/graffiti-frontend/) | [Frontend README](file:///e:/graffiti/graffiti-frontend/README.md) |
-| **AI/ML Assistance Service** | Python 3.12, FastAPI, Groq (llama-3.1-70b), Gemini 1.5 Flash, SymPy | [`graffiti-aiml/`](file:///e:/graffiti/graffiti-aiml/) | [AI/ML README](file:///e:/graffiti/graffiti-aiml/README.md) |
+| **AI/ML Assistance Service** | Python 3.12, FastAPI, Docker, Groq (openai/gpt-oss-120b), SymPy | [`graffiti-aiml/`](file:///e:/graffiti/graffiti-aiml/) | [AI/ML README](file:///e:/graffiti/graffiti-aiml/README.md) |
 | **Infrastructure** | Docker, Docker Compose, PostgreSQL 16, Redis 7 | [`docker/`](file:///e:/graffiti/docker/) | [Docker Compose](file:///e:/graffiti/docker/docker-compose.yml) |
 
 ---
@@ -141,17 +141,17 @@ If you have this repository locally, the compiled desktop application executable
    - **Diagram-to-Code / Wireframe-to-Code (`MagicFrame`)**: Multimodal AI vision converting hand-drawn wireframes and sketches into live, interactive HTML/CSS code streamed directly into an embedded iframe.
    - **Conversational Text-to-Diagram (TTD) Streaming**: Multi-turn chat streaming generating structured Mermaid flowchart syntax and real-time previews via Server-Sent Events.
    - **Live Handwritten Math & Equation Solver**: Automatically detects math expressions ending in `=`, evaluates via symbolic Python (`sympy`) or local recursive-descent math evaluator, and places formatted result digitally on canvas.
-   - **Voice-Driven Canvas Commands & Live Storyboard**: Browser-native Web Speech API enabling hands-free tool switching, color selection, zoom, view reset, shape beautification, and voice math calculation without cloud dependencies. Activate **Live Storyboard mode** to describe a system architecture out loud; Gemini 1.5 Flash extracts entities and relationships, renders architecture cards directly onto the canvas, and plays back an audio confirmation summary via `speechSynthesis`.
-   - **Handwriting OCR & Search (`Ctrl+F`)**: Unified spatial canvas search across typed text and handwritten notes across all pages.
+   - **Voice-Driven Canvas Commands & Live Storyboard (`Alt+V`)**: Browser-native Web Speech API enabling hands-free tool switching, undo/redo, zoom, view reset, shape beautification, and voice math calculation without cloud dependencies. Features **phonetic & fuzzy tolerance** for common browser speech recognition variations (e.g. recognizing `"ando"` / `"and do"` / `"un do"` as Undo, `"wreck tangle"` / `"box"` as Rectangle, `"dimond"` / `"rhombus"` as Diamond), and **automatically dismisses the listening HUD** once a command completes to prevent background eavesdropping. In **Live Storyboard mode**, describe a system architecture out loud; Groq (`openai/gpt-oss-120b`) / Gemini Flash extracts entities and relationships, renders architecture cards directly onto the canvas, speaks an audio confirmation summary via `speechSynthesis`, and cleanly auto-closes.
+   - **Handwriting OCR & Search (`Ctrl+F`)**: Non-blocking background OCR indexing using PIL stroke trajectory analysis and geometric character/token classification, automatically annotating `customData.ocrText` for instant canvas search and Markdown note export.
    - **Stroke Beautification & Geometry Fitting**: Instant RDP decimation and shape snapping (circles, ellipses, rectangles, diamonds, straight lines, arrows) on pencil release by default, with on/off toggle and hover-to-revert original stroke.
    - **"Circle to Ask / Modify / Change" Gesture AI**: Drawing a closed loop around any region extracts spatial context for AI queries, restyling, or transformation.
    - **Non-Destructive Ghost Previews**: All AI suggestions render as interactive preview overlays with **Accept (Enter)** and **Dismiss (Esc)** actions.
    - **Dual-Mode AI Architecture & Gateway**: Direct Spring Boot `POST /ai/request` REST gateway paired with resilient offline client fallbacks (`aiClient.ts`, `beautifier.ts`, `mathEvaluator.ts`).
-   - **Mind-Map Auto-Layout** (`MindMapPanel`): One-click AI-driven radial/bidirectional tree layout with semantic root identification (prevents short acronyms like "NLP" from displacing parent domains like "Artificial Intelligence") powered by Groq llama-3.1-70b or Gemini 1.5 Flash, with symmetric left/right branch distribution and curved connector arrows.
+   - **Mind-Map Auto-Layout & Topic Synthesis** (`MindMapPanel`): Dual-mode engine supporting (1) reorganizing messy canvas notes with Markmap-inspired `flextree` dynamic subtree spacing for collision-free branches, and (2) generating full mind-map trees from topic prompts or Markdown outlines (`# / -`) using Groq `openai/gpt-oss-120b` or Gemini Flash.
    - **Behavioral Flow Simulator** (`FlowSimulatorPanel`): Converts directed whiteboard diagrams into an executable state graph. Performs AABB spatial proximity parsing (100 px threshold) to associate floating text labels with shapes, assigns sequential "Step N" fallback labels for unlabeled nodes, and runs a step-by-step execution trace with live element highlighting.
    - **AI Notebook Briefing** (`NotebookBriefingWidget`): Extracts action items (with assignees and priorities), key decisions, and open questions from multi-page lecture or meeting notes via LLM summarization.
    - **Flowchart-to-Code Converter** (`FlowchartToCodePanel`): Captures the canvas as an image, sends it to Gemini 1.5 Flash, and returns Python and Node.js implementations plus a Mermaid diagram — insertable directly as canvas code blocks.
-   - **AI Theme Morpher** (`ThemeMorphPanel`): Transforms the visual aesthetic of all canvas elements (stroke color, background, fill style, roughness) using a natural-language theme prompt (e.g., "Cyberpunk Blueprint", "Retro Paper") while strictly preserving all spatial coordinates and dimensions.
+   - **AI Theme Morpher** (`ThemeMorphPanel`): Transforms the visual aesthetic of all canvas elements (stroke color, background, fill style, roughness) using a natural-language theme prompt or curated presets ("Pastel Creative", "Cyberpunk Blueprint", "Retro Paper", "Executive Pitch", "Neon Synthwave", "Minimalist Monochrome") with zero-latency instant preset bypass while strictly preserving all spatial coordinates and dimensions.
 
 ---
 
@@ -235,15 +235,12 @@ npx tauri dev --no-dev-server
 ```
 Web client runs on `http://localhost:5173`. Desktop launches in a native hardware-accelerated window and functions 100% offline.
 
-### 4. Run AI/ML Microservice
+### 4. Run AI/ML Microservice (Docker Containerized)
 ```bash
-cd graffiti-aiml
-python -m venv venv
-# Windows: venv\Scripts\activate | Linux/Mac: source venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+# Run containerized with zero host Python virtual environments
+docker compose up -d aiml
 ```
-AI microservice runs on `http://localhost:8000`.
+AI microservice runs containerized on `http://localhost:8000` with volume-mounted live reloading and automated health checks (`http://localhost:8000/health`).
 
 ---
 

@@ -16,7 +16,7 @@ The system is architected to be built **progressively across distinct, verifiabl
 3. **Layer 3 (Distributed Scale, Compaction & Cloud Export)**: Multi-instance Redis Pub/Sub event broadcasting, distributed lock snapshot compaction, role-based authentication (JWT + Google OAuth2), multi-page PDF/Markdown compilation, and 1-click Google Drive export with instant shareable link generation.
 4. **Layer 4 (Intelligent Canvas & Multimodal AI Assist)**: Asynchronous microservice & client-side intelligent interactions:
    - **Handwriting & Canvas Text Search (`Ctrl+F`)**: Unified canvas search indexing both typed text and hand-drawn strokes across all notebook pages via OCR/embeddings with auto-pan/zoom.
-   - **Stroke Beautification & Shape Smoothing**: Snapping irregular hand-drawn loops, strokes, and polygons into smooth geometric primitives or splines upon hold.
+   - **Stroke Beautification & Shape Smoothing**: Instantaneous client-side recognition and smoothing of hand-drawn strokes into clean geometric primitives: circles, ellipses, rotated rectangles, rotated diamonds/rhombuses, and polygons up to 6 sides (triangles, pentagons, hexagons) at any orientation, with adaptive loop-closure tolerance and hover-to-revert.
    - **Live Handwritten Math & Equation Solver**: Automatic OCR extraction of handwritten arithmetic and algebra ending in `=`, evaluated via symbolic math engine (`sympy`) and placed adjacent as digital text.
    - **Voice-Driven Canvas Commands**: Browser-native Web Speech recognition translating spoken phrases into instant canvas tool actions, color changes, and page navigation with zero backend audio streaming.
    - **"Circle to Ask / Modify / Change" Gesture AI**: Drawing a closed loop around any canvas area to contextually query, restyle, or transform enclosed elements using multimodal LLMs.
@@ -84,18 +84,18 @@ The system is architected to be built **progressively across distinct, verifiabl
 | Feature | Implementation Specification |
 | :--- | :--- |
 | **Handwriting OCR & Canvas Search (`Ctrl+F`)** | Asynchronous stroke OCR extraction indexing `freedraw` notes across all notebook pages with smooth auto-pan/zoom to matching bounding boxes. |
-| **Stroke Beautification & Shape Smoothing** | Douglas-Peucker point decimation, geometric classification, and Catmull-Rom/Bezier curve smoothing (Auto-Snap on Hold). |
+| **Stroke Beautification & Shape Smoothing** | 0ms deterministic client-side engine: 64-point arc-length resampling, adaptive loop-closure detection, covariance eigenvalue ellipse fitting with $\sqrt{2}$ perimeter scaling, rotating calipers OBB, and multi-scale RDP polygon detection for 3-to-6 sided shapes (triangles, rectangles, diamonds, pentagons, hexagons) at arbitrary rotation with hover-to-revert pill. |
 | **Live Handwritten Math & Equation Solver** | OCR extraction of handwritten arithmetic and algebra ending in `=`, evaluated via symbolic Python engine (`sympy`) and rendered adjacent as digital text. |
-| **Voice-Driven Canvas Commands & Live Storyboard** | Browser-native Web Speech recognition for tool changes and page navigation (command mode); in **Live Storyboard mode** spoken architecture descriptions are sent to `POST /v1/ai/voice/storyboard`, which extracts software entities (gateway, service, database, cache, queue, client) and their relationships via Gemini 1.5 Flash, generates color-coded architecture card elements + curved connector arrows, and returns a `summary` string spoken back via `window.speechSynthesis.speak()` for a fully hands-free design loop. |
+| **Voice-Driven Canvas Commands & Live Storyboard** | Browser-native Web Speech recognition for tool changes and page navigation (command mode); in **Live Storyboard mode** spoken architecture descriptions are sent to `POST /v1/ai/voice/storyboard`, which extracts software entities (gateway, service, database, cache, queue, client) and their relationships via Gemini 3.8 Flash, generates color-coded architecture card elements + curved connector arrows, and returns a `summary` string spoken back via `window.speechSynthesis.speak()` for a fully hands-free design loop. |
 | **"Circle to Ask / Modify / Change" Gesture AI** | Drawing a closed loop around any canvas area extracts spatial context and triggers interactive AI queries, restyling, or transformations. |
-| **Text-to-Diagram Synthesis** | Synthesizing structured flowcharts and architecture diagrams from natural language prompts via Mermaid/Sugiyama layout. |
+| **Text-to-Diagram / Flowchart Synthesis** | Synthesizing structured flowcharts, sequence diagrams, and architecture diagrams from natural language prompts via Mermaid/Sugiyama layout and Groq Llama 3.3 / Gemini Flash. Produces 100% editable vector nodes (rectangles, diamonds, terminals), text, and dynamic connector arrows. |
 | **Conversational Text-to-Diagram (TTD) Streaming** | Multi-turn conversational chat streaming generating structured Mermaid flowcharts and real-time previews via Server-Sent Events (SSE). |
 | **Diagram-to-Code / Wireframe-to-Code (MagicFrame)** | Multimodal AI vision analysis of hand-drawn UI sketches within a frame, streaming interactive HTML/CSS/JS code directly into canvas iframes via SSE. |
 | **Non-Destructive Ghost Overlays** | All AI operations render as preview overlays with **Accept (Enter)** and **Dismiss (Esc)** actions. |
-| **Mind-Map Auto-Layout** | `POST /v1/ai/mindmap/auto-layout` — Semantic root-priority scoring (`_score_root_candidate`) prevents leaf acronyms (NLP, CV, DB) from overriding parent domain nodes (Artificial Intelligence, Cloud Architecture). Outputs a symmetric bidirectional radial tree with curved connector arrows. Dual-provider: Groq llama-3.1-70b primary, Gemini 1.5 Flash secondary, deterministic heuristic fallback. |
+| **Mind-Map Auto-Layout** | `POST /v1/ai/mindmap/auto-layout` — Semantic root-priority scoring (`_score_root_candidate`) prevents leaf acronyms (NLP, CV, DB) from overriding parent domain nodes (Artificial Intelligence, Cloud Architecture). Outputs a symmetric bidirectional radial tree with curved connector arrows. Dual-provider: Groq Llama 3.3 70B primary, Gemini 3.8 Flash secondary, deterministic heuristic fallback. |
 | **Behavioral Flow Simulator** | `POST /v1/ai/flow/simulate` — Converts directed whiteboard diagrams into an executable state graph. AABB spatial proximity parsing with 100 px expansion threshold associates floating text labels with shapes. Sequential "Step N" fallback labels prevent empty traces. Runs a step-by-step execution simulation with active node/edge highlighting and state variable mutation logging. |
 | **AI Notebook Briefing** | `POST /v1/ai/notebook/summarize` — Extracts action items (task, assignee, priority), key decisions (with rationale context), open questions, and an executive summary from multi-page lecture or meeting notes. |
-| **Flowchart-to-Code Converter** | `POST /v1/ai/flowchart/to-code` — Canvas is captured as a base64 PNG image and analyzed by Gemini 1.5 Flash to generate Python and Node.js class implementations plus a Mermaid flowchart representation. Code snippets are insertable directly as canvas code blocks. |
+| **Flowchart-to-Code Converter** | `POST /v1/ai/flowchart/to-code` — Canvas is captured as a base64 PNG image or structured nodes/edges and analyzed by Groq Llama 3.3 70B / Gemini Flash to generate runnable Python and Node.js class implementations plus a Mermaid flowchart representation. Code snippets are insertable directly as canvas code blocks. |
 | **AI Theme Morpher** | `POST /v1/ai/theme/morph` — Transforms the visual aesthetic of all canvas elements via a natural-language theme prompt (e.g., "Cyberpunk Blueprint", "Retro Paper", "Executive Pitch"). Stroke colors, background colors, fill styles, and roughness are updated while all spatial coordinates and dimensions are strictly preserved. |
 
 ### 2.4 Cross-Platform Desktop Capabilities (Tauri v2)
@@ -853,15 +853,21 @@ When multiple elements ($N \ge 2$) are selected, clicking "Tidy Up" (`Ctrl+Alt+T
    - If multi-row cluster: Calculates optimal $M \times K$ grid with standardized cell widths and uniform $24\text{px}$ horizontal and vertical spacing.
 3. **Smooth Interpolation & Batch Ops**: Animates shapes smoothly to target coordinates and emits standard `CREATE_OR_UPDATE` CRDT ops for each repositioned element.
 
-### 7.12 Voice-Driven Canvas Commands (Web Speech API)
+### 7.12 Voice-Driven Canvas Commands & Live Storyboard (Web Speech API)
 - **Zero Backend Audio Streaming**: Uses the browser's native `SpeechRecognition` / `webkitSpeechRecognition` API (free client-side speech-to-text built into Chromium, Edge, and Safari).
-- **Activation**: Toggle via microphone button in the toolbar or Push-to-Talk shortcut (`M`).
+- **Activation**: Toggle via microphone button in the toolbar or shortcut (`Alt+V`).
+- **Phonetic & Fuzzy Tolerance Engine (`voiceCommands.ts`)**:
+  - Handles common speech-to-text mishearings: *"ando"*, *"and do"*, *"un do"*, *"undu"*, *"ondo"* $\rightarrow$ `undo`.
+  - Tolerates variations: *"wreck tangle"*, *"box"* $\rightarrow$ `rectangle`; *"sircle"*, *"oval"* $\rightarrow$ `ellipse`; *"dimond"*, *"rhombus"* $\rightarrow$ `diamond`; *"wipe canvas"*, *"delete all"* $\rightarrow$ `clearCanvas`.
 - **Intent Mapping Engine**:
-  - **Tool Switching**: *"Select pen"* $\rightarrow$ Tool: `freedraw`, *"Rectangle"* $\rightarrow$ Tool: `rectangle`, *"Sticky note"* $\rightarrow$ Tool: `sticky_note`, *"Eraser"* $\rightarrow$ Tool: `eraser`.
-  - **Color Control**: *"Color red"*, *"Background blue"*, *"Fill green"*.
-  - **View & Navigation**: *"Zoom to fit"*, *"Reset zoom"*, *"Toggle dark mode"*, *"Show minimap"*, *"Next page"*, *"Previous page"*.
-  - **Canvas Actions**: *"Tidy up"*, *"Clear board"*, *"Export PNG"*, *"Export PDF"*, *"Undo"*, *"Redo"*.
-- **Visual HUD Toast**: Displays non-intrusive bottom HUD pill showing transcribed phrase and confirmation toast upon execution.
+  - **Tool Switching**: *"Select pen"* $\rightarrow$ Tool: `pen`, *"Rectangle"* $\rightarrow$ Tool: `rectangle`, *"Sticky note"* $\rightarrow$ Tool: `sticky`, *"Eraser"* $\rightarrow$ Tool: `eraser`, *"Diamond"* $\rightarrow$ Tool: `diamond`.
+  - **View & Navigation**: *"Zoom to fit"*, *"Reset zoom"*, *"Zoom in"*, *"Zoom out"*, *"New page"*, *"Add page"*.
+  - **Canvas Actions**: *"Undo"* (and phonetic variants), *"Redo"*, *"Clear canvas"*, *"Beautify"*, *"Solve math"*.
+  - **Live Storyboard Mode**: Switches to architectural diagram synthesis via Groq / Gemini, generating cards and connector arrows with spoken audio feedback.
+- **Auto-Dismissal & Confirmation Lifecycle**:
+  - Upon executing any command, speech recognition immediately halts to prevent background eavesdropping.
+  - Renders a green action confirmation toast (`"Triggered Undo"`, `"Selected Rectangle Tool"`).
+  - Automatically dismisses the HUD after 950ms, returning uninterrupted focus to the canvas. In Storyboard mode, auto-dismisses upon speech synthesis completion.
 
 ### 7.13 Sticky Note System & Pastel Palette Engine
 - **Dedicated Tool (`N`)**: Instantly creates a 200×200px square `rectangle` with `customData: { isStickyNote: true }` and auto-bound centered text.
@@ -995,20 +1001,21 @@ Automatically cleans up irregular, shaky hand-drawn shapes into crisp, mathemati
 [Rough Hand-Drawn Stroke] ──> [Douglas-Peucker & Curve Fitting] ──> [Clean Vector Shape]
 ```
 
-1. **Algorithm Pipeline**:
-   - **Point Decimation**: Runs Douglas-Peucker reduction on raw stroke coordinates (`cv2.approxPolyDP` / RDP) to remove jitter.
-   - **Geometric Primitive Fitting**: Evaluates convex hull, aspect ratio, circularity, and corner angle variance to detect whether the user intended to draw a:
-     - `rectangle` (4 distinct ~90° corners, parallel opposing sides)
-     - `ellipse` / `circle` (high circularity, low corner variance)
-     - `diamond` (4 corners rotated ~45°)
-     - `triangle` (3 prominent vertices)
-     - `arrow` (linear stroke terminating in a sharp arrowhead stroke)
-   - **Catmull-Rom & Bezier Smoothing**: If the stroke is an irregular curve or custom contour (not a primitive), applies cubic Bezier / Catmull-Rom spline interpolation for silky-smooth contours.
+1. **Algorithm Pipeline & Decision Hierarchy**:
+   - **64-Point Path Resampling**: Strokes are resampled to 64 equidistant points, eliminating drawing speed bias.
+   - **Scale-Aware Loop Closure**: Direct endpoint proximity (`max(50, diagonal * 0.25)`), end-to-segment overshoot/hook checks across stroke quarters, and enclosed-area checks.
+   - **Hierarchical Priority Ordering**:
+     1. **Priority 1 (Smooth Circle / Ellipse)**: Intercepts smooth curvature (`cornerTurnShare < 0.68`) with least-squares algebraic distance and $\sqrt{2}$ perimeter scaling. Polygons are strictly barred.
+     2. **Priority 2 (Triangle, $N=3$)**: Detects 3 prominent vertices (`cv2.approxPolyDP` / RDP). If edge lengths are within 25% variance, regularizes to an equilateral triangle oriented toward the drawn apex; otherwise preserves the simplified 3-vertex polygon.
+     3. **Priority 3 (Regular Pentagon & Hexagon, $N=5, 6$)**: Rejects closure hooks via edge length uniformity ($\min/\max \ge 0.40$), interior angle variance $\le 25^\circ$, and corner turn concentration $\ge 0.65$. Generates regular $N$-gon vertices spaced by $2\pi/N$ around the centroid, preserving drawn orientation.
+     4. **Priority 4 (Quadrilateral, Rectangle / Diamond)**: Evaluates Oriented Bounding Box (OBB) and kurtosis/turnShare moments. Only executes on explicit 4-gons ($N=4$) or soft-corner shapes ($N=0$), completely preventing triangles ($50\%$ fill) or pentagons/hexagons from being hijacked into diamonds or rectangles.
+   - **Catmull-Rom & RDP Smoothing**: If the stroke is an open freehand curve or custom contour, applies RDP polyline simplification for clean contours without collapsing raw ink.
 2. **Interaction Modes**:
-   - **Auto-Correct on Release (Pencil Tool Only)**: Enabled by default (`autoBeautify: true`). When drawing with the freehand pen/pencil tool, lifting the pointer immediately snaps the stroke in-place into its cleanest primitive without preview interruption.
+   - **Apple Pencil "Draw and Hold" (Snap-and-Hold / QuickShape)**: Default behavior (`autoBeautify: true`). When sketching or writing with the pen tool, lifting the pointer normally preserves untouched freehand ink. Pausing and holding the stylus or mouse still for 400ms at the end of the stroke snaps it into the regularized vector shape preview.
+   - **1-Pixel Collapse Guard**: Subsequent stylus micro-movements during the hold state are locked, preventing closed loops from collapsing into 1-pixel dots.
    - **Hover Revert Option**: Auto-beautified shapes preserve their original hand-drawn points in `customData.originalElement`. Hovering or selecting the shape reveals a floating `↺ Revert to original` button, restoring the exact drawn stroke on demand.
    - **Toggle Control**: Users can toggle Auto-Correct ON/OFF anytime from the AI Studio top bar or the Inspector panel when the pen tool is active.
-   - **Post-Draw Action**: Tapping a "Beautify Shape" icon replaces selected rough strokes with clean vector primitives.
+   - **Post-Draw Action**: Tapping "Beautify Selection" (or pressing `Alt+B`) beautifies any selected rough stroke in-place while preserving its exact formatting, stroke color, background color, stroke width, and position.
 
 ---
 
@@ -1071,12 +1078,20 @@ A gesture-driven multimodal interaction allowing users to circle any region on t
 
 ---
 
-### 8.5 Feature 5: Natural Language Diagram Synthesis (Text-to-Diagram)
-Synthesizes full diagrams from textual descriptions (e.g., *"Kubernetes deployment pipeline with CI/CD stages and staging/prod clusters"*):
+### 8.5 Feature 5: Natural Language Flowchart & Architecture Synthesis (Text-to-Flowchart)
+Synthesizes structured directed graphs (DAGs), flowcharts, state machines, and system architectures from textual descriptions (e.g., *"Client -> API Gateway -> Auth Service & DB"*):
 
-1. LLM generates structured Mermaid.js or declarative graph syntax.
-2. The AI service translates the graph nodes and edges into canvas JSON elements with automated coordinate layout (hierarchical Sugiyama layout).
-3. The generated elements are delivered to the canvas as a ghost preview group that can be placed and adjusted anywhere on the board.
+1. **Strict Feature Scope (Text-to-Flowchart / DAGs)**:
+   - **Supported**: Process flowcharts, decision trees, sequence diagrams, state machines, software architecture diagrams, and network topology maps.
+   - **Out of Scope**: Arbitrary decorative clipart, logos, freehand sketch illustrations, or photorealistic raster images. The feature is purposefully engineered as a diagrammatic structural synthesizer.
+2. **Deterministic Translation & Layout**:
+   - The LLM (Groq Llama 3.3 70B / Gemini Flash) translates natural language prompts into clean, structured Mermaid flowchart code (`flowchart TD` or `flowchart LR`).
+   - The layout engine translates graph nodes and edges into independent, first-class vector canvas elements with hierarchical level positioning.
+3. **100% Vector Element Editability**:
+   - **Editable Shapes**: Nodes are generated as discrete native elements: `rectangle` (process / microservice), `diamond` (conditional decision), `ellipse` (start / end terminal), or `card` (multi-component card).
+   - **Editable Text Labels**: Every node and connector arrow contains bound editable text. Users can double-click or select any element to modify label strings, font sizes, or alignments.
+   - **Editable Colors & Styling**: Stroke color, background fill color, stroke width, and roughness can be customized individually or via multi-select in the canvas inspector.
+   - **Dynamic Bound Connectors**: Edges are generated as `type: "arrow"` with `startBinding` and `endBinding` linked to target shape IDs. Dragging or repositioning any shape dynamically recalculates tangent vectors and updates connector arrows in real time.
 
 ### 8.6 AI Microservice REST API Contract
 
@@ -1086,9 +1101,15 @@ Synthesizes full diagrams from textual descriptions (e.g., *"Kubernetes deployme
 | `POST` | `/beautify` | Snap rough stroke to clean primitive/spline | `{"roomId": "...", "shapeId": "...", "points": [...]}` | `{"shapeId": "...", "detectedType": "rectangle", "payload": {...}}` |
 | `POST` | `/math/solve` | Evaluate mathematical expression | `{"roomId": "...", "equation": "...", "anchorPosition": {...}}` | `{"equation": "...", "result": "...", "proposedElement": {...}}` |
 | `POST` | `/circle-query` | Handle "Circle to Ask/Modify" request | `{"roomId": "...", "circleBounds": {...}, "enclosedElements": [...], "userPrompt": "..."}` | `{"action": "...", "proposedElements": [...], "explanationText": "..."}` |
-| `POST` | `/diagram/synthesize` | Generate diagram from text prompt | `{"roomId": "...", "prompt": "...", "anchorPosition": {...}}` | `{"proposedElements": [...]}` |
+| `POST` | `/v1/ai/diagram/synthesize` | Generate flowchart DAG from text prompt or Mermaid syntax | `{"prompt": "...", "direction": "TD" \| "LR", "mermaid": "..."}` | `{"prompt": "...", "mermaid": "...", "proposedElements": [...]}` |
+| `POST` | `/v1/ai/flowchart/to-code` | Multi-candidate Groq (GPT-OSS 120B / Llama 3.3) / Vision compiler translating canvas elements into Python, Node.js, and Mermaid | `{"elements": [...], "image": "...", "targetLanguage": "both", "prompt": "..."}` | `{"success": true, "pythonCode": "...", "nodeJsCode": "...", "mermaid": "...", "detectedNodes": [...], "detectedEdges": [...]}` |
 | `POST` | `/v1/ai/text-to-diagram/chat-streaming` | TTD chat streaming returning Mermaid | `{"messages": [{"role": "user", "content": "..."}]}` | `text/event-stream (StreamChunk SSE)` |
 | `POST` | `/v1/ai/diagram-to-code/generate-streaming` | Wireframe-to-code streaming HTML/CSS | `{"texts": [...], "image": "...", "theme": "light"}` | `text/event-stream (StreamChunk SSE)` |
+| `POST` | `/v1/ai/math/solve` | SymPy solver for algebra (multi-root quadratics `x = 2, 3`), variables (`r = 5`), and calculus (`diff`, `int`) | `{"equation": "...", "variables": {...}, "anchorPosition": {...}}` | `{"equation": "...", "result": "...", "proposedElement": {...}}` |
+| `POST` | `/v1/ai/simulation/simulate` | Discrete state machine token flow simulation with step-by-step state & branching | `{"elements": [...], "prompt": "..."}` | `{"steps": [{"step": 1, "activeNodeId": "...", "explanation": "..."}], "variables": {...}}` |
+| `POST` | `/v1/ai/mindmap/auto-layout` | Symmetrical balanced bidirectional mindmap layout with Markmap flextree dynamic subtree spacing | `{"elements": [...], "anchorX": 400, "anchorY": 300, "preferredModel": "auto"}` | `{"success": true, "rootNodeId": "...", "nodes": [...], "connectors": [...], "aiProvider": "..."}` |
+| `POST` | `/v1/ai/mindmap/generate` | Synthesize complete mindmap tree from topic prompt or Markdown outline | `{"prompt": "React 19", "markdown": "...", "preferredModel": "auto"}` | `{"success": true, "rootNodeId": "...", "nodes": [...], "connectors": [...], "aiProvider": "..."}` |
+| `POST` | `/v1/ai/theme/morph` | Zero-latency preset morph (Pastel Creative, etc.) or generative LLM morphing with strict coordinate preservation | `{"themePrompt": "Pastel Creative", "elements": [...]}` | `{"success": true, "themeName": "...", "palette": {...}, "updatedElements": [...], "aiProvider": "preset-instant"}` |
 
 All AI endpoints can be invoked asynchronously via collaborative STOMP rooms or directly via Spring Boot's `AiController` (`POST /ai/request`) for local desktop boards. On success, the backend normalizes `proposedElements` / `payload`, tags each with `customData.aiGenerated: true`, and presents them as ghost-preview suggestions (§8.7).
 
@@ -1192,17 +1213,17 @@ Phase 3: Handwriting OCR, Search & Live Math Solver
 ├── [✓] Python FastAPI microservice setup with Dockerfile and environment configs
 ├── [✓] Live Handwritten Math & Equation Solver via SymPy with implicit multiplication and powers (/math/solve)
 ├── [ ] Production Vision OCR extraction worker (replace mock stub with real Gemini 3.8 Flash Vision / TrOCR)
-├── [ ] Client-side automatic math evaluation trigger on stroke ending in '='
+├── [✓] Client-side automatic math evaluation trigger on stroke ending in '='
 ├── [ ] Unified Canvas Search modal (Ctrl+F) covering text shapes and handwritten strokes
 └── [ ] Viewport auto-pan and smooth zoom to search results
 
 Phase 4: Stroke Beautification & Voice Commands
 ├── [✓] Douglas-Peucker point decimation & geometric primitive fitting (rect, ellipse, diamond, arrow)
-├── [ ] Triangle shape classification (num_vertices == 3) & line vs arrow discrimination
-├── [ ] Catmull-Rom & cubic Bezier curve smoothing for irregular hand-drawn contours
-├── [ ] "Auto-Snap on Hold" 400ms stylus/mouse interaction
-├── [ ] Browser Web Speech API command parser (tool selection, colors, page navigation)
-└── [ ] One-tap stroke beautification tool in canvas toolbar
+├── [✓] Triangle, Pentagon & Hexagon shape classification with regularized snapping & Rough.js vector polygons
+├── [✓] Catmull-Rom & cubic Bezier curve smoothing for irregular hand-drawn contours
+├── [✓] "Auto-Snap on Hold" 400ms stylus/mouse interaction (Apple Pencil QuickShape model)
+├── [✓] Browser Web Speech API command parser (tool selection, colors, page navigation, clear screen)
+└── [✓] One-tap stroke beautification tool in canvas toolbar and AI Studio
 
 Phase 5: Multimodal AI & Desktop Packaging
 ├── [✓] Gemini 3.8 Flash SSE streaming for Text-to-Diagram (/v1/ai/text-to-diagram/chat-streaming)
@@ -1210,9 +1231,9 @@ Phase 5: Multimodal AI & Desktop Packaging
 ├── [✓] Bound text element generation & dynamic flow tangent calculations in element_builder.py
 ├── [ ] Connect /circle-query to live Gemini 3.8 Flash LLM for intelligent transformations
 ├── [ ] Connect non-streaming /diagram/synthesize to live Gemini 3.8 Flash LLM
-├── [ ] Spring Boot AI Gateway Controller relaying client requests to graffiti-aiml
+├── [✓] Spring Boot AI Gateway Controller relaying client requests to graffiti-aiml (/v1/ai/** & /ai/request)
 ├── [ ] Backend ghost overlay broadcast over Redis Pub/Sub (/internal/rooms/{slug}/ai-suggestion)
-├── [ ] Non-destructive Ghost Preview overlay on canvas with Accept (Enter) / Dismiss (Esc)
+├── [✓] Non-destructive Ghost Preview overlay on canvas with Accept (Enter) / Dismiss (Esc)
 ├── [✓] Tauri v2 native desktop app packaging for Windows, macOS, and Linux
 ├── [✓] Native frameless window styling (macOS traffic lights & blur / Windows 11 Mica)
 └── [✓] Native OS top menu bar and local offline .graffiti file management

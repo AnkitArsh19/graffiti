@@ -63,6 +63,22 @@ public class AiService {
         }
     }
 
+    /** Direct proxy forwarding to an internal AI/ML endpoint path. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> forwardPost(String path, Map<String, Object> body) {
+        try {
+            Map<String, Object> response = client.post()
+                    .uri(path)
+                    .body(body != null ? body : Map.of())
+                    .retrieve()
+                    .body(Map.class);
+            return response == null ? Map.of() : response;
+        } catch (Exception ex) {
+            log.info("AI forward to {} failed: {}", path, ex.getMessage());
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     /** Normalizes the optional service response into a client-renderable ghost payload with proposedElements array. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> toGhostPayload(Map<String, Object> response) {

@@ -75,6 +75,22 @@ export function pointInElement(
         tolerance + element.strokeWidth * 2
       );
     }
+    // If it is a beautified polygon, check point-in-polygon interior hit
+    if (element.customData?.isPolygon && element.points.length >= 3) {
+      let inside = false;
+      const pts = element.points;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const xi = pts[i].x;
+        const yi = pts[i].y;
+        const xj = pts[j].x;
+        const yj = pts[j].y;
+        const intersect =
+          yi > local.y !== yj > local.y &&
+          local.x < ((xj - xi) * (local.y - yi)) / (yj - yi) + xi;
+        if (intersect) inside = !inside;
+      }
+      if (inside) return true;
+    }
     for (let i = 1; i < element.points.length; i++) {
       if (
         distanceToSegment(local, element.points[i - 1], element.points[i]) <=

@@ -21,6 +21,13 @@ describe("mathEvaluator", () => {
     expect(evaluateMathExpression("pi")).toEqual({ success: true, result: Math.PI, formatted: "3.141593" });
   });
 
+  it("evaluates expressions with variable scope and percentages", () => {
+    const vars = { r: 5, tax: 0.1 };
+    expect(evaluateMathExpression("2 * r =", vars)).toEqual({ success: true, result: 10, formatted: "10" });
+    expect(evaluateMathExpression("20% of 150 =")).toEqual({ success: true, result: 30, formatted: "30" });
+    expect(evaluateMathExpression("2^10 =")).toEqual({ success: true, result: 1024, formatted: "1024" });
+  });
+
   it("handles invalid or non-math expressions safely without throwing", () => {
     expect(evaluateMathExpression("hello world =").success).toBe(false);
     expect(evaluateMathExpression("1 / 0 =").success).toBe(false);

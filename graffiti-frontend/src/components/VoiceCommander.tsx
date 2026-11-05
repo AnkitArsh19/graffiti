@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Mic, MicOff, Sparkles, X, Layers, Activity } from "lucide-react";
 import type { ToolId, CanvasElement } from "../types";
 import { apiVoiceStoryboard } from "../lib/api";
+import { parseVoiceCommand } from "../lib/voiceCommands";
 
 interface VoiceCommanderProps {
   isListening: boolean;
@@ -13,33 +14,50 @@ interface VoiceCommanderProps {
   onZoomOut: () => void;
   onResetView: () => void;
   onNewPage: () => void;
+  onClearCanvas?: () => void;
   onBeautify: () => void;
   onInsertStoryboardElements?: (elements: CanvasElement[]) => void;
   existingElements?: CanvasElement[];
   onSolveMath?: () => void;
 }
 
-export function VoiceCommander({
-  isListening,
-  onToggle,
-  onSelectTool,
-  onUndo,
-  onRedo,
-  onZoomIn,
-  onZoomOut,
-  onResetView,
-  onNewPage,
-  onBeautify,
-  onInsertStoryboardElements,
-  existingElements,
-  onSolveMath,
-}: VoiceCommanderProps) {
+export function VoiceCommander(props: VoiceCommanderProps) {
+  const {
+    isListening,
+    onToggle,
+    onSelectTool,
+    onUndo,
+    onRedo,
+    onZoomIn,
+    onZoomOut,
+    onResetView,
+    onNewPage,
+    onClearCanvas,
+    onBeautify,
+    onInsertStoryboardElements,
+    existingElements,
+    onSolveMath,
+  } = props;
+
+  const propsRef = useRef(props);
+  propsRef.current = props;
+
   const [transcript, setTranscript] = useState("");
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [isStoryboardMode, setIsStoryboardMode] = useState(false);
   const [isProcessingAi, setIsProcessingAi] = useState(false);
   const recognitionRef = useRef<any>(null);
-  const debounceTimerRef = useRef<any>(null);
+  const lastExecutedTextRef = useRef<string>("");
+  const autoCloseTimerRef = useRef<any>(null);
+  const hasExecutedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    return () => {
+      if (autoCloseTimerRef.current) {
+        clearTimeout(autoCloseTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const SpeechRecognition =
@@ -53,15 +71,37 @@ export function VoiceCommander({
     recognition.lang = "en-US";
 
     recognition.onresult = (event: any) => {
+      if (hasExecutedRef.current) return;
+
       const current = event.resultIndex;
       const text = event.results[current][0].transcript.toLowerCase().trim();
       setTranscript(text);
 
-      if (event.results[current].isFinal) {
-        if (isStoryboardMode) {
+      if (isStoryboardMode) {
+        if (event.results[current].isFinal) {
           triggerStoryboardExtraction(text);
-        } else {
-          processCommand(text);
+        }
+      } else {
+        // Immediate command execution: don't stall waiting for isFinal
+        if (text && text !== lastExecutedTextRef.current) {
+          const executed = processCommand(text);
+          if (executed) {
+            hasExecutedRef.current = true;
+            lastExecutedTextRef.current = text;
+            try {
+              recognition.stop();
+            } catch { }
+
+            // Auto-close HUD after short confirmation window (950ms)
+            if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+            autoCloseTimerRef.current = setTimeout(() => {
+              propsRef.current.onToggle();
+            }, 950);
+          }
+        }
+
+        if (event.results[current].isFinal) {
+          lastExecutedTextRef.current = "";
         }
       }
     };
@@ -75,7 +115,7 @@ export function VoiceCommander({
     return () => {
       try {
         recognition.stop();
-      } catch {}
+      } catch { }
     };
   }, [isStoryboardMode, onInsertStoryboardElements, existingElements]);
 
@@ -83,21 +123,27 @@ export function VoiceCommander({
     if (!recognitionRef.current) return;
     try {
       if (isListening) {
+        hasExecutedRef.current = false;
+        lastExecutedTextRef.current = "";
+        if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
         recognitionRef.current.start();
         setTranscript("");
         setLastAction(isStoryboardMode ? "Listening for architecture storytelling..." : "Listening...");
       } else {
+        hasExecutedRef.current = false;
+        if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
         recognitionRef.current.stop();
         setLastAction(null);
+        setTranscript("");
       }
-    } catch {}
+    } catch { }
   }, [isListening, isStoryboardMode]);
 
   async function triggerStoryboardExtraction(spokenText: string) {
     if (!spokenText || spokenText.length < 5 || !onInsertStoryboardElements) return;
 
     setIsProcessingAi(true);
-    setLastAction("Synthesizing system blocks with Gemini Flash...");
+    setLastAction("Synthesizing system blocks with Groq Llama 3.3...");
 
     try {
       const resp = await apiVoiceStoryboard({
@@ -113,6 +159,16 @@ export function VoiceCommander({
           ? resp.summary
           : `Placed ${entityCount} architecture block${entityCount !== 1 ? "s" : ""} on the canvas.`;
         setLastAction(`Placed ${entityCount} architecture block(s) & arrows!`);
+        hasExecutedRef.current = true;
+
+        try {
+          recognitionRef.current?.stop();
+        } catch { }
+
+        const closeHud = () => {
+          if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+          propsRef.current.onToggle();
+        };
 
         // Audio confirmation: speak the summary back to the user
         if (typeof window !== "undefined" && window.speechSynthesis) {
@@ -121,7 +177,17 @@ export function VoiceCommander({
           utterance.rate = 1.0;
           utterance.pitch = 1.0;
           utterance.volume = 0.9;
+          utterance.onend = () => {
+            autoCloseTimerRef.current = setTimeout(closeHud, 600);
+          };
+          utterance.onerror = () => {
+            closeHud();
+          };
           window.speechSynthesis.speak(utterance);
+          // Fallback timer if speech synthesis stalls
+          autoCloseTimerRef.current = setTimeout(closeHud, 4000);
+        } else {
+          autoCloseTimerRef.current = setTimeout(closeHud, 1800);
         }
       } else {
         setLastAction("Heard: " + spokenText.slice(0, 30));
@@ -134,67 +200,49 @@ export function VoiceCommander({
     }
   }
 
-  function processCommand(phrase: string) {
-    if (phrase.includes("rectangle") || phrase.includes("box")) {
-      onSelectTool("rectangle");
-      setLastAction("Selected Rectangle Tool");
-    } else if (phrase.includes("circle") || phrase.includes("ellipse") || phrase.includes("oval")) {
-      onSelectTool("ellipse");
-      setLastAction("Selected Ellipse Tool");
-    } else if (phrase.includes("diamond")) {
-      onSelectTool("diamond");
-      setLastAction("Selected Diamond Tool");
-    } else if (phrase.includes("arrow")) {
-      onSelectTool("arrow");
-      setLastAction("Selected Arrow Tool");
-    } else if (phrase.includes("line")) {
-      onSelectTool("line");
-      setLastAction("Selected Line Tool");
-    } else if (phrase.includes("pen") || phrase.includes("pencil") || phrase.includes("draw")) {
-      onSelectTool("pen");
-      setLastAction("Selected Pen Tool");
-    } else if (phrase.includes("text") || phrase.includes("type")) {
-      onSelectTool("text");
-      setLastAction("Selected Text Tool");
-    } else if (phrase.includes("sticky") || phrase.includes("note")) {
-      onSelectTool("sticky");
-      setLastAction("Selected Sticky Note Tool");
-    } else if (phrase.includes("eraser") || phrase.includes("erase")) {
-      onSelectTool("eraser");
-      setLastAction("Selected Eraser Tool");
-    } else if (phrase.includes("select") || phrase.includes("pointer")) {
-      onSelectTool("select");
-      setLastAction("Selected Select Tool");
-    } else if (phrase.includes("hand") || phrase.includes("pan")) {
-      onSelectTool("hand");
-      setLastAction("Selected Hand Tool");
-    } else if (phrase.includes("undo")) {
-      onUndo();
-      setLastAction("Triggered Undo");
-    } else if (phrase.includes("redo")) {
-      onRedo();
-      setLastAction("Triggered Redo");
-    } else if (phrase.includes("zoom in")) {
-      onZoomIn();
-      setLastAction("Zoomed In");
-    } else if (phrase.includes("zoom out")) {
-      onZoomOut();
-      setLastAction("Zoomed Out");
-    } else if (phrase.includes("reset view") || phrase.includes("center")) {
-      onResetView();
-      setLastAction("Reset View");
-    } else if (phrase.includes("new page") || phrase.includes("add page")) {
-      onNewPage();
-      setLastAction("Created New Page");
-    } else if (phrase.includes("beautify") || phrase.includes("smooth")) {
-      onBeautify();
-      setLastAction("AI Shape Beautify Triggered");
-    } else if (phrase.includes("storyboard")) {
-      setIsStoryboardMode(true);
-      setLastAction("Switched to Live Storyboard Mode!");
-    } else if (phrase.includes("solve") || phrase.includes("calculate") || phrase.includes("math")) {
-      onSolveMath?.();
-      setLastAction("AI Math Solver Triggered");
+  function processCommand(phrase: string): boolean {
+    const p = propsRef.current;
+    const cmd = parseVoiceCommand(phrase);
+    if (!cmd) return false;
+
+    setLastAction(cmd.label);
+
+    switch (cmd.type) {
+      case "selectTool":
+        p.onSelectTool(cmd.tool);
+        return true;
+      case "undo":
+        p.onUndo();
+        return true;
+      case "redo":
+        p.onRedo();
+        return true;
+      case "zoomIn":
+        p.onZoomIn();
+        return true;
+      case "zoomOut":
+        p.onZoomOut();
+        return true;
+      case "resetView":
+        p.onResetView();
+        return true;
+      case "newPage":
+        p.onNewPage();
+        return true;
+      case "clearCanvas":
+        p.onClearCanvas?.();
+        return true;
+      case "beautify":
+        p.onBeautify();
+        return true;
+      case "solveMath":
+        p.onSolveMath?.();
+        return true;
+      case "storyboard":
+        setIsStoryboardMode(true);
+        return true;
+      default:
+        return false;
     }
   }
 

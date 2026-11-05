@@ -55,7 +55,7 @@ export function ThemeMorphPanel({
 
       if (resp && resp.success) {
         onApplyTheme(resp.updatedElements || [], resp.canvasBackground);
-        setSuccessInfo(`Applied "${resp.themeName}" aesthetic across ${resp.elementsMorphed} elements! Spatial coordinates strictly preserved.`);
+        setSuccessInfo(`Applied "${resp.themeName}" aesthetic across ${resp.elementsMorphed ?? resp.updatedElements?.length ?? elements.length} elements! Spatial coordinates strictly preserved.`);
       } else {
         setErrorMsg(resp?.detail || "Theme morphing failed.");
       }
@@ -119,7 +119,7 @@ export function ThemeMorphPanel({
               AI Theme & Aesthetic Engine
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted, #a1a1aa)" }}>
-              Gemini 1.5 Flash • Coordinate-Preserving
+              Groq Llama 3.3 70B & Rule Engine • Coordinate-Preserving
             </div>
           </div>
         </div>

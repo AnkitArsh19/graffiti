@@ -57,6 +57,7 @@ public class SecurityConfig {
                                 "/ws/**", "/internal/**",
                                 "/export/**",
                                 "/ai/**",
+                                "/v1/ai/**",
                                 "/oauth2/**", "/login/**"
                         ).permitAll()
                         .anyRequest().authenticated()

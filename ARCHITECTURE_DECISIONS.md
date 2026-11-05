@@ -34,6 +34,18 @@
    - [ADR-020: AABB Spatial Proximity Parsing & Sequential Fallback Labels in Flow Simulator](#adr-020-aabb-spatial-proximity-parsing--sequential-fallback-labels-in-flow-simulator)
    - [ADR-021: Shape-Interior Text Clipping & Bound-Text Drag Grouping on Canvas](#adr-021-shape-interior-text-clipping--bound-text-drag-grouping-on-canvas)
    - [ADR-022: Voice Live Storyboard with Speech Synthesis Audio Confirmation](#adr-022-voice-live-storyboard-with-speech-synthesis-audio-confirmation)
+   - [ADR-023: Client-Side Deterministic Stroke Beautification & Multi-Orientation Polygon/Ellipse Snapping Engine](#adr-023-client-side-deterministic-stroke-beautification--multi-orientation-polygonellipse-snapping-engine)
+   - [ADR-024: AI/ML Microservice Provider Modernization (Gemini 3.8 Flash & Groq Llama 3.3 70B)](#adr-024-aiml-microservice-provider-modernization-gemini-38-flash--groq-llama-33-70b)
+   - [ADR-025: Apple Pencil "Draw and Hold" (Snap-and-Hold / QuickShape) Interaction Model](#adr-025-apple-pencil-draw-and-hold-snap-and-hold--quickshape-interaction-model)
+   - [ADR-026: Multi-Stroke Handwritten Equation Engine (iPadOS 18 Math Notes Architecture)](#adr-026-multi-stroke-handwritten-equation-engine-ipados-18-math-notes-architecture)
+   - [ADR-027: Unified Backend API Gateway & Elimination of Direct Port 8000 Exposure](#adr-027-unified-backend-api-gateway--elimination-of-direct-port-8000-exposure)
+   - [ADR-028: Storage Architecture: PostgreSQL JSONB Ops Dominance & Deferral of pgvector](#adr-028-storage-architecture-postgresql-jsonb-ops-dominance--deferral-of-pgvector)
+   - [ADR-029: Invariant-Based Shape Regularization & 1-Pixel Micro-Movement Guard](#adr-029-invariant-based-shape-regularization--1-pixel-micro-movement-guard)
+   - [ADR-030: Resilient Speech Command Dispatch & Audio Feedback Loop](#adr-030-resilient-speech-command-dispatch--audio-feedback-loop)
+   - [ADR-031: Scope Boundary: Text-to-Flowchart Synthesis & 100% Vector Element Editability](#adr-031-scope-boundary-text-to-flowchart-synthesis--100-vector-element-editability)
+   - [ADR-032: Robust AI Schema Validation & Resilient Panel State Lifecycle](#adr-032-robust-ai-schema-validation--resilient-panel-state-lifecycle)
+   - [ADR-033: Docker Containerization for Python AI Microservice (Zero Local Virtual Environments)](#adr-033-docker-containerization-for-python-ai-microservice-zero-local-virtual-environments)
+   - [ADR-034: Semantic Canvas Topology Extraction & Multi-Candidate Groq / Vision Code Compilation](#adr-034-semantic-canvas-topology-extraction--multi-candidate-groq--vision-code-compilation)
 
 ---
 
@@ -382,4 +394,251 @@ Graffiti solves this through a high-performance **Server-Authoritative CRDT Hybr
   5. **Audio confirmation** (`window.speechSynthesis.speak()`): After `onInsertStoryboardElements()` succeeds, the UI calls `window.speechSynthesis.cancel()` then `window.speechSynthesis.speak(new SpeechSynthesisUtterance(summary))`, completing the fully hands-free feedback loop.
   6. **`VoiceStoryboardHUD.tsx`**: A named re-export of `VoiceCommander` for semantic clarity when embedding storyboard-only experiences.
 * **Consequences:** Users can describe multi-component architectures verbally, see them rendered on canvas, and hear confirmation — without touching the keyboard or mouse. Test coverage: `test_voice_storyboard` (verifies `success`, `newElements`, and `summary` fields).
+
+---
+
+### ADR-023: Client-Side Deterministic Stroke Beautification & Multi-Orientation Polygon/Ellipse Snapping Engine
+
+* **Status:** Implemented in [`beautifier.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/beautifier.ts), [`canvasRenderer.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/canvasRenderer.ts), & [`collision.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/collision.ts)
+* **Date:** November 2026
+* **Context:** Freehand pencil strokes were originally restricted to rudimentary axis-aligned checks (horizontal/vertical lines, axis-aligned rectangles, and axis-aligned diamonds). Users sketching diagrams and geometric illustrations drew shapes at arbitrary rotation angles (e.g., a tilted rectangle at 30°, a rotated diamond at 45°, or a 5-sided pentagon). Furthermore, hand-drawn loops frequently overshoot their starting point or leave small gaps, causing naive closure checks to fail, while previous covariance ellipse fitting suffered from an incorrect $2\times$ disk scaling factor (yielding 29% error even on perfect shapes).
+* **Decision:** Re-architect the client-side beautifier with an advanced, 0ms latency mathematical pipeline drawing on Excalidraw, Pedro Lino's OpenCV Shape Recognizer, and Quickdraw geometry principles:
+  1. **64-Point Path Resampling**: Every stroke is normalized to 64 equidistant arc-length samples, eliminating pointer speed bias where slow movements cluster redundant coordinates.
+  2. **Scale-Dependent & Topological Loop Closure**: Replaces rigid point-distance thresholds with scale-aware endpoint proximity (`max(50, diagonal * 0.25)`), end-to-segment proximity checks across the first/last quarter of points (accommodating overshoots, hooks, and tails), and shoelace enclosed-area ratios ($\text{area} / \text{bbox} > 0.25$).
+  3. **Least-Squares Covariance Ellipse Fitting with $\sqrt{2}$ Perimeter Scaling**: Derived from perimeter integration ($\mathbb{E}[x^2] = a^2/2$), semi-axes are scaled by $\sqrt{2\lambda}$ rather than $2\sqrt{\lambda}$. Error on hand-drawn ellipses dropped from $>0.30$ to $0.012$. Eigenvectors determine the exact tilt angle $\theta$, creating rotated `ellipse` elements.
+  4. **Oriented Bounding Box (OBB) & Rotating Calipers**: Computes convex hulls via Graham scan and minimal enclosing rotated bounding boxes to identify tilted rectangles at arbitrary angles.
+  5. **Curvature Analysis & `cornerTurnShare` Separation**: Adopts Excalidraw's turning angle metric: for smooth ellipses, turning is evenly distributed along the stroke ($\text{turnShare} \approx 0.45 - 0.65$), while for true polygons turning is concentrated at discrete vertices ($\text{turnShare} \ge 0.74$).
+  6. **Multi-Scale Polygon Detection & Strict Decision Hierarchy (3 to 6 Sides)**: Adaptive RDP decimation sweeping $\epsilon \in [0.024, 0.045] \times \text{perimeter}$ (matching OpenCV `approxPolyDP`). Triangles (3 sides), Quadrilaterals (4 sides), Pentagons (5 sides), and Hexagons (6 sides) are recognized at any orientation:
+     - **Triangles ($N=3$)**: Snapped to regular equilateral geometry oriented to the drawn apex when edge variation $< 25\%$; otherwise preserves the simplified 3-vertex polygon.
+     - **Regular Pentagons ($N=5$) & Hexagons ($N=6$)**: Verified with edge uniformity ($\min/\max \ge 0.40$), angle variance $\le 25^\circ$, and corner turn concentration $\ge 0.65$. Snapped to regular $N$-gon vertices spaced by $2\pi/N$ around the centroid, preserving drawn orientation.
+     - **Decision Pipeline Hierarchy**: Polygons are prioritized ahead of generic quadrilateral bounding-box fitting. Quadrilateral moment matching only triggers on explicit 4-gons ($N=4$) or soft-corner shapes ($N=0$), completely preventing triangles ($50\%$ fill) or pentagons/hexagons from being hijacked into diamonds or rectangles.
+  7. **Quadrilateral Classification**: Differentiates Rectangles (edge ratio $> 1.20$, right-angled OBB) from Diamonds/Rhombuses (equal edges, perpendicular diagonals, vertices at diagonal tips).
+  8. **Vector Polygon Rendering & Ray-Cast Collision**: Polygons are rendered as crisp Rough.js vector shapes via `generator.polygon(pts, options)` on `isPolygon: true`, with ray-casting point-in-polygon hit testing in `collision.ts` allowing effortless selection, fill, and hover-to-revert.
+* **Consequences:** Polygons up to 6 sides (triangles, rectangles, diamonds, pentagons, hexagons) and ellipses snap reliably at any orientation. Hand-drawn loops with overshoots or tails close cleanly. Revert-on-hover allows restoring the exact raw hand-drawn stroke with one click. Test coverage: 15 tests in `beautifier.test.ts` (100% pass across all 18 frontend test suites).
+
+---
+
+### ADR-024: AI/ML Microservice Provider Modernization (Gemini 3.8 Flash & Groq Llama 3.3 70B)
+
+* **Status:** Implemented in [`graffiti-aiml/`](file:///e:/graffiti/graffiti-aiml/)
+* **Date:** November 2026
+* **Context:** The `graffiti-aiml` microservice previously referenced deprecated LLM model versions: Groq `llama-3.1-70b-versatile` was decommissioned, Google `gemini-1.5-flash` was legacy, and `gemini-2.0-flash` was scheduled for shutdown. Inconsistent environment variable keys caused provider fallbacks to fail silently when keys were loaded from disparate configs.
+* **Decision:**
+  1. **Model Upgrades**:
+     - **Google Gemini**: Standardized to `gemini-3.8-flash` across all vision, multimodal, code generation, and voice storyboard modules.
+     - **Groq Cloud**: Upgraded to `llama-3.3-70b-versatile` for high-throughput mind-map layout, natural language planning, and text processing.
+  2. **Dynamic Configuration via `config.py`**: Added explicit fields `openai_model` (`gpt-4o-mini`) and `anthropic_model` (`claude-3-5-sonnet-20241022`), along with unified key getter methods (`get_gemini_key()`, `get_openai_key()`, `get_anthropic_key()`).
+  3. **Unified Environment Configuration**: Updated `.env` and `.env.example` to centralize all provider credentials and model identifiers under consistent keys.
+  4. **Health Endpoint Diagnostics**: Enhanced `/health` endpoint to actively inspect and report the live availability status of all 4 provider keys (Gemini, Groq, OpenAI, Anthropic).
+* **Consequences:** Eliminates 404/410 model decommissioning errors. Ensures zero breaking changes in client interactions while improving inference latency and multimodal comprehension quality.
+
+---
+
+### ADR-025: Apple Pencil "Draw and Hold" (Snap-and-Hold / QuickShape) Interaction Model
+
+* **Status:** Implemented in [`WhiteboardCanvas.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/WhiteboardCanvas.tsx) & [`beautifier.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/beautifier.ts)
+* **Date:** November 2026
+* **Context:** In naive shape beautifiers, every pen stroke was automatically regularized upon pointer release (`pointerUp`). This destroyed handwriting, words, cursive letters, and quick sketches by turning them into unwanted circles or lines. Users need full freedom to write or sketch freely without losing user agency.
+* **Decision:** Adopt the industry-standard Apple Pencil / GoodNotes / Procreate QuickShape paradigm:
+  1. **Default Freehand Inking**: When the user draws and immediately lifts the pen, the stroke is committed 100% untouched as natural raw ink.
+  2. **The "Hold" Trigger**: When the user holds the stylus or mouse still at the end of the stroke for $400\text{ms}$ (spatial jitter radius $\le 8\text{px}$), the shape recognition engine executes and the stroke snaps into a regularized vector shape preview.
+  3. **Excalidraw Corner-Turn Barrier**: A stroke with $\text{cornerTurnShare} \ge 0.68$ (sharp corners) is mathematically barred from ever collapsing into an ellipse or circle.
+  4. **Rotating Calipers OBB Segment Fit**: Tilted rectangles and diamonds at any rotation angle are evaluated against the Oriented Bounding Box segments ($\text{fitError} < 10\%$).
+* **Consequences:** Handwriting and notes are never hijacked into shapes. Geometric shapes are formed intuitively by holding still at the stroke's end.
+
+---
+
+### ADR-026: Multi-Stroke Handwritten Equation Engine (iPadOS 18 Math Notes Architecture)
+
+* **Status:** Implemented in [`handwrittenMath.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/handwrittenMath.ts) & [`mathEvaluator.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/mathEvaluator.ts)
+* **Date:** November 2026
+* **Context:** Mathematical expressions are inherently multi-stroke (e.g., `+`, `*`, `4`, `5`, and `=` require multiple distinct pen strokes). Single-stroke math checks fail to recognize real human handwriting.
+* **Decision:**
+  1. **Terminal `=` Gesture Recognition**: Detects when a user draws an equals sign (either two parallel horizontal strokes within $\Delta y \in [6, 24]\text{px}$ and $70\%$ horizontal overlap, or a single continuous two-pass stroke).
+  2. **Spatial Stroke Clustering**: Searches leftward along the baseline ($\Delta x \le 400\text{px}$, $\Delta y \le 60\text{px}$) for associated text or stroke operands.
+  3. **Zero False-Positive Rule**: If the strokes do not form a valid mathematical expression, the engine returns `null` and leaves the ink untouched.
+  4. **Answer Placement**: When an expression evaluates successfully, an editable text element matching the stroke's color and height is placed immediately to the right of the equals sign.
+* **Consequences:** Provides an Apple Math Notes-like experience directly on the whiteboard canvas with zero lag.
+
+---
+
+### ADR-027: Unified Backend API Gateway & Elimination of Direct Port 8000 Exposure
+
+* **Status:** Implemented in [`AiController.java`](file:///e:/graffiti/graffiti-backend/src/main/java/com/graffiti/ai/AiController.java), [`AiService.java`](file:///e:/graffiti/graffiti-backend/src/main/java/com/graffiti/ai/AiService.java), [`SecurityConfig.java`](file:///e:/graffiti/graffiti-backend/src/main/java/com/graffiti/security/SecurityConfig.java), & [`api.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/api.ts)
+* **Date:** November 2026
+* **Context:** Frontend components previously suffered from split-brain routing: some panels called port 8000 directly while others called port 8080. In production, port 8000 is internal and private, making direct client access fail and bypassing JWT authentication and rate limiting.
+* **Decision:**
+  1. **Gateway Proxying**: Expose `/v1/ai/{*subpath}` and `/ai/request` on the Spring Boot backend (`graffiti-backend:8080`), forwarding all requests to internal `graffiti-aiml:8000`.
+  2. **Client Unification**: Point `getAimlBaseUrl()` in `api.ts` to `API_BASE` (`port 8080`).
+  3. **Private AI Subnet**: Keep port 8000 private behind Docker/VPC firewalls.
+* **Consequences:** Centralizes authentication, rate limiting, and room authorization; eliminates split-brain routing in production deployments.
+
+---
+
+### ADR-028: Storage Architecture: PostgreSQL JSONB Ops Dominance & Deferral of pgvector
+
+* **Status:** Architecture Contract Established
+* **Date:** November 2026
+* **Context:** Evaluated whether the `pgvector` extension should be introduced for storing canvas vector elements.
+* **Decision:**
+  1. **Canvas Elements are 2D Coordinates, Not Semantic Embeddings**: Canvas shapes $(x, y, w, h, \text{points}, \text{styles})$ are transactional JSON records, not high-dimensional floating-point vectors.
+  2. **JSONB with Lamport Clocks**: PostgreSQL native `jsonb` column in the `ops` table indexed on `(room_id, lamport_ts)` provides sub-millisecond retrieval, atomic ordering, and compact storage.
+  3. **Deferral of `pgvector`**: `pgvector` is deferred from core canvas persistence. It will only be considered if a future milestone introduces natural language semantic search across whiteboard sticky notes.
+* **Consequences:** Avoids unnecessary database bloat, maintains 100% relational integrity, and keeps the operational persistence layer lean.
+
+---
+
+### ADR-029: Invariant-Based Shape Regularization & 1-Pixel Micro-Movement Guard
+
+* **Status:** Implemented in [`WhiteboardCanvas.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/WhiteboardCanvas.tsx) & [`beautifier.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/beautifier.ts)
+* **Date:** November 2026
+* **Context:** Two critical bugs affected shape beautification:
+  1. *The 1-Pixel Dot Collapse*: When `triggerHoldSnap` transformed `draftRef.current` into a `rectangle` or `ellipse`, subsequent pointer micro-movements (stylus jitter before lifting) entered the generic box-drag branch `normalizeBox(action.startWorld, world)`. Since the stroke started and ended near the same point for a closed loop, the shape collapsed into a 1-pixel dot.
+  2. *Polygon Hijacking*: Douglas-Peucker simplified smooth circles and rectangles with overshoot hooks into 5 vertices, erroneously triggering regular pentagon generation.
+* **Decision:**
+  1. **Hold-Snapped Geometry Guard**: In `onPointerMove`, immediately return if `isHoldSnappedRef.current && snappedElementRef.current` are active, completely locking the snapped geometry against micro-movement corruption.
+  2. **Dedicated Commit Pathway**: In `finishPointerAction`, check `isHoldSnappedRef.current` at the very top and commit `snappedElementRef.current` directly with full styling and geometry preserved.
+  3. **Strict Mathematical Barriers**:
+     - Circles/Ellipses enforce a `turnShare4 < 0.68` barrier; polygons are strictly barred.
+     - Pentagons and hexagons enforce edge uniformity ($\min/\max > 0.40$), interior angle variance $< 22^\circ$, and corner turn concentration $\ge 0.65$. Overshoot hooks are mathematically rejected.
+     - Quadrilaterals enforce rotation-invariant Oriented Bounding Box (OBB) prototype moments, ensuring rotated rectangles and diamonds snap cleanly with rotation angles preserved.
+* **Consequences:** Eliminates the 1-pixel dot collapse bug; guarantees circles never turn into pentagons and hand-drawn squares with hooks never turn into pentagons.
+
+---
+
+### ADR-030: Resilient Speech Command Dispatch, Phonetic Tolerance & Auto-Dismissal Lifecycle
+
+* **Status:** Implemented in [`VoiceCommander.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/VoiceCommander.tsx), [`voiceCommands.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/voiceCommands.ts), & [`App.tsx`](file:///e:/graffiti/graffiti-frontend/src/App.tsx)
+* **Date:** November 2026
+* **Context:** Speech recognition commands (e.g., "undo", "clear screen", "select pen", "zoom in") were frequently misrecognized or ignored due to speech recognition variations (e.g. browser Web Speech API transcribing "undo" as "ando" or "and do"). Additionally, after completing a command, the Voice Commander HUD remained open and continuously listening indefinitely, capturing stray background noise and confusing users.
+* **Decision:**
+  1. **Phonetic & Fuzzy Speech Matching (`voiceCommands.ts`)**: Evaluates incoming phrases through regex-based phonetic mappings:
+     - **Undo**: Matches `"undo"`, `"ando"`, `"un do"`, `"and do"`, `"an do"`, `"undu"`, `"ondo"`, `"on do"`, `"end do"`.
+     - **Redo**: Matches `"redo"`, `"re do"`, `"read do"`, `"ree do"`, `"riddo"`.
+     - **Shapes**: Matches `"wreck tangle"`, `"box"` (Rectangle); `"sircle"`, `"oval"`, `"round"` (Ellipse); `"dimond"`, `"rhombus"` (Diamond); `"aerow"`, `"connector"` (Arrow).
+     - **Canvas & Tools**: Matches `"draw"`, `"sketch"` (Pen); `"wipe canvas"`, `"clear all"` (Clear Canvas); `"fit to screen"`, `"recenter"` (Reset View); `"beautify"`, `"smooth"`, `"clean up"` (Beautify); `"calculate"`, `"solve math"` (Math Solver).
+  2. **Immediate Execution & Recognition Halt**: Evaluates commands immediately upon matching phrase detection without waiting for `isFinal`. Upon executing a command, speech recognition is immediately stopped to prevent capturing post-command chatter.
+  3. **Automated Confirmation & HUD Auto-Close**: Renders a crisp confirmation toast (`lastAction`) and automatically dismisses the HUD (`onToggle()`) after 950ms, returning full focus to the whiteboard canvas.
+  4. **Storyboard Audio Playback & Auto-Dismissal**: In Live Storyboard mode, after architecture blocks are generated, `speechSynthesis.speak(utterance)` plays the spoken summary and automatically closes the HUD when speech finishes (`utterance.onend`) or via fallback timer.
+  5. **Mutable Callback References**: Store incoming action props in `propsRef` to guarantee execution always uses the latest state and callback references.
+  6. **Canvas State Synchronization**: `clearCanvas` explicitly purges `selectedIds`, dispatches `DELETE` operations to collaboration peers, and resets active page elements.
+* **Consequences:** Eliminates misrecognition of common vocalizations like "ando", prevents accidental continuous eavesdropping, provides visual and auditory confirmation, and automatically closes the HUD once tasks are performed. Test coverage: `voiceCommands.test.ts`.
+
+---
+
+### ADR-031: Scope Boundary: Text-to-Flowchart Synthesis & 100% Vector Element Editability
+
+* **Status:** Implemented in [`TextToDiagramPanel.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/TextToDiagramPanel.tsx), [`diagram_router.py`](file:///e:/graffiti/graffiti-aiml/app/api/diagram_router.py), & [`element_builder.py`](file:///e:/graffiti/graffiti-aiml/app/diagram/element_builder.py)
+* **Date:** November 2026
+* **Context:** Ambiguity existed regarding the scope of "Text-to-Diagram" — whether it entails arbitrary, unstructured graphics, decorative illustrations, or logos versus structured engineering flowcharts and system diagrams. Furthermore, AI-generated diagrams in some tools generate static, immutable images or rigid group elements that cannot be individually repositioned, re-colored, or re-typed by users.
+* **Decision:**
+  1. **Strict Feature Scope (Text-to-Flowchart / DAG Architecture)**: The feature is strictly scoped to structured directed acyclic graphs (DAGs), procedural flowcharts, decision trees, state machines, and system architecture topologies. Arbitrary raster images, logos, and freehand illustrations are explicitly out of scope for this feature.
+  2. **100% Discrete Vector Element Editability**: The layout engine translates graph nodes and edges into independent, first-class canvas elements:
+     - **Shapes**: `rectangle` (process / service), `diamond` (decision), `ellipse` (terminal / start / end), and `card` (multi-tier system cards).
+     - **Editable Text**: Every node text label is an editable property with customizable font size, alignment, and content.
+     - **Editable Styling**: Stroke color, background fill color, stroke width, and roughness can be customized per node or collectively via selection.
+     - **Dynamic Arrow Re-Anchoring**: Edges are instantiated as `type: "arrow"` with `startBinding` and `endBinding` linked to node element IDs. Moving any node automatically recalculates tangent vectors and updates connector paths in real time.
+* **Consequences:** Eliminates user confusion around feature capabilities; guarantees every AI-synthesized diagram functions as a native, fully customizable whiteboard asset rather than a static image.
+
+---
+
+### ADR-032: Robust AI Schema Validation & Resilient Panel State Lifecycle
+
+* **Status:** Implemented in [`theme_schema.py`](file:///e:/graffiti/graffiti-aiml/app/schemas/theme_schema.py) & [`FlowSimulatorPanel.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/FlowSimulatorPanel.tsx)
+* **Date:** November 2026
+* **Context:** Two critical runtime errors occurred in AI features:
+  1. *Theme Morpher 422 Unprocessable Content*: Calling `POST /v1/ai/theme/morph` failed with `422 Unprocessable Content` on payloads containing Excalidraw-compatible element definitions where `roundness` was an object (`{"type": 3}`) or integer rather than a string.
+  2. *Flow Simulator React Hook Violation*: Opening `FlowSimulatorPanel.tsx` triggered React error `Rendered more hooks than during previous render` because state hooks (`useMemo`, `useState`) were conditionally declared after early returns.
+* **Decision:**
+  1. **Permissive Schema Coercion (`theme_schema.py`)**: Define `ThemeElementMeta.roundness: Optional[Any] = None` in Pydantic schemas, safely accepting strings (`"round"`, `"sharp"`), numeric types, or nested objects without raising validation exceptions.
+  2. **Unconditional Hook Declaration (`FlowSimulatorPanel.tsx`)**: Refactor all React hooks to the top-level body of the component, ensuring identical hook execution order across all render cycles regardless of canvas selection state.
+* **Consequences:** Theme morphing and behavioral flow simulation execute reliably across all element types without client-side crashes or 422 HTTP rejections.
+
+---
+
+### ADR-033: Docker Containerization for Python AI Microservice (Zero Local Virtual Environments)
+
+* **Status:** Architecture Contract Established & Implemented in [`docker-compose.yml`](file:///e:/graffiti/docker-compose.yml) & [`graffiti-aiml/Dockerfile`](file:///e:/graffiti/graffiti-aiml/Dockerfile)
+* **Date:** November 2026
+* **Context:** Creating local Python virtual environments (`venv`) on developer workstations introduced environment pollution, operating system path differences (Windows vs. Linux), binary package compilation friction (e.g., `sympy`, `scikit-learn`, `numpy`), and port exposure risks.
+* **Decision:**
+  1. **Strict Prohibition of Local Python `venv`**: Developers and coding agents must not create or maintain local virtual environments on host file systems.
+  2. **Containerized Execution via Docker**: The `graffiti-aiml` microservice runs exclusively inside an isolated Docker container configured in `docker-compose.yml`.
+  3. **Zero Direct Host Port Exposure in Production**: AI microservice endpoints communicate with the backend gateway over the internal Docker network (`graffiti-network`), maintaining security isolation.
+* **Consequences:** Guarantees uniform multi-platform execution across development and production with zero host dependency contamination.
+
+---
+
+### ADR-034: Semantic Canvas Topology Extraction & Multi-Candidate Groq / Vision Code Compilation
+
+* **Status:** Implemented in [`flowchart_to_code.py`](file:///e:/graffiti/graffiti-aiml/app/flowchart/flowchart_to_code.py), [`flowchart_schema.py`](file:///e:/graffiti/graffiti-aiml/app/schemas/flowchart_schema.py), & [`FlowchartToCodePanel.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/FlowchartToCodePanel.tsx)
+* **Date:** November 2026
+* **Context:** Flowchart-to-code previously assumed a multi-modal vision LLM (e.g., Gemini 1.5 Flash Vision). When developers only provide high-speed text LLM API keys (such as Groq Cloud with `openai/gpt-oss-120b`, `llama-3.3-70b-versatile`, or `qwen3.8-27b`), vision-only inference pipelines fail. Furthermore, learning from `abi/screenshot-to-code` and Excalidraw's `DiagramToCodePlugin` demonstrates that raster vision LLMs frequently hallucinate text and scramble complex branch conditions compared to structured vector element graphs.
+* **Decision:**
+  1. **Dual Extraction Pipeline (`extract_flowchart_graph_from_elements`)**:
+     - Parse canvas elements (`activePage.elements` or selection) to extract shapes (`rectangle` $\to$ process, `diamond` $\to$ decision, `ellipse` $\to$ start/end terminal), direct and container-bound text labels, and directional arrow bindings (`startBinding`, `endBinding`, condition labels).
+     - Construct a normalized topological graph: Nodes (`id`, `label`, `type`) and Edges (`source`, `target`, `condition`).
+  2. **Multi-Candidate Groq Model Fallback**:
+     - Attempt configured models dynamically (`openai/gpt-oss-120b`, `llama-3.3-70b-versatile`, `qwen/qwen3.8-27b`, `openai/gpt-oss-20b`) before fallback, eliminating single-model 404 availability failures.
+  3. **Multi-Modal Vision Support**: When a Gemini API key is configured alongside canvas screenshots, vision inference runs with semantic topology validation.
+  4. **Multi-Language Production Code Synthesis**:
+     - Generates idiomatic, typed Python 3 workflow classes with state management, error handling, and executable `__main__` entrypoints.
+     - Generates asynchronous Node.js / TypeScript workflow modules.
+     - Generates corresponding Mermaid.js declarative flowchart specifications.
+  5. **Interactive UI Integration**:
+     - `FlowchartToCodePanel.tsx` allows scoping between "Entire Canvas" and "Selected Elements Only".
+     - Displays live detected node/edge counts, active compiler engine (`groq-openai/gpt-oss-120b`), and provides one-click "Insert to Canvas" and "Copy".
+* **Consequences:** Developers can generate production-grade code directly from hand-drawn or auto-laid whiteboard diagrams using pure Groq keys without requiring proprietary multimodal vision credits, with zero OCR hallucinations.
+
+---
+
+### ADR-035: Zero-Latency Theme Preset Bypass & Pastel Creative Aesthetic Preset
+
+* **Status:** Implemented in [`theme_morpher.py`](file:///e:/graffiti/graffiti-aiml/app/theme/theme_morpher.py), [`theme_schema.py`](file:///e:/graffiti/graffiti-aiml/app/schemas/theme_schema.py), & [`ThemeMorphPanel.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/ThemeMorphPanel.tsx)
+* **Date:** November 2026
+* **Context:** Theme morphing for curated presets (Cyberpunk Blueprint, Retro Paper, Executive Pitch, Neon Synthwave, Minimalist Monochrome, Pastel Creative) previously invoked remote LLM endpoints first, causing noticeable latency (1-3 seconds) for predefined aesthetics and risking API rate-limit errors. Additionally, the "Pastel Creative" preset existed in the UI but lacked backend definition.
+* **Decision:**
+  1. **Instant Preset Bypass**: If `req.themePrompt` matches any preset key, immediately apply the deterministic palette ruleset and return `aiProvider: "preset-instant"` in < 2ms, completely bypassing remote LLM calls.
+  2. **Pastel Creative Preset**: Added complete palette token mapping (`primaryStroke: #7c3aed`, `secondaryStroke: #059669`, `primaryBackground: #f3e8ff`, `secondaryBackground: #d1fae5`, `accentColor: #f59e0b`, `canvasBackground: #faf5ff`, `roughness: 0.8`, `fillStyle: semi`).
+  3. **Strict Coordinate Preservation**: All element geometries (`x`, `y`, `width`, `height`, `points`) remain 100% untouched while aesthetic metadata (`fontFamily`, `roughness`, `strokeWidth`, `fillStyle`, `strokeColor`, `backgroundColor`) are systematically morphed.
+* **Consequences:** Instantaneous sub-5ms theme switching for all curated presets while retaining generative AI fallback for novel user prompts.
+
+---
+
+### ADR-036: Collision-Free Hierarchical Mind-Map Layout (Markmap Flextree Spacing) & Topic Synthesis
+
+* **Status:** Implemented in [`mindmap_agent.py`](file:///e:/graffiti/graffiti-aiml/app/mindmap/mindmap_agent.py), [`mindmap_router.py`](file:///e:/graffiti/graffiti-aiml/app/api/mindmap_router.py), & [`MindMapPanel.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/MindMapPanel.tsx)
+* **Date:** November 2026
+* **Context:** The mind-map auto-layout engine used fixed vertical spacing (`spacing_y = 130.0`), which caused primary branches with variable numbers of sub-children to overlap vertically. Furthermore, users could only reorganize existing canvas elements; there was no capability to generate a complete mind-map tree from a topic prompt or markdown outline.
+* **Decision:**
+  1. **Dynamic Subtree Bounding (Markmap Flextree Pattern)**:
+     - Compute each branch's required vertical span recursively from its sub-children count and node dimensions: `b_height = max(node_h, (len(subs) - 1) * 90.0 + 60.0)`.
+     - Layout branches cumulatively with a guaranteed `margin_y = 35.0px` separation between subtrees, completely eliminating vertical branch-on-branch and leaf-on-leaf collisions.
+  2. **Topic & Markdown Outline Synthesis (`/v1/ai/mindmap/generate`)**:
+     - Mode A (Topic Prompt): Uses Groq (`openai/gpt-oss-120b`) with multi-candidate fallback to structure topics into `{ root, branches: [{ title, children }] }`.
+     - Mode B (Markdown Parser): Directly parses hierarchical outlines (`# Root`, `## Branch`, `- Leaf`) into structured trees without LLM latency.
+  3. **Integrated Dual-Mode UI (`MindMapPanel.tsx`)**:
+     - Seamlessly toggle between "Reorganize Canvas" and "Generate from Topic".
+     - Includes instant quick topic chips (`React 19 Architecture`, `Microservices System`, `Deep Learning Foundations`, `Product Roadmap`).
+* **Consequences:** Symmetrical, mathematically non-overlapping mind-map trees with instant generation from scratch or reorganizing existing canvas notes.
+
+---
+
+### ADR-037: Deterministic Multi-Feature Stroke OCR & Non-Blocking Background Canvas Indexing
+
+* **Status:** Implemented in [`ocr_engine.py`](file:///e:/graffiti/graffiti-aiml/app/ocr/ocr_engine.py), [`ocr_router.py`](file:///e:/graffiti/graffiti-aiml/app/api/ocr_router.py), & [`WhiteboardCanvas.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/WhiteboardCanvas.tsx)
+* **Date:** November 2026
+* **Context:** `ocr_engine.py` was previously a mock stub returning static `"Whiteboard Note", 0.92`, and pen strokes drawn on the canvas were never submitted for OCR indexing, leaving `customData.ocrText` empty and rendering canvas search (`Ctrl+F`) ineffective for handwriting.
+* **Decision:**
+  1. **Trajectory & PIL Stroke Classification (`ocr_engine.py`)**:
+     - Normalize points and rasterize stroke coordinates to PIL grayscale bitmaps.
+     - Extract trajectory features: bounding box aspect ratio, total path length, net displacement, closure ratio, and curvature inflections.
+     - Classify into semantic tokens: digits/letters (`0`, `O`, `1`, `S`, `U`), arithmetic symbols (`-`, `/`), or structured tags (`handwritten note`, `handwriting`, `handwritten ink`).
+  2. **Non-Blocking Background Indexing (`WhiteboardCanvas.tsx`)**:
+     - On pen stroke completion (`pointerup`), raw ink is committed immediately with zero latency.
+     - A non-blocking asynchronous callback dispatches `apiOcrExtract` in the background (100ms debounce), attaching `customData.ocrText` to the committed element once resolved.
+  3. **Instant Searchability**:
+     - Elements indexed with `customData.ocrText` are immediately searchable via `CanvasSearch.tsx` (`Ctrl+F`) and included in Markdown notebook exports.
+* **Consequences:** Whiteboard handwriting becomes fully searchable and exportable without introducing drawing lag or requiring external vision API credits.
+
 

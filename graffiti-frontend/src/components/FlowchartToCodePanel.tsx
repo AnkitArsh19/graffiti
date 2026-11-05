@@ -1,12 +1,15 @@
 import React, { useState } from "react";
-import { Code2, Sparkles, X, Copy, Check, FileCode, Play, Terminal, Layers } from "lucide-react";
+import { Code2, Sparkles, X, Copy, Check, FileCode, Play, Terminal, Layers, RefreshCw } from "lucide-react";
 import { apiConvertFlowchartToCode } from "../lib/api";
+import type { CanvasElement } from "../types";
 
 interface FlowchartToCodePanelProps {
   isOpen: boolean;
   onClose: () => void;
   onCaptureCanvasImage: () => Promise<string>;
   onInsertCodeSnippet?: (title: string, code: string) => void;
+  elements?: CanvasElement[];
+  selectedIds?: string[];
 }
 
 export function FlowchartToCodePanel({
@@ -14,9 +17,13 @@ export function FlowchartToCodePanel({
   onClose,
   onCaptureCanvasImage,
   onInsertCodeSnippet,
+  elements = [],
+  selectedIds = [],
 }: FlowchartToCodePanelProps) {
   const [activeTab, setActiveTab] = useState<"python" | "nodejs" | "mermaid">("python");
   const [targetLanguage, setTargetLanguage] = useState<"both" | "python" | "nodejs">("both");
+  const [scope, setScope] = useState<"all" | "selected">(selectedIds.length > 0 ? "selected" : "all");
+  const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [copiedTab, setCopiedTab] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -26,8 +33,21 @@ export function FlowchartToCodePanel({
   const [mermaidCode, setMermaidCode] = useState<string | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
   const [aiProvider, setAiProvider] = useState<string | null>(null);
+  const [detectedNodesCount, setDetectedNodesCount] = useState<number>(0);
+  const [detectedEdgesCount, setDetectedEdgesCount] = useState<number>(0);
 
   if (!isOpen) return null;
+
+  const relevantElements = scope === "selected" && selectedIds.length > 0
+    ? elements.filter((el) => selectedIds.includes(el.id))
+    : elements;
+
+  const detectedShapes = relevantElements.filter((el) =>
+    ["rectangle", "diamond", "ellipse", "frame"].includes(el.type)
+  ).length;
+  const detectedArrows = relevantElements.filter((el) =>
+    ["arrow", "line"].includes(el.type)
+  ).length;
 
   async function handleConvert() {
     setIsLoading(true);
@@ -35,12 +55,19 @@ export function FlowchartToCodePanel({
 
     try {
       // 1. Capture base64 screenshot from canvas
-      const base64Image = await onCaptureCanvasImage();
+      let base64Image = "";
+      try {
+        base64Image = await onCaptureCanvasImage();
+      } catch {
+        // Fallback if screenshot capture was blocked
+      }
 
-      // 2. Call backend Gemini 1.5 Flash Vision endpoint
+      // 2. Call backend Flowchart to Code endpoint (powered by Groq / Gemini)
       const resp = await apiConvertFlowchartToCode({
-        image: base64Image,
+        image: base64Image || undefined,
+        elements: relevantElements.length > 0 ? relevantElements : undefined,
         targetLanguage,
+        prompt: prompt.trim() || undefined,
       });
 
       if (resp && resp.success) {
@@ -48,7 +75,9 @@ export function FlowchartToCodePanel({
         setNodeJsCode(resp.nodeJsCode || "");
         setMermaidCode(resp.mermaid || "");
         setSummary(resp.summary || "Parsed flowchart successfully.");
-        setAiProvider(resp.aiProvider || "gemini-1.5-flash");
+        setAiProvider(resp.aiProvider || "groq-openai/gpt-oss-120b");
+        setDetectedNodesCount(resp.detectedNodes?.length || detectedShapes);
+        setDetectedEdgesCount(resp.detectedEdges?.length || detectedArrows);
       } else {
         setErrorMsg(resp?.detail || "Could not parse flowchart into code.");
       }
@@ -82,7 +111,7 @@ export function FlowchartToCodePanel({
         top: 60,
         right: 30,
         bottom: 60,
-        width: 540,
+        width: 560,
         maxWidth: "calc(100vw - 60px)",
         zIndex: 100,
         background: "var(--bg-surface, #18181b)",
@@ -127,7 +156,7 @@ export function FlowchartToCodePanel({
               Diagram-to-Code Generator
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted, #a1a1aa)" }}>
-              Multi-Modal Gemini 1.5 Flash Vision
+              {aiProvider ? `Compiler Engine: ${aiProvider}` : "Groq AI & Whiteboard Topology Compiler"}
             </div>
           </div>
         </div>
@@ -150,6 +179,67 @@ export function FlowchartToCodePanel({
 
       {/* Main Content Area */}
       <div style={{ padding: 18, flex: 1, display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}>
+        {/* Scope and Context Controls */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              type="button"
+              onClick={() => setScope("all")}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: scope === "all" ? 600 : 400,
+                background: scope === "all" ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.05)",
+                color: scope === "all" ? "#6ee7b7" : "var(--text-muted, #a1a1aa)",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              All Canvas ({elements.length} elements)
+            </button>
+            <button
+              type="button"
+              disabled={selectedIds.length === 0}
+              onClick={() => setScope("selected")}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: scope === "selected" ? 600 : 400,
+                background: scope === "selected" ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.05)",
+                color: scope === "selected" ? "#6ee7b7" : "var(--text-muted, #a1a1aa)",
+                border: "none",
+                cursor: selectedIds.length === 0 ? "not-allowed" : "pointer",
+                opacity: selectedIds.length === 0 ? 0.5 : 1,
+              }}
+            >
+              Selected Only ({selectedIds.length})
+            </button>
+          </div>
+
+          <span style={{ fontSize: 11, color: "var(--text-muted, #a1a1aa)" }}>
+            Detected: {detectedShapes} shapes &middot; {detectedArrows} arrows
+          </span>
+        </div>
+
+        {/* Optional Extra Instructions */}
+        <input
+          type="text"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="Optional instructions (e.g. Include async database queries, typing, or error handler)"
+          style={{
+            background: "rgba(0, 0, 0, 0.3)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: 8,
+            padding: "8px 12px",
+            color: "inherit",
+            fontSize: 12,
+            outline: "none",
+          }}
+        />
+
         {/* Trigger Bar */}
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <button
@@ -173,20 +263,45 @@ export function FlowchartToCodePanel({
               boxShadow: "0 4px 14px rgba(16, 185, 129, 0.3)",
             }}
           >
-            <Sparkles size={15} />
-            <span>{isLoading ? "Analyzing Canvas Vision..." : "Scan & Generate Code"}</span>
+            {isLoading ? <RefreshCw size={15} className="animate-spin" /> : <Sparkles size={15} />}
+            <span>{isLoading ? "Synthesizing Architecture & Code..." : "Scan & Compile Flowchart to Code"}</span>
           </button>
         </div>
 
         {summary && (
-          <div style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.25)", fontSize: 12, color: "#6ee7b7" }}>
-            <span style={{ fontWeight: 600 }}>Overview:</span> {summary}
-            {aiProvider && <span style={{ opacity: 0.75, marginLeft: 8 }}>({aiProvider})</span>}
+          <div
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              background: "rgba(16, 185, 129, 0.1)",
+              border: "1px solid rgba(16, 185, 129, 0.25)",
+              fontSize: 12,
+              color: "#6ee7b7",
+              lineHeight: 1.45,
+            }}
+          >
+            <div>
+              <span style={{ fontWeight: 600 }}>Architecture Overview:</span> {summary}
+            </div>
+            <div style={{ marginTop: 4, opacity: 0.8, fontSize: 11, display: "flex", gap: 12 }}>
+              <span>Nodes Compiled: {detectedNodesCount}</span>
+              <span>Transitions Compiled: {detectedEdgesCount}</span>
+              {aiProvider && <span>Provider: {aiProvider}</span>}
+            </div>
           </div>
         )}
 
         {errorMsg && (
-          <div style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.3)", color: "#fca5a5", fontSize: 12 }}>
+          <div
+            style={{
+              padding: "8px 12px",
+              borderRadius: 8,
+              background: "rgba(239, 68, 68, 0.15)",
+              border: "1px solid rgba(239, 68, 68, 0.3)",
+              color: "#fca5a5",
+              fontSize: 12,
+            }}
+          >
             {errorMsg}
           </div>
         )}
@@ -194,7 +309,15 @@ export function FlowchartToCodePanel({
         {/* Code Tabs */}
         {currentCode !== null && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 280 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))", paddingBottom: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                borderBottom: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+                paddingBottom: 8,
+              }}
+            >
               <div style={{ display: "flex", gap: 6 }}>
                 {(["python", "nodejs", "mermaid"] as const).map((tab) => (
                   <button
@@ -242,7 +365,13 @@ export function FlowchartToCodePanel({
                 {onInsertCodeSnippet && (
                   <button
                     type="button"
-                    onClick={() => currentCode && onInsertCodeSnippet(`${activeTab.toUpperCase()} Flowchart Implementation`, currentCode)}
+                    onClick={() =>
+                      currentCode &&
+                      onInsertCodeSnippet(
+                        `${activeTab.toUpperCase()} Flowchart Implementation`,
+                        currentCode
+                      )
+                    }
                     style={{
                       display: "flex",
                       alignItems: "center",

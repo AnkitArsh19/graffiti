@@ -3,13 +3,14 @@ import {
   Play,
   Pause,
   SkipForward,
+  SkipBack,
   RotateCcw,
   Sparkles,
   X,
   Activity,
   Terminal,
-  Layers,
-  CheckCircle,
+  GitFork,
+  Gauge,
 } from "lucide-react";
 import type { CanvasElement } from "../types";
 import { apiSimulateFlow } from "../lib/api";
@@ -196,11 +197,10 @@ export function FlowSimulatorPanel({
   const [executionSteps, setExecutionSteps] = useState<SimulationStep[]>([]);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<0.5 | 1 | 2>(1);
   const [aiProvider, setAiProvider] = useState<string | null>(null);
 
   const autoPlayTimerRef = useRef<any>(null);
-
-  if (!isOpen) return null;
 
   async function handleStartSimulation() {
     setIsLoading(true);
@@ -223,7 +223,7 @@ export function FlowSimulatorPanel({
         setFlowSummary(resp.flowSummary || "Simulation compiled.");
         setExecutionSteps(resp.executionSteps || []);
         setCurrentStepIndex(0);
-        setAiProvider(resp.aiProvider || "groq-llama-3.1-70b-versatile");
+        setAiProvider(resp.aiProvider || "groq-openai/gpt-oss-120b");
 
         if (resp.executionSteps && resp.executionSteps.length > 0 && onHighlightElement) {
           onHighlightElement(resp.executionSteps[0].activeNodeId);
@@ -239,9 +239,10 @@ export function FlowSimulatorPanel({
     }
   }
 
-  // Auto-play stepper loop
+  // Auto-play stepper loop with variable speed
   useEffect(() => {
     if (isPlaying && executionSteps.length > 0) {
+      const intervalMs = Math.round(1500 / playbackSpeed);
       autoPlayTimerRef.current = setInterval(() => {
         setCurrentStepIndex((prev) => {
           if (prev >= executionSteps.length - 1) {
@@ -254,7 +255,7 @@ export function FlowSimulatorPanel({
           }
           return next;
         });
-      }, 1500);
+      }, intervalMs);
     } else {
       if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
     }
@@ -262,7 +263,7 @@ export function FlowSimulatorPanel({
     return () => {
       if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
     };
-  }, [isPlaying, executionSteps]);
+  }, [isPlaying, executionSteps, playbackSpeed, onHighlightElement]);
 
   function handleStep(index: number) {
     if (index >= 0 && index < executionSteps.length) {
@@ -279,6 +280,8 @@ export function FlowSimulatorPanel({
     onClose();
   }
 
+  if (!isOpen) return null;
+
   const currentStep = executionSteps[currentStepIndex] || null;
 
   return (
@@ -289,7 +292,7 @@ export function FlowSimulatorPanel({
         position: "fixed",
         top: 80,
         right: 24,
-        width: 440,
+        width: 460,
         maxHeight: "calc(100vh - 120px)",
         zIndex: 100,
         background: "var(--bg-surface, #18181b)",
@@ -334,7 +337,7 @@ export function FlowSimulatorPanel({
               Spatial Logic & Flow Simulator
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted, #a1a1aa)" }}>
-              Behavioral Execution Engine • Groq / Gemini
+              {aiProvider ? `Engine: ${aiProvider}` : "Behavioral Execution Engine • Groq"}
             </div>
           </div>
         </div>
@@ -358,7 +361,7 @@ export function FlowSimulatorPanel({
       {/* Main Container */}
       <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}>
         <div style={{ fontSize: 12, color: "var(--text-secondary, #d4d4d8)", lineHeight: 1.5 }}>
-          Converts flowchart shapes and directional arrows into an interactive live state machine simulation.
+          Converts whiteboard flowchart nodes and directional arrows into an interactive live state machine simulation with token pulse halos.
         </div>
 
         {/* Compile / Run Button */}
@@ -413,7 +416,7 @@ export function FlowSimulatorPanel({
                 border: "1px solid rgba(255, 255, 255, 0.08)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <button
                   type="button"
                   onClick={() => setIsPlaying((p) => !p)}
@@ -430,8 +433,32 @@ export function FlowSimulatorPanel({
                     alignItems: "center",
                     justifyContent: "center",
                   }}
+                  title={isPlaying ? "Pause" : "Play"}
                 >
                   {isPlaying ? <Pause size={15} /> : <Play size={15} />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleStep(currentStepIndex - 1)}
+                  disabled={currentStepIndex <= 0}
+                  aria-label="Previous Step"
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
+                    background: "rgba(255, 255, 255, 0.05)",
+                    border: "none",
+                    color: "var(--text-secondary, #d4d4d8)",
+                    cursor: currentStepIndex <= 0 ? "not-allowed" : "pointer",
+                    opacity: currentStepIndex <= 0 ? 0.4 : 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  title="Previous Step"
+                >
+                  <SkipBack size={14} />
                 </button>
 
                 <button
@@ -440,19 +467,21 @@ export function FlowSimulatorPanel({
                   disabled={currentStepIndex >= executionSteps.length - 1}
                   aria-label="Next Step"
                   style={{
-                    width: 32,
-                    height: 32,
+                    width: 30,
+                    height: 30,
                     borderRadius: 8,
                     background: "rgba(255, 255, 255, 0.05)",
                     border: "none",
                     color: "var(--text-secondary, #d4d4d8)",
                     cursor: currentStepIndex >= executionSteps.length - 1 ? "not-allowed" : "pointer",
+                    opacity: currentStepIndex >= executionSteps.length - 1 ? 0.4 : 1,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                   }}
+                  title="Next Step"
                 >
-                  <SkipForward size={15} />
+                  <SkipForward size={14} />
                 </button>
 
                 <button
@@ -460,8 +489,8 @@ export function FlowSimulatorPanel({
                   onClick={() => handleStep(0)}
                   aria-label="Restart"
                   style={{
-                    width: 32,
-                    height: 32,
+                    width: 30,
+                    height: 30,
                     borderRadius: 8,
                     background: "rgba(255, 255, 255, 0.05)",
                     border: "none",
@@ -471,13 +500,38 @@ export function FlowSimulatorPanel({
                     alignItems: "center",
                     justifyContent: "center",
                   }}
+                  title="Restart Flow"
                 >
-                  <RotateCcw size={14} />
+                  <RotateCcw size={13} />
                 </button>
               </div>
 
+              {/* Speed Toggle */}
+              <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                <Gauge size={13} color="var(--text-muted, #71717a)" />
+                {([0.5, 1, 2] as const).map((spd) => (
+                  <button
+                    key={spd}
+                    type="button"
+                    onClick={() => setPlaybackSpeed(spd)}
+                    style={{
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      fontSize: 10,
+                      fontWeight: playbackSpeed === spd ? 700 : 400,
+                      background: playbackSpeed === spd ? "rgba(14, 165, 233, 0.25)" : "transparent",
+                      color: playbackSpeed === spd ? "#38bdf8" : "var(--text-muted, #71717a)",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {spd}x
+                  </button>
+                ))}
+              </div>
+
               <div style={{ fontSize: 12, fontWeight: 600, color: "#38bdf8" }}>
-                Step {currentStepIndex + 1} of {executionSteps.length}
+                Step {currentStepIndex + 1}/{executionSteps.length}
               </div>
             </div>
 
@@ -518,14 +572,29 @@ export function FlowSimulatorPanel({
                   gap: 8,
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#ffffff" }}>
-                  {currentStep.stepDescription}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#ffffff" }}>
+                    {currentStep.stepDescription}
+                  </div>
+                  {currentStep.isTerminal && (
+                    <span style={{ padding: "2px 6px", borderRadius: 4, background: "rgba(16, 185, 129, 0.2)", color: "#6ee7b7", fontSize: 10, fontWeight: 600 }}>
+                      Complete
+                    </span>
+                  )}
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#34d399", fontFamily: "var(--font-code, monospace)" }}>
                   <Terminal size={12} />
                   <span>{currentStep.log}</span>
                 </div>
+
+                {/* Decision Branch Indicator */}
+                {currentStep.stateVariables?.decisionResult && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#f59e0b", background: "rgba(245, 158, 11, 0.1)", padding: "4px 8px", borderRadius: 6 }}>
+                    <GitFork size={12} />
+                    <span>Branch Decision: <strong>{currentStep.stateVariables.decisionResult}</strong></span>
+                  </div>
+                )}
 
                 {/* State Variables Inspector */}
                 <div style={{ marginTop: 4 }}>

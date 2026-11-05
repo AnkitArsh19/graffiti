@@ -20,6 +20,7 @@ import { applyDarkModeFilter } from "../lib/colors";
 import {
   renderCanvasElement,
   renderSelectionBox,
+  renderSimulationTokenHalo,
   strokePaperGrid,
 } from "../lib/canvasRenderer";
 import {
@@ -36,6 +37,9 @@ import {
   updateBoundArrows,
 } from "../lib/geometry";
 import { beautifyStroke } from "../lib/beautifier";
+import { evaluateHandwrittenMathOnStroke } from "../lib/handwrittenMath";
+import { apiOcrExtract } from "../lib/api";
+import { evaluateMathExpression } from "../lib/mathEvaluator";
 import { RotateCcw } from "lucide-react";
 import type { CursorInfo } from "../collab/useCollaboration";
 import type {
@@ -88,6 +92,7 @@ export interface WhiteboardCanvasHandle {
   centerContent: () => void;
   zoomIn: () => void;
   zoomOut: () => void;
+  startEditingText: (elementId?: string) => void;
 }
 
 interface WhiteboardCanvasProps {
@@ -124,6 +129,7 @@ interface WhiteboardCanvasProps {
   }>;
   onStreamDraft?: (draft: CanvasElement | null) => void;
   autoBeautify?: boolean;
+  simulatedActiveNodeId?: string | null;
 }
 
 type PointerAction =
@@ -219,6 +225,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       remoteDrafts = [],
       onStreamDraft,
       autoBeautify = true,
+      simulatedActiveNodeId,
     },
     ref,
   ) {
@@ -275,6 +282,67 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
     const [movingMap, setMovingMap] = useState<Map<string, CanvasElement> | null>(null);
     const [hoveredAnchor, setHoveredAnchor] = useState<AnchorPoint | null>(null);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+    // Apple Pencil / GoodNotes / Procreate "Draw and Hold" (Snap-and-Hold) gesture state tracking
+    const holdTimerRef = useRef<number | null>(null);
+    const holdOriginRef = useRef<Point | null>(null);
+    const isHoldSnappedRef = useRef<boolean>(false);
+    const snappedElementRef = useRef<CanvasElement | null>(null);
+
+    const triggerHoldSnap = useCallback(() => {
+      const cur = draftRef.current;
+      if (!cur || cur.type !== "pen" || !cur.points || cur.points.length < 5) return;
+      const totalLen = cur.width * cur.width + cur.height * cur.height;
+      if (totalLen < 300) return; // Skip tiny scribbles < 18px
+
+      const worldPoints = cur.points.map((pt) => ({
+        x: cur.x + pt.x,
+        y: cur.y + pt.y,
+        pressure: pt.pressure,
+      }));
+
+      const result = beautifyStroke(
+        worldPoints,
+        {
+          id: cur.id,
+          strokeColor: cur.strokeColor,
+          strokeWidth: cur.strokeWidth,
+          strokeStyle: cur.strokeStyle,
+          fillStyle: cur.fillStyle,
+          backgroundColor: cur.backgroundColor,
+          roughness: 0,
+          opacity: cur.opacity,
+          roundness: cur.roundness,
+        },
+        pageId
+      );
+
+      if (result.shape !== "smoothed_stroke" && result.confidence >= 0.70) {
+        isHoldSnappedRef.current = true;
+        const snapped: CanvasElement = {
+          ...result.element,
+          id: cur.id,
+          customData: {
+            ...result.element.customData,
+            autoBeautified: true,
+            originalElement: cur,
+          },
+        };
+        snappedElementRef.current = snapped;
+        draftRef.current = snapped;
+        setDraft(snapped);
+        onStreamDraft?.(snapped);
+      }
+    }, [pageId, onStreamDraft]);
+
+    useEffect(() => {
+      return () => {
+        if (holdTimerRef.current) {
+          clearTimeout(holdTimerRef.current);
+          holdTimerRef.current = null;
+        }
+      };
+    }, []);
 
     // Sync selectedIds with prop or selectedId
     useEffect(() => {
@@ -343,11 +411,28 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       }
     }, [elementStyle.fontSize, elementStyle.textAlign, elementStyle.strokeColor]);
 
+    const startEditingElement = useCallback((target: CanvasElement) => {
+      setEditingText({
+        id: target.id,
+        x: target.x,
+        y: target.y,
+        width: target.width,
+        height: target.height,
+        text: target.text === "Sticky note" ? "" : (target.text ?? ""),
+        fontSize: target.fontSize || "medium",
+        textAlign: target.textAlign || (target.type === "sticky" ? "left" : "center"),
+        strokeColor: target.type === "sticky" ? "#1e1e1e" : target.strokeColor,
+        type: target.type === "sticky" ? "sticky" : "text",
+        backgroundColor: target.backgroundColor,
+        isBounded: target.width > 60,
+      });
+    }, []);
+
     // Commit inline text on blur or escape/ctrl+enter
     const commitInlineText = useCallback(() => {
       if (!editingText) return;
 
-      const trimmed = editingText.text.trim();
+      let trimmed = editingText.text.trim();
       if (!trimmed) {
         if (editingText.id) {
           const existing = elements.find((el) => el.id === editingText.id);
@@ -363,6 +448,14 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         }
         setEditingText(null);
         return;
+      }
+
+      // Auto-solve math equations when typed text ends with '=' or '=?'
+      if (trimmed.endsWith("=") || trimmed.endsWith("=?")) {
+        const solved = evaluateMathExpression(trimmed);
+        if (solved.success && solved.formatted !== undefined) {
+          trimmed = `${trimmed.replace(/=\s*(\?.*)?$/, "").trim()} = ${solved.formatted}`;
+        }
       }
 
       const fontSizePx = getFontSizeInPx(editingText.fontSize);
@@ -387,7 +480,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           const isShape = ["rectangle", "ellipse", "diamond", "sticky", "card", "frame"].includes(existing.type);
           onCommit({
             ...existing,
-            text: editingText.text,
+            text: trimmed,
             width: isShape ? existing.width : width,
             height: isShape ? existing.height : height,
             fontSize: editingText.fontSize,
@@ -409,7 +502,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           // Bind text directly into the containing shape so it moves together and auto-wraps
           onCommit({
             ...containingShape,
-            text: editingText.text,
+            text: trimmed,
             textAlign: containingShape.textAlign || (containingShape.type === "sticky" ? "left" : "center"),
           });
           onSelect(containingShape.id);
@@ -428,7 +521,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           y: editingText.y,
           width,
           height,
-          text: editingText.text,
+          text: trimmed,
           containerId: containingShape ? containingShape.id : undefined,
           strokeColor: editingText.strokeColor,
           backgroundColor: "transparent",
@@ -557,8 +650,16 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
             scrollY: canvasSize.height / 2 / targetZoom - centerY,
           });
         },
+        startEditingText(elementId?: string) {
+          const target = elementId
+            ? elements.find((el) => el.id === elementId)
+            : elements.find((el) => (propSelectedIds || []).includes(el.id) || el.id === selectedId);
+          if (target) {
+            startEditingElement(target);
+          }
+        },
       }),
-      [canvasSize.height, canvasSize.width, elements, pageTitle],
+      [canvasSize.height, canvasSize.width, elements, pageTitle, propSelectedIds, selectedId, startEditingElement],
     );
 
     // Resize Observer for physical pixel canvas dimensions
@@ -749,6 +850,14 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         const selected = rawSelected ? (rawSelected.type === "pen" ? normalizePenElement(rawSelected) : rawSelected) : null;
         if (selected && activeTool === "select") {
           renderSelectionBox(context, selected, viewport.zoom, theme);
+        }
+      }
+
+      // Render active token pulse & halo during flowchart simulation
+      if (simulatedActiveNodeId) {
+        const simNode = elements.find((el) => el.id === simulatedActiveNodeId);
+        if (simNode) {
+          renderSimulationTokenHalo(context, simNode, viewport.zoom, theme);
         }
       }
 
@@ -1103,6 +1212,13 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         if (editingText) {
           commitInlineText();
         }
+        const hit = [...elements]
+          .reverse()
+          .find((el) => pointInElement(world, el, 8 / viewport.zoom));
+        if (hit && (hit.type === "text" || hit.type === "sticky" || hit.text !== undefined)) {
+          startEditingElement(hit);
+          return;
+        }
         actionRef.current = { mode: "draw", startWorld: world };
         const nextDraft = createNewDraft("text", world);
         nextDraft.text = "";
@@ -1120,6 +1236,16 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       setDraft(nextDraft);
       actionRef.current = { mode: "draw", startWorld: world };
       onStreamDraft?.(nextDraft);
+
+      if (activeTool === "pen") {
+        if (holdTimerRef.current) {
+          clearTimeout(holdTimerRef.current);
+          holdTimerRef.current = null;
+        }
+        isHoldSnappedRef.current = false;
+        snappedElementRef.current = null;
+        holdOriginRef.current = world;
+      }
     };
 
     const onDoubleClick = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -1136,20 +1262,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         .find((el) => pointInElement(world, el, 8 / viewport.zoom));
 
       if (hit) {
-        setEditingText({
-          id: hit.id,
-          x: hit.x,
-          y: hit.y,
-          width: hit.width,
-          height: hit.height,
-          text: hit.text === "Sticky note" ? "" : (hit.text ?? ""),
-          fontSize: hit.fontSize || "medium",
-          textAlign: hit.textAlign || (hit.type === "sticky" ? "left" : "center"),
-          strokeColor: hit.type === "sticky" ? "#1e1e1e" : hit.strokeColor,
-          type: hit.type === "sticky" ? "sticky" : "text",
-          backgroundColor: hit.backgroundColor,
-          isBounded: hit.width > 60,
-        });
+        startEditingElement(hit);
       }
     };
 
@@ -1486,11 +1599,17 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       }
 
       if (action.mode === "draw") {
+        // If already snapped into a geometric shape during hold, lock geometry and avoid box-drag collapse
+        if (isHoldSnappedRef.current && snappedElementRef.current) {
+          return;
+        }
+
         const current = draftRef.current || draft;
         if (!current) return;
 
         let updated: CanvasElement | null = null;
         if (current.type === "pen") {
+
           const localPoint = {
             x: world.x - action.startWorld.x,
             y: world.y - action.startWorld.y,
@@ -1510,6 +1629,24 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
             width: Math.max(maxX - minX, 2),
             height: Math.max(maxY - minY, 2),
           };
+
+          // Apple Pencil / GoodNotes "Draw and Hold" (Snap-and-Hold)
+          if (autoBeautify) {
+            if (!holdOriginRef.current) {
+              holdOriginRef.current = world;
+            }
+            const jitterDist = Math.hypot(world.x - holdOriginRef.current.x, world.y - holdOriginRef.current.y);
+            if (jitterDist > 8) {
+              if (holdTimerRef.current) {
+                clearTimeout(holdTimerRef.current);
+                holdTimerRef.current = null;
+              }
+              holdOriginRef.current = world;
+              holdTimerRef.current = window.setTimeout(() => {
+                triggerHoldSnap();
+              }, 400);
+            }
+          }
         } else if (current.type === "line" || current.type === "arrow") {
           let targetWorld = world;
           let endBinding = current.endBinding;
@@ -1603,52 +1740,78 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         setMoving(null);
       }
 
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
+      }
+
+      // If stroke was snapped via Draw-and-Hold, commit regularized shape immediately
+      if (isHoldSnappedRef.current && snappedElementRef.current) {
+        const snapped = snappedElementRef.current;
+        onCommit(snapped);
+        updateSelection([snapped.id]);
+        isHoldSnappedRef.current = false;
+        snappedElementRef.current = null;
+        holdOriginRef.current = null;
+        draftRef.current = null;
+        setDraft(null);
+        setMoving(null);
+        setMovingMap(null);
+        setSelectionBox(null);
+        setHoveredAnchor(null);
+        actionRef.current = null;
+        return;
+      }
+
       const finishedDraft = draftRef.current || draft;
       if (finishedDraft) {
         // Pen tool pointer-up: commit stroke, KEEP pen active without switching to select
         if (finishedDraft.type === "pen") {
-          if ((finishedDraft.points?.length ?? 0) > 1) {
-            const normalized = normalizePenElement(finishedDraft);
-            if (autoBeautify) {
-              const worldPoints = (normalized.points || []).map((pt) => ({
-                x: normalized.x + pt.x,
-                y: normalized.y + pt.y,
-                pressure: pt.pressure,
-              }));
-              const result = beautifyStroke(
-                worldPoints,
-                {
-                  id: normalized.id,
-                  strokeColor: normalized.strokeColor,
-                  strokeWidth: normalized.strokeWidth,
-                  strokeStyle: normalized.strokeStyle,
-                  fillStyle: normalized.fillStyle,
-                  backgroundColor: normalized.backgroundColor,
-                  roughness: normalized.roughness,
-                  opacity: normalized.opacity,
-                },
-                pageId
-              );
-
-              // If a geometric shape was confidently recognized (circle, ellipse, rectangle, diamond, line, arrow):
-              if (result.shape !== "smoothed_stroke" && result.confidence >= 0.70) {
-                const beautified: CanvasElement = {
-                  ...result.element,
-                  id: normalized.id,
-                  customData: {
-                    ...result.element.customData,
-                    autoBeautified: true,
-                    originalElement: normalized,
-                  },
-                };
-                onCommit(beautified);
-              } else {
-                onCommit(normalized);
-              }
+          if ((finishedDraft.points?.length ?? 0) > 1 || isHoldSnappedRef.current) {
+            if (isHoldSnappedRef.current && snappedElementRef.current) {
+              // The user paused and held at the end of the stroke: commit regularized shape!
+              onCommit(snappedElementRef.current);
             } else {
+              // The user lifted pen normally (no pause/hold): commit untouched raw ink!
+              const normalized = normalizePenElement(finishedDraft);
               onCommit(normalized);
+
+              // Background non-blocking OCR indexing for handwriting search (Ctrl+F) & note export
+              if (normalized.points && normalized.points.length >= 4) {
+                const strokeToOcr = normalized;
+                setTimeout(async () => {
+                  try {
+                    const ocrResp = await apiOcrExtract({
+                      shapeId: strokeToOcr.id,
+                      points: strokeToOcr.points || [],
+                    });
+                    if (ocrResp?.ocrText) {
+                      onCommit({
+                        ...strokeToOcr,
+                        customData: {
+                          ...strokeToOcr.customData,
+                          ocrText: ocrResp.ocrText,
+                          ocrConfidence: ocrResp.confidence,
+                        },
+                      });
+                    }
+                  } catch {
+                    // Non-blocking OCR failure tolerated
+                  }
+                }, 100);
+              }
+            }
+
+            // Intelligent engine check for handwritten equations ending with '='
+            const normalizedForMath = normalizePenElement(finishedDraft);
+            const mathAnswer = evaluateHandwrittenMathOnStroke(normalizedForMath, elements, pageId);
+            if (mathAnswer) {
+              onCommit(mathAnswer);
             }
           }
+          isHoldSnappedRef.current = false;
+          snappedElementRef.current = null;
+          holdOriginRef.current = null;
           draftRef.current = null;
           setDraft(null);
           setMoving(null);
