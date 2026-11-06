@@ -30,7 +30,7 @@ class AiControllerTest {
 
         AiController controller = new AiController(fakeAiService);
 
-        Map<String, Object> incoming = Map.of("feature", "beautify", "points", List.of());
+        Map<String, Object> incoming = Map.of("feature", "diagram", "prompt", "User service");
         ResponseEntity<Map<String, Object>> response = controller.handleAiRequest(incoming);
 
         assertNotNull(response);

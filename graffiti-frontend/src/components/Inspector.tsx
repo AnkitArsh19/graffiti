@@ -1,8 +1,10 @@
 import { useState, useRef, type CSSProperties } from "react";
 import {
   AlignCenter,
+  AlignHorizontalSpaceAround,
   AlignLeft,
   AlignRight,
+  AlignVerticalSpaceAround,
   ArrowLeft,
   ArrowLeftRight,
   ArrowRight,
@@ -12,6 +14,7 @@ import {
   ChevronsUp,
   Copy,
   GripHorizontal,
+  LayoutGrid,
   Minus,
   Plus,
   Trash2,
@@ -35,6 +38,7 @@ import type {
 interface InspectorProps {
   activeTool?: ToolId;
   selected: CanvasElement | null;
+  selectedCount?: number;
   style: ElementStyle;
   theme?: "dark" | "light";
   isEditingText?: boolean;
@@ -48,6 +52,9 @@ interface InspectorProps {
   onSendBackward?: () => void;
   onBringToFront?: () => void;
   onSendToBack?: () => void;
+  onAlign?: (alignment: "left" | "center" | "right" | "top" | "middle" | "bottom") => void;
+  onDistribute?: (direction: "horizontal" | "vertical") => void;
+  onTidyUp?: () => void;
 }
 
 const defaultStrokePicks = [
@@ -97,6 +104,7 @@ const fontSizeOptions: Array<{ label: string; value: FontSize; px: number }> = [
 export function Inspector({
   activeTool = "select",
   selected,
+  selectedCount = 0,
   style,
   theme = "dark",
   isEditingText = false,
@@ -110,6 +118,9 @@ export function Inspector({
   onSendBackward,
   onBringToFront,
   onSendToBack,
+  onAlign,
+  onDistribute,
+  onTidyUp,
 }: InspectorProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [strokePickerOpen, setStrokePickerOpen] = useState(false);
@@ -286,6 +297,71 @@ export function Inspector({
       </div>
 
       <div className="inspector-body">
+        {/* Multi-Selection: Align, Distribute & Tidy Up */}
+        {selectedCount >= 2 && (
+          <section className="inspector-section alignment-section" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "12px", marginBottom: "8px" }}>
+            <span className="section-label">Align & Arrange ({selectedCount} items)</span>
+            <div className="segmented-row">
+              <button type="button" className="segmented-btn" onClick={() => onAlign?.("left")} title="Align Left">
+                <AlignLeft size={14} />
+              </button>
+              <button type="button" className="segmented-btn" onClick={() => onAlign?.("center")} title="Align Center (H)">
+                <AlignCenter size={14} />
+              </button>
+              <button type="button" className="segmented-btn" onClick={() => onAlign?.("right")} title="Align Right">
+                <AlignRight size={14} />
+              </button>
+              <button type="button" className="segmented-btn" onClick={() => onAlign?.("top")} title="Align Top">
+                <AlignVerticalSpaceAround size={14} style={{ transform: "rotate(90deg)" }} />
+              </button>
+              <button type="button" className="segmented-btn" onClick={() => onAlign?.("middle")} title="Align Middle (V)">
+                <AlignCenter size={14} style={{ transform: "rotate(90deg)" }} />
+              </button>
+              <button type="button" className="segmented-btn" onClick={() => onAlign?.("bottom")} title="Align Bottom">
+                <AlignVerticalSpaceAround size={14} style={{ transform: "rotate(270deg)" }} />
+              </button>
+            </div>
+
+            <div className="segmented-row" style={{ marginTop: "6px" }}>
+              <button type="button" className="segmented-btn" onClick={() => onDistribute?.("horizontal")} title="Distribute Horizontally" style={{ flex: 1, display: "flex", gap: "4px" }}>
+                <AlignHorizontalSpaceAround size={14} />
+                <span style={{ fontSize: "11px" }}>Distribute H</span>
+              </button>
+              <button type="button" className="segmented-btn" onClick={() => onDistribute?.("vertical")} title="Distribute Vertically" style={{ flex: 1, display: "flex", gap: "4px" }}>
+                <AlignVerticalSpaceAround size={14} />
+                <span style={{ fontSize: "11px" }}>Distribute V</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className="action-pill-btn tidy-up-btn"
+              style={{
+                marginTop: "8px",
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                padding: "6px 10px",
+                borderRadius: "8px",
+                background: "rgba(124, 58, 237, 0.18)",
+                border: "1px solid rgba(124, 58, 237, 0.4)",
+                color: "#c4b5fd",
+                fontWeight: 600,
+                fontSize: "12px",
+                cursor: "pointer",
+                transition: "all 120ms ease",
+              }}
+              onClick={onTidyUp}
+              title="Auto-arrange scattered selection into a neat uniform grid"
+            >
+              <LayoutGrid size={14} />
+              <span>Tidy Up Grid</span>
+            </button>
+          </section>
+        )}
+
         {/* Stroke / Text Color */}
         {!isStickyMode && (
           <section className="inspector-section color-section">

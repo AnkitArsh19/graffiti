@@ -12,6 +12,7 @@ import {
   Folder as FolderIcon,
   FileText,
   LogOut,
+  Radio,
   User,
   Share2,
   Wifi,
@@ -43,6 +44,8 @@ interface TopHeaderProps {
   collaborators?: CollaboratorCursor[];
   onShareRoom?: () => void;
   roomSlug?: string | null;
+  isPresenterMode?: boolean;
+  onTogglePresenterMode?: () => void;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
@@ -61,6 +64,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   collaborators = [],
   onShareRoom,
   roomSlug,
+  isPresenterMode = false,
+  onTogglePresenterMode,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(whiteboardName);
@@ -191,6 +196,20 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <button type="button" className="header-status-btn share-btn" onClick={onShareRoom} title="Share this board">
             <Share2 size={13} />
             <span>Share</span>
+          </button>
+        )}
+
+        {/* Teacher Follow-Me Mode */}
+        {roomSlug && onTogglePresenterMode && (
+          <button
+            type="button"
+            className={`header-status-btn presenter-btn ${isPresenterMode ? "active" : ""}`}
+            onClick={onTogglePresenterMode}
+            title={isPresenterMode ? "Broadcasting page navigation to all students" : "Turn on Follow-Me Mode (sync student screens)"}
+            style={isPresenterMode ? { background: "rgba(239, 68, 68, 0.2)", borderColor: "#ef4444", color: "#fca5a5" } : undefined}
+          >
+            <Radio size={13} className={isPresenterMode ? "pulse-icon" : ""} />
+            <span>{isPresenterMode ? "Broadcasting (Live)" : "Follow Me"}</span>
           </button>
         )}
 

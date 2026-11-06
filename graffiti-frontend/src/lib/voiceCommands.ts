@@ -10,6 +10,7 @@ export type VoiceCommandAction =
   | { type: "newPage"; label: string }
   | { type: "clearCanvas"; label: string }
   | { type: "beautify"; label: string }
+  | { type: "tidyUp"; label: string }
   | { type: "solveMath"; label: string }
   | { type: "storyboard"; label: string };
 
@@ -56,9 +57,14 @@ export function parseVoiceCommand(phrase: string): VoiceCommandAction | null {
     return { type: "newPage", label: "Created New Page" };
   }
 
-  // 8. Beautify / Smooth: "beautify", "beauty", "beautifly", "beautified", "smooth", "tidy", "clean up", "straighten"
-  if (/\b(beautify|beauty|beautifly|beautified|smooth|tidy|clean\s*up|straighten|perfect\s*shape|fix\s*shape)\b/i.test(clean)) {
+  // 8. Beautify / Smooth: "beautify", "beauty", "beautifly", "beautified", "smooth", "straighten"
+  if (/\b(beautify|beauty|beautifly|beautified|smooth|straighten|perfect\s*shape|fix\s*shape)\b/i.test(clean)) {
     return { type: "beautify", label: "AI Shape Beautify Triggered" };
+  }
+
+  // 8b. Tidy Up / Auto Arrange: "tidy up", "tidy", "clean layout", "auto arrange", "align grid"
+  if (/\b(tidy\s*up|tidy|clean\s*layout|auto\s*arrange|align\s*grid|clean\s*grid)\b/i.test(clean)) {
+    return { type: "tidyUp", label: "Tidy Up Grid Triggered" };
   }
 
   // 9. Solve math: "solve", "calculate", "evaluate", "solve math", "solve equation"
@@ -110,6 +116,16 @@ export function parseVoiceCommand(phrase: string): VoiceCommandAction | null {
   // Sticky Note: "sticky", "sticky note", "post it", "stickynote", "note"
   if (/\b(sticky|sticky\s*note|post\s*it|stickynote|note)\b/i.test(clean)) {
     return { type: "selectTool", tool: "sticky", label: "Selected Sticky Note Tool" };
+  }
+
+  // Service Card: "card", "service card", "component card"
+  if (/\b(card|service\s*card|component\s*card)\b/i.test(clean)) {
+    return { type: "selectTool", tool: "card", label: "Selected Service Card Tool" };
+  }
+
+  // ERD Table: "table", "schema table", "database table", "erd"
+  if (/\b(table|schema\s*table|database\s*table|erd)\b/i.test(clean)) {
+    return { type: "selectTool", tool: "table", label: "Selected ERD Table Tool" };
   }
 
   // Eraser: "eraser", "erase", "rubber", "remove tool"

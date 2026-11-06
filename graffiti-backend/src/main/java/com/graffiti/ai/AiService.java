@@ -33,7 +33,7 @@ public class AiService {
             return Map.of();
         }
         Map<String, Object> body = new LinkedHashMap<>(request);
-        String feature = String.valueOf(body.getOrDefault("feature", "beautify"));
+        String feature = String.valueOf(body.getOrDefault("feature", "diagram"));
 
         // Normalize anchor coordinates if passed as "anchor"
         if (body.containsKey("anchor") && !body.containsKey("anchorPosition")) {
@@ -51,8 +51,12 @@ public class AiService {
             case "theme-morph"        -> "/v1/ai/theme/morph";
             case "flow-simulate"      -> "/v1/ai/flow/simulate";
             case "voice-storyboard"   -> "/v1/ai/voice/storyboard";
-            default                   -> "/v1/ai/beautify";
+            default                   -> null;
         };
+
+        if (path == null) {
+            return Map.of();
+        }
 
         try {
             Map<String, Object> response = client.post().uri(path).body(body).retrieve().body(Map.class);

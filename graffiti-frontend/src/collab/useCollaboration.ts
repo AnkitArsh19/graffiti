@@ -282,6 +282,12 @@ export function useCollaboration(
             presenceType: "OWNER_CHANGED",
             payload: presence.payload,
           } as any);
+        } else if (presence.presenceType === "TEACHER_PAGE_SYNC") {
+          onRemoteOpRef.current({
+            type: "PRESENCE",
+            presenceType: "TEACHER_PAGE_SYNC",
+            payload: presence.payload,
+          } as any);
         }
       }
     };
@@ -367,6 +373,22 @@ export function useCollaboration(
     clientRef.current.sendOp(shapeId, "AI_REQUEST", payload, effectiveAuthorId, lastLamportRef.current);
   }, [effectiveAuthorId]);
 
+  const sendTeacherPageSync = useCallback(
+    (pageId: string, pageTitle?: string, panX?: number, panY?: number, zoom?: number) => {
+      if (!clientRef.current) return;
+      clientRef.current.sendPresence(effectiveAuthorId, "TEACHER_PAGE_SYNC", {
+        pageId,
+        pageTitle,
+        panX,
+        panY,
+        zoom,
+        teacherName: effectiveAuthorName,
+        teacherId: effectiveAuthorId,
+      });
+    },
+    [effectiveAuthorId, effectiveAuthorName]
+  );
+
   return {
     isConnected,
     cursors: Array.from(cursors.values()),
@@ -375,6 +397,7 @@ export function useCollaboration(
     streamDraft,
     sendOp,
     sendAiRequest,
+    sendTeacherPageSync,
     sendCursorPosition,
   };
 }

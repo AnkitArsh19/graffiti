@@ -39,28 +39,6 @@ def test_math_solver():
     assert "x = 10" in res2.json()["result"]
 
 
-def test_beautify():
-    # Simulate a rough rectangle
-    points = [
-        [100.0, 100.0],
-        [250.0, 102.0],
-        [248.0, 200.0],
-        [101.0, 198.0],
-        [100.0, 100.0]
-    ]
-    res = client.post(
-        "/beautify",
-        json={
-            "shapeId": "el_test_1",
-            "points": points
-        }
-    )
-    assert res.status_code == 200
-    data = res.json()
-    assert data["detectedType"] in ["rectangle", "diamond", "ellipse"]
-    assert data["payload"]["customData"]["aiGenerated"] is True
-
-
 def test_diagram_synthesize():
     res = client.post(
         "/diagram/synthesize",
@@ -242,25 +220,7 @@ source-node[Source Node] -->|Transfer Data| target-node[Target Node]
 
 
 def test_v1_ai_route_aliases_and_dict_points():
-    # 1. Beautify with dict points {"x": ..., "y": ...} at /v1/ai/beautify
-    dict_points = [
-        {"x": 100.0, "y": 100.0},
-        {"x": 250.0, "y": 102.0},
-        {"x": 248.0, "y": 200.0},
-        {"x": 101.0, "y": 198.0},
-        {"x": 100.0, "y": 100.0}
-    ]
-    res_b = client.post(
-        "/v1/ai/beautify",
-        json={
-            "shapeId": "el_test_dict_points",
-            "points": dict_points
-        }
-    )
-    assert res_b.status_code == 200
-    assert res_b.json()["detectedType"] in ["rectangle", "diamond", "ellipse"]
-
-    # 2. Math solve with "anchor" instead of "anchorPosition" at /v1/ai/math/solve
+    # 1. Math solve with "anchor" instead of "anchorPosition" at /v1/ai/math/solve
     res_m = client.post(
         "/v1/ai/math/solve",
         json={

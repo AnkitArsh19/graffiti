@@ -30,6 +30,7 @@ import {
   LayoutDashboard,
   User as UserIcon,
   LogOut,
+  Radio,
   Share2,
   WifiOff,
   Wifi,
@@ -72,6 +73,8 @@ import { FlowSimulatorPanel } from "./components/FlowSimulatorPanel";
 import { GoogleDriveExportModal } from "./components/GoogleDriveExportModal";
 import { DesktopAuthModal } from "./components/DesktopAuthModal";
 import { SettingsModal } from "./components/SettingsModal";
+import { CircleQueryPopover } from "./components/CircleQueryPopover";
+import { alignElements, distributeElements, tidyUpElements, type AlignmentType, type DistributionDirection } from "./lib/alignment";
 import { isDesktopApp, getLaunchDeepLink, exchangeDesktopHandoffCode } from "./lib/desktopAuth";
 
 import {
@@ -400,6 +403,19 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const docFileInputRef = useRef<HTMLInputElement>(null);
   const [annotatingFile, setAnnotatingFile] = useState<File | null>(null);
+
+  // Teacher Follow-Me Mode & Circle Gesture State
+  const [isPresenterMode, setIsPresenterMode] = useState(false);
+  const isPresenterModeRef = useRef(false);
+  isPresenterModeRef.current = isPresenterMode;
+  const [presenterNotification, setPresenterNotification] = useState<string | null>(null);
+
+  const [circleQueryData, setCircleQueryData] = useState<{
+    bounds: { x: number; y: number; width: number; height: number };
+    enclosed: CanvasElement[];
+    screenPos: { x: number; y: number };
+  } | null>(null);
+  const [isCircleQueryLoading, setIsCircleQueryLoading] = useState(false);
 
   const handleStyleChange = useCallback((newStyle: Partial<ElementStyle>) => {
     setElementStyle((prev) => {
@@ -1246,6 +1262,17 @@ export default function App() {
         return;
       }
 
+      // Handle TEACHER_PAGE_SYNC presence event (Follow-Me Presentation Mode)
+      if ((op as any).type === "PRESENCE" && (op as any).presenceType === "TEACHER_PAGE_SYNC") {
+        const payload = (op as any).payload;
+        if (payload?.pageId && !isPresenterModeRef.current) {
+          selectPage(payload.pageId);
+          setPresenterNotification(`Following Presenter: ${payload.teacherName || "Teacher"} (Page ${payload.pageTitle || ""})`);
+          setTimeout(() => setPresenterNotification(null), 4000);
+        }
+        return;
+      }
+
       if (op.opType === "CREATE_OR_UPDATE" && op.payload) {
         let payload = op.payload;
         // Normalize overlay strokes into whiteboard elements if originating from desktop overlay
@@ -1364,6 +1391,7 @@ export default function App() {
     streamDraft,
     sendOp,
     sendAiRequest,
+    sendTeacherPageSync,
     sendCursorPosition,
   } = useCollaboration(slug || null, handleRemoteOp, handleCollabReconnect);
 
@@ -1629,6 +1657,98 @@ export default function App() {
     },
     [selectedElement, activePage.elements, activePage.id, commitElement, updateActivePage, sendOp]
   );
+
+  // Alignment & Tidy Up Handlers
+  const handleAlign = useCallback(
+    (alignment: AlignmentType) => {
+      if (selectedIds.length < 2) return;
+      const targetEls = activePage.elements.filter((el) => selectedIds.includes(el.id));
+      const aligned = alignElements(targetEls, alignment);
+      updateActivePage((page) => ({
+        ...page,
+        elements: page.elements.map((el) => {
+          const replacement = aligned.find((a) => a.id === el.id);
+          return replacement || el;
+        }),
+      }));
+      aligned.forEach((el) => sendOp(el.id, "CREATE_OR_UPDATE", el));
+    },
+    [selectedIds, activePage.elements, updateActivePage, sendOp]
+  );
+
+  const handleDistribute = useCallback(
+    (direction: DistributionDirection) => {
+      if (selectedIds.length < 3) return;
+      const targetEls = activePage.elements.filter((el) => selectedIds.includes(el.id));
+      const distributed = distributeElements(targetEls, direction);
+      updateActivePage((page) => ({
+        ...page,
+        elements: page.elements.map((el) => {
+          const replacement = distributed.find((d) => d.id === el.id);
+          return replacement || el;
+        }),
+      }));
+      distributed.forEach((el) => sendOp(el.id, "CREATE_OR_UPDATE", el));
+    },
+    [selectedIds, activePage.elements, updateActivePage, sendOp]
+  );
+
+  const handleTidyUp = useCallback(() => {
+    if (selectedIds.length < 2) return;
+    const targetEls = activePage.elements.filter((el) => selectedIds.includes(el.id));
+    const tidied = tidyUpElements(targetEls, 24);
+    updateActivePage((page) => ({
+      ...page,
+      elements: page.elements.map((el) => {
+        const replacement = tidied.find((t) => t.id === el.id);
+        return replacement || el;
+      }),
+    }));
+    tidied.forEach((el) => sendOp(el.id, "CREATE_OR_UPDATE", el));
+  }, [selectedIds, activePage.elements, updateActivePage, sendOp]);
+
+  // Circle / Lasso Gesture AI Trigger
+  const handleCircleGesture = useCallback(
+    (
+      bounds: { x: number; y: number; width: number; height: number },
+      enclosed: CanvasElement[],
+      screenPos: { x: number; y: number }
+    ) => {
+      setCircleQueryData({ bounds, enclosed, screenPos });
+    },
+    []
+  );
+
+  const handleCircleQuerySubmit = useCallback(
+    async (prompt: string, actionType: "explain" | "restyle" | "transform") => {
+      if (!circleQueryData) return;
+      setIsCircleQueryLoading(true);
+      try {
+        await handleAiRequest(createId("circle"), {
+          feature: "circle-query",
+          circleBounds: circleQueryData.bounds,
+          enclosedElements: circleQueryData.enclosed,
+          userPrompt: prompt,
+          actionType,
+        });
+      } finally {
+        setIsCircleQueryLoading(false);
+        setCircleQueryData(null);
+      }
+    },
+    [circleQueryData, handleAiRequest]
+  );
+
+  // Presenter / Follow-Me Mode Toggle
+  const togglePresenterMode = useCallback(() => {
+    setIsPresenterMode((prev) => {
+      const next = !prev;
+      if (next && slug && isCollabConnected) {
+        sendTeacherPageSync(activePage.id, activePage.title);
+      }
+      return next;
+    });
+  }, [slug, isCollabConnected, activePage.id, activePage.title, sendTeacherPageSync]);
 
   // Automatically import strokes transferred from Desktop Overlay
   useEffect(() => {
@@ -1942,12 +2062,18 @@ export default function App() {
   }, [activePage.id, isAuthenticated, slug, updateActivePage, sendOp]);
 
   const selectPage = useCallback((pageId: string) => {
-    setHistory((current) => ({
-      ...current,
-      present: { ...current.present, activePageId: pageId },
-    }));
+    setHistory((current) => {
+      const targetPage = current.present.pages.find((p) => p.id === pageId);
+      if (isPresenterModeRef.current && slug && isCollabConnected) {
+        sendTeacherPageSync(pageId, targetPage?.title);
+      }
+      return {
+        ...current,
+        present: { ...current.present, activePageId: pageId },
+      };
+    });
     setSelectedId(null);
-  }, []);
+  }, [slug, isCollabConnected, sendTeacherPageSync]);
 
   // Layer reordering
   const bringForward = useCallback(() => {
@@ -2176,8 +2302,25 @@ export default function App() {
         ["wb_arrow", "arrow"],
         ["wb_text", "text"],
         ["wb_sticky", "sticky"],
+        ["wb_card", "card"],
+        ["wb_table", "table"],
         ["wb_eraser", "eraser"],
       ];
+
+      // Elbow / Orthogonal arrow shortcut (Shift+A)
+      if (matchesKeyShortcut(event, shortcuts.wb_elbow_arrow?.key) || (event.shiftKey && key === "a")) {
+        event.preventDefault();
+        setActiveTool("arrow");
+        setElementStyle((prev) => ({ ...prev, arrowType: "elbow" }));
+        return;
+      }
+
+      // ERD Schema Table shortcut (Shift+T)
+      if (matchesKeyShortcut(event, shortcuts.wb_table?.key) || (event.shiftKey && key === "t")) {
+        event.preventDefault();
+        setActiveTool("table");
+        return;
+      }
 
       for (const [bindingId, toolId] of toolBindings) {
         if (matchesKeyShortcut(event, shortcuts[bindingId]?.key)) {
@@ -2202,6 +2345,7 @@ export default function App() {
         "5": "line",
         a: "arrow",
         "6": "arrow",
+        c: "card",
         p: "pen",
         "7": "pen",
         t: "text",
@@ -2756,6 +2900,32 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {/* Follow-Me / Teacher Presentation Mode Button */}
+          {slug && (
+            <button
+              type="button"
+              className={`topbar-status-pill presenter-btn ${isPresenterMode ? "active" : ""}`}
+              onClick={togglePresenterMode}
+              title={isPresenterMode ? "Broadcasting your page navigation to all collaborators" : "Turn on Follow-Me Mode (sync collaborator screens)"}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                cursor: "pointer",
+                border: isPresenterMode ? "1px solid rgba(239, 68, 68, 0.6)" : "1px solid var(--border-default)",
+                background: isPresenterMode ? "rgba(239, 68, 68, 0.2)" : "rgba(255, 255, 255, 0.05)",
+                color: isPresenterMode ? "#f87171" : "var(--text-secondary)",
+                fontWeight: 600,
+                fontSize: 12,
+                padding: "4px 10px",
+                borderRadius: 20,
+              }}
+            >
+              <Radio size={13} className={isPresenterMode ? "pulse-icon" : ""} />
+              <span>{isPresenterMode ? "Broadcasting (Live)" : "Follow Me"}</span>
+            </button>
+          )}
 
           {/* Real-time Collaboration Status Dropdown */}
           {slug && (
@@ -3403,7 +3573,59 @@ export default function App() {
           onStreamDraft={(draft) => streamDraft(draft, activePage.id)}
           autoBeautify={autoBeautify}
           simulatedActiveNodeId={simulatedActiveNodeId}
+          onCircleGesture={handleCircleGesture}
         />
+
+        {/* Presenter Follow Toast */}
+        {presenterNotification && (
+          <div
+            className="presenter-follow-toast"
+            style={{
+              position: "fixed",
+              top: 64,
+              left: "50%",
+              transform: "translateX(-50%)",
+              background: "rgba(220, 38, 38, 0.92)",
+              color: "#fff",
+              padding: "7px 16px",
+              borderRadius: 24,
+              fontSize: 12,
+              fontWeight: 600,
+              zIndex: 9999,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 6px 20px rgba(0, 0, 0, 0.4)",
+              backdropFilter: "blur(8px)",
+              pointerEvents: "none",
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#fff",
+                display: "inline-block",
+                boxShadow: "0 0 8px #fff",
+              }}
+            />
+            <span>{presenterNotification}</span>
+          </div>
+        )}
+
+        {/* Circle / Lasso AI Query Popover */}
+        {circleQueryData && (
+          <CircleQueryPopover
+            isOpen={Boolean(circleQueryData)}
+            bounds={circleQueryData.bounds}
+            enclosedElements={circleQueryData.enclosed}
+            screenPos={circleQueryData.screenPos}
+            isLoading={isCircleQueryLoading}
+            onClose={() => setCircleQueryData(null)}
+            onSubmit={handleCircleQuerySubmit}
+          />
+        )}
 
         {ghostElements.length > 0 && (
           <div className="ai-ghost-toolbar" role="status">
@@ -3417,6 +3639,7 @@ export default function App() {
         <Inspector
           activeTool={activeTool}
           selected={selectedElement ?? (selectedIds.length > 0 ? activePage.elements.find((el) => selectedIds.includes(el.id)) ?? null : null)}
+          selectedCount={selectedIds.length}
           style={elementStyle}
           theme={theme}
           isEditingText={isEditingText || activeTool === "text" || selectedElement?.type === "text"}
@@ -3430,6 +3653,9 @@ export default function App() {
           onSendBackward={sendBackward}
           onBringToFront={bringToFront}
           onSendToBack={sendToBack}
+          onAlign={handleAlign}
+          onDistribute={handleDistribute}
+          onTidyUp={handleTidyUp}
         />
 
         {/* Bottom Viewport HUD */}
@@ -3683,6 +3909,7 @@ export default function App() {
             solveSelectedMath(selectedElement);
           }
         }}
+        onTidyUp={handleTidyUp}
         onInsertStoryboardElements={(els) => commitElements(els.map((e) => ({ ...e, pageId: activePage.id })))}
         existingElements={activePage.elements}
       />

@@ -396,19 +396,76 @@ export function drawShapeOnCanvas(
     case "table":
     case "deviceFrame": {
       rc.draw(generator.rectangle(0, 0, element.width, element.height, options));
-      const header = element.type === "code" ? element.language || "code" : element.type === "table" ? element.title || "Table" : element.type === "deviceFrame" ? element.deviceType || "browser" : element.title || "Card";
+      const header =
+        element.type === "code"
+          ? element.language || "code"
+          : element.type === "table"
+          ? element.title || "Table"
+          : element.type === "deviceFrame"
+          ? element.deviceType || "browser"
+          : element.title || "Service Card";
+
       context.save();
+      // Header background
       context.fillStyle = isDarkMode ? "rgba(255,255,255,.09)" : "rgba(15,23,42,.08)";
       context.fillRect(0, 0, element.width, Math.min(30, element.height));
+
+      // Header title
       context.fillStyle = strokeColor;
       context.font = element.type === "code" ? "12px monospace" : "600 13px Inter, sans-serif";
       context.fillText(header, 10, 9);
+
+      // Card body content
+      if (element.type === "card") {
+        const body = element.text || element.bodyText || "";
+        if (body) {
+          const lines = body.split("\n");
+          context.font = "12px Inter, sans-serif";
+          context.fillStyle = isDarkMode ? "#cbd5e1" : "#334155";
+          lines.slice(0, 6).forEach((line, index) => {
+            const y = 46 + index * 18;
+            if (y < element.height - 8) {
+              context.fillText(line, 10, y);
+            }
+          });
+        }
+      }
+
+      // ERD Schema Table columns
       if (element.type === "table") {
         (element.columns || []).forEach((column, index) => {
-          const y = 42 + index * 20;
-          context.strokeStyle = isDarkMode ? "#444" : "#cbd5e1";
-          context.beginPath(); context.moveTo(0, y + 14); context.lineTo(element.width, y + 14); context.stroke();
-          context.fillText(`${column.key ? column.key.toUpperCase() + " " : ""}${column.name}${column.type ? ": " + column.type : ""}`, 10, y);
+          const y = 42 + index * 22;
+          if (y < element.height - 10) {
+            context.strokeStyle = isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+            context.beginPath();
+            context.moveTo(0, y + 16);
+            context.lineTo(element.width, y + 16);
+            context.stroke();
+
+            // Key tag (PK / FK)
+            let colOffset = 10;
+            if (column.key) {
+              context.font = "bold 10px Inter, sans-serif";
+              context.fillStyle = column.key.toUpperCase() === "PK" ? "#f59e0b" : "#3b82f6";
+              const tagText = column.key.toUpperCase();
+              context.fillText(tagText, colOffset, y);
+              colOffset += context.measureText(tagText).width + 6;
+            }
+
+            // Column Name
+            context.font = "12px Inter, sans-serif";
+            context.fillStyle = isDarkMode ? "#f1f5f9" : "#1e293b";
+            context.fillText(column.name, colOffset, y);
+
+            // Column Type (Right-aligned)
+            if (column.type) {
+              context.font = "11px monospace";
+              context.fillStyle = isDarkMode ? "#94a3b8" : "#64748b";
+              const typeText = column.type;
+              const typeWidth = context.measureText(typeText).width;
+              context.fillText(typeText, element.width - typeWidth - 10, y);
+            }
+          }
         });
       }
       context.restore();

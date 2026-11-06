@@ -19,7 +19,6 @@ graffiti-aiml/
     ├── config.py                   # Environment settings (GEMINI_API_KEY, GROQ_API_KEY, model names)
     ├── api/                        # REST endpoint routers
     │   ├── ocr_router.py           # Handwriting OCR extraction & stroke indexing
-    │   ├── beautify_router.py      # Stroke smoothing & geometric shape fitting
     │   ├── math_router.py          # Live handwritten equation & math solver
     │   ├── gesture_router.py       # "Circle to Ask/Modify" context extraction & prompt execution
     │   ├── diagram_router.py       # Natural language text-to-diagram generation & TTD chat streaming
@@ -32,11 +31,7 @@ graffiti-aiml/
     │   └── voice_router.py         # POST /v1/ai/voice/storyboard
     ├── ocr/                        # Handwriting recognition engine
     │   ├── preprocessor.py         # Stroke-to-raster image rasterization & binarization
-    │   └── ocr_engine.py           # TrOCR / PaddleOCR / Vision API extraction pipeline
-    ├── beautify/                   # Geometric fitting & spline smoothing
-    │   ├── douglas_peucker.py      # Polyline simplification algorithm (RDP)
-    │   ├── shape_classifier.py     # Rectangle, ellipse, diamond, triangle, arrow classifier
-    │   └── bezier_fitter.py        # Catmull-Rom & cubic Bezier curve fitting
+    │   └── ocr_engine.py           # Multi-feature stroke rasterization & trajectory OCR
     ├── math/                       # Symbolic math & equation solver
     │   ├── equation_parser.py      # Arithmetic, algebra, and LaTeX expression extraction
     │   └── sympy_solver.py         # Sandboxed SymPy evaluation & result string formatting
@@ -70,7 +65,6 @@ graffiti-aiml/
     │   └── voice_storyboard.py     # Speech transcript → architecture block generator + summary
     └── schemas/                    # Pydantic request & response models
         ├── ocr_schema.py
-        ├── beautify_schema.py
         ├── math_schema.py
         ├── gesture_schema.py
         ├── diagram_schema.py
@@ -93,7 +87,6 @@ graffiti-aiml/
 | :--- | :--- | :--- |
 | `GET` | `/health` | Service health check with API key status |
 | `POST` | `/ocr/extract` | Handwriting OCR from freedraw stroke coordinates |
-| `POST` | `/beautify` | Stroke simplification & geometric shape fitting |
 | `POST` | `/math/solve` | Symbolic math evaluation via SymPy |
 | `POST` | `/circle-query` | Multimodal gesture AI on circled canvas region |
 | `POST` | `/diagram/synthesize` | Text-to-diagram: Mermaid flowchart generation |

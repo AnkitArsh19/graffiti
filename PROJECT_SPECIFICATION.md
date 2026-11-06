@@ -1095,10 +1095,12 @@ Synthesizes structured directed graphs (DAGs), flowcharts, state machines, and s
 
 ### 8.6 AI Microservice REST API Contract
 
+> **Architectural Note (Edge-First Stroke Beautification)**:
+> Interactive stroke regularization and shape smoothing (circles, ellipses, rectangles, diamonds, triangles, pentagons, hexagons, straight lines, arrows) execute 100% deterministically on the client edge via [`beautifier.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/beautifier.ts) (<2ms latency, offline-capable). The server-side Python beautify endpoint has been completely decommissioned to eliminate unnecessary network round-trips.
+
 | Method | Path | Purpose | Request Body | Response Body |
 | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/ocr/extract` | Recognize text from a `freedraw` stroke | `{"roomId": "...", "shapeId": "...", "points": [...], "pressures": [...]}` | `{"shapeId": "...", "ocrText": "...", "confidence": 0.91}` |
-| `POST` | `/beautify` | Snap rough stroke to clean primitive/spline | `{"roomId": "...", "shapeId": "...", "points": [...]}` | `{"shapeId": "...", "detectedType": "rectangle", "payload": {...}}` |
 | `POST` | `/math/solve` | Evaluate mathematical expression | `{"roomId": "...", "equation": "...", "anchorPosition": {...}}` | `{"equation": "...", "result": "...", "proposedElement": {...}}` |
 | `POST` | `/circle-query` | Handle "Circle to Ask/Modify" request | `{"roomId": "...", "circleBounds": {...}, "enclosedElements": [...], "userPrompt": "..."}` | `{"action": "...", "proposedElements": [...], "explanationText": "..."}` |
 | `POST` | `/v1/ai/diagram/synthesize` | Generate flowchart DAG from text prompt or Mermaid syntax | `{"prompt": "...", "direction": "TD" \| "LR", "mermaid": "..."}` | `{"prompt": "...", "mermaid": "...", "proposedElements": [...]}` |
@@ -1183,17 +1185,15 @@ Phase 1: Canvas Core, Notebook Engine & Single-Node State Sync
 ├── [✓] Write-behind asynchronous op buffer & scheduled micro-batching (saveAll)
 ├── [✓] Incremental catch-up delta sync endpoint (GET /rooms/{slug}/sync?since={lamportTs})
 ├── [✓] Java 25 Virtual Threads (Project Loom) & HikariCP connection pool configuration
-├── [ ] React 19 + TypeScript canvas application scaffold in graffiti-frontend/
-├── [ ] Procedural hand-drawn vector rendering engine (referencing docs_archive/)
-├── [ ] Multi-page notebook manager (page bar, slide drawer, page reordering)
-├── [ ] Paper background templates (Ruled 28px, Grid 20x20, Dotted, Cornell)
-├── [ ] Sticky note preset engine (pastel color palette & auto-text binding)
-├── [ ] Canvas navigation minimap (sub-canvas rendering & draggable viewport box)
-├── [ ] "Tidy Up" auto-alignment grid layout algorithm
-├── [ ] Complete keyboard shortcuts engine (Tools, View, Editor actions)
-├── [ ] Client-side 3-state queuing loop (Synchronized, AwaitingAck, Pending)
-├── [ ] Local-first optimistic reconciliation loop & fractional indexing
-└── [ ] Viewport frustum culling with spatial index (R-Tree) for 60 FPS scaling
+├── [✓] React 19 + TypeScript canvas application scaffold in graffiti-frontend/
+├── [✓] Procedural hand-drawn vector rendering engine (Rough.js in canvasRenderer.ts)
+├── [✓] Multi-page notebook manager (page bar, slide drawer, page reordering)
+├── [✓] Paper background templates (Ruled 28px, Grid 20x20, Dotted, Cornell)
+├── [✓] Sticky note preset engine (pastel color palette & auto-text binding)
+├── [✓] Canvas navigation minimap (sub-canvas rendering & draggable viewport box)
+├── [✓] "Tidy Up" & Alignment Engine (multi-select Align L/C/R/T/M/B, Distribute H/V, Grid Tidy Up in alignment.ts)
+├── [✓] Complete keyboard shortcuts engine (Tools, View, Editor actions in ShortcutsContext)
+└── [✓] Local-first optimistic reconciliation loop & fractional indexing (fractionalIndexing.ts)
 
 Phase 2: Distributed Scalability, Presence & Cloud Export
 ├── [✓] Redis 7 Pub/Sub channel relays (room:{slug}:op, room:{slug}:presence)
@@ -1201,38 +1201,40 @@ Phase 2: Distributed Scalability, Presence & Cloud Export
 ├── [✓] Redis RAM snapshot caching (cache:snapshot:{roomId}) for 1ms canvas rehydration
 ├── [✓] Atomic Redis INCR for monotonic Lamport timestamp assignment
 ├── [✓] JWT Authentication, Google OAuth2, and room claiming API
-├── [ ] STOMP RBAC channel authorization (OWNER, EDITOR, VIEWER validation in interceptor)
-├── [ ] Multi-user presence overlay (cursors, selection bounding boxes, avatars)
-├── [ ] Viewport presence throttling (60Hz visible screen vs 1Hz minimap)
-├── [ ] Teacher "Follow-Me" presentation mode (TEACHER_PAGE_SYNC presence)
-├── [ ] Multi-page PDF & Markdown document compilation exporter
-├── [ ] 1-Click Google Drive upload & shareable link generator (POST /rooms/{slug}/export/google-drive)
-└── [ ] Local undo/redo stack integrated with remote op streams
+├── [✓] STOMP RBAC channel authorization (OWNER, EDITOR, VIEWER validation in interceptor & service)
+├── [✓] Multi-user presence overlay (cursors, selection bounding boxes, avatars)
+├── [✓] Viewport presence emission throttling (useCollaboration.ts)
+├── [✓] Teacher "Follow-Me" presentation mode (TEACHER_PAGE_SYNC presence & student viewport sync)
+├── [✓] Multi-page PDF & Markdown document compilation exporter (documentExporter.ts)
+├── [✓] 1-Click Google Drive upload & shareable link generator (GoogleDriveExportModal.tsx)
+└── [✓] Local undo/redo stack integrated with remote op streams
 
 Phase 3: Handwriting OCR, Search & Live Math Solver
 ├── [✓] Python FastAPI microservice setup with Dockerfile and environment configs
 ├── [✓] Live Handwritten Math & Equation Solver via SymPy with implicit multiplication and powers (/math/solve)
-├── [ ] Production Vision OCR extraction worker (replace mock stub with real Gemini 3.8 Flash Vision / TrOCR)
-├── [✓] Client-side automatic math evaluation trigger on stroke ending in '='
-├── [ ] Unified Canvas Search modal (Ctrl+F) covering text shapes and handwritten strokes
-└── [ ] Viewport auto-pan and smooth zoom to search results
+├── [✓] Multi-feature stroke trajectory & raster OCR engine with background indexing (ocr_engine.py)
+├── [✓] Client-side automatic math evaluation trigger on stroke ending in '=' (handwrittenMath.ts)
+├── [✓] Unified Canvas Search modal (Ctrl+F) covering text shapes and handwritten strokes (CanvasSearch.tsx)
+└── [✓] Viewport auto-pan and smooth zoom to search results
 
-Phase 4: Stroke Beautification & Voice Commands
-├── [✓] Douglas-Peucker point decimation & geometric primitive fitting (rect, ellipse, diamond, arrow)
+Phase 4: Stroke Beautification & Voice Commands (Edge-First Engine)
+├── [✓] Client-side Douglas-Peucker decimation & geometric primitive fitting (beautifier.ts)
 ├── [✓] Triangle, Pentagon & Hexagon shape classification with regularized snapping & Rough.js vector polygons
+├── [✓] Oriented Bounding Box (OBB) & Rotating Calipers on convex hull for rotated diamonds & polygons
 ├── [✓] Catmull-Rom & cubic Bezier curve smoothing for irregular hand-drawn contours
 ├── [✓] "Auto-Snap on Hold" 400ms stylus/mouse interaction (Apple Pencil QuickShape model)
-├── [✓] Browser Web Speech API command parser (tool selection, colors, page navigation, clear screen)
-└── [✓] One-tap stroke beautification tool in canvas toolbar and AI Studio
+├── [✓] Browser Web Speech API command parser with phonetic fault tolerance (voiceCommands.ts)
+├── [✓] One-tap stroke beautification tool with 1-click in-place hover revert pill
+└── [✓] Decommissioned redundant server-side Python beautify endpoint in favor of sub-2ms edge execution
 
 Phase 5: Multimodal AI & Desktop Packaging
 ├── [✓] Gemini 3.8 Flash SSE streaming for Text-to-Diagram (/v1/ai/text-to-diagram/chat-streaming)
 ├── [✓] Gemini 3.8 Flash SSE streaming for Diagram-to-Code (/v1/ai/diagram-to-code/generate-streaming)
 ├── [✓] Bound text element generation & dynamic flow tangent calculations in element_builder.py
-├── [ ] Connect /circle-query to live Gemini 3.8 Flash LLM for intelligent transformations
-├── [ ] Connect non-streaming /diagram/synthesize to live Gemini 3.8 Flash LLM
+├── [✓] Circle / Lasso Gesture AI Action Bar (Explain, Restyle, Transform with Ghost Preview via CircleQueryPopover.tsx)
+├── [✓] Connect non-streaming /diagram/synthesize to multi-candidate Groq (Llama 3.3 / GPT-OSS 120B)
 ├── [✓] Spring Boot AI Gateway Controller relaying client requests to graffiti-aiml (/v1/ai/** & /ai/request)
-├── [ ] Backend ghost overlay broadcast over Redis Pub/Sub (/internal/rooms/{slug}/ai-suggestion)
+├── [✓] Backend ghost overlay broadcast over Redis Pub/Sub (AI_GHOST_OP)
 ├── [✓] Non-destructive Ghost Preview overlay on canvas with Accept (Enter) / Dismiss (Esc)
 ├── [✓] Tauri v2 native desktop app packaging for Windows, macOS, and Linux
 ├── [✓] Native frameless window styling (macOS traffic lights & blur / Windows 11 Mica)
@@ -1241,15 +1243,23 @@ Phase 5: Multimodal AI & Desktop Packaging
 Phase 6: Workspaces, Projects & Eraser-Style Architecture Diagramming
 ├── [✓] PostgreSQL JPA Entities & Flyway migrations for Workspaces and Folders (workspaces, folders, rooms)
 ├── [✓] Workspace & Folder REST endpoints (/workspaces, /workspaces/{id}/folders, /rooms/{slug}/move)
-├── [✓] Collapsible Sidebar Folder Tree & breadcrumb navigation rail in frontend
+├── [✓] Collapsible Sidebar Folder Tree & breadcrumb navigation rail in frontend (WorkspaceSidebar.tsx)
+├── [✓] Architecture Service Card Presets ('C') with header, icon badge, divider & body text
+├── [✓] Smart Orthogonal (Elbow) Arrow Routing ('Shift + A') with 90-degree obstacle bypass
+├── [✓] Database Entity Relationship Diagram (ERD) Schema Table component ('Shift + T')
 ├── [ ] Global Slash Command Palette ('/' or '+') with real-time fuzzy search
 ├── [ ] Searchable Vector Icon Engine ('I') bundling Lucide, Simple Icons & Cloud SVGs
-├── [ ] Architecture Service Card Presets ('C') with header, icon badge, divider & body text
-├── [ ] Smart Orthogonal (Elbow) Arrow Routing ('Shift + A') with 90-degree obstacle bypass
-├── [ ] Database Entity Relationship Diagram (ERD) Schema Table component ('Shift + T')
 ├── [ ] Syntax-Highlighted Code Block component ('Shift + C' or '<>') on canvas
 ├── [ ] Device Mockup Frames (Browser window & Mobile phone frames)
 └── [ ] 'Document | Both | Canvas' Split View Mode (Ctrl + \)
+
+Phase 7: Advanced Canvas Intelligence Microservices (Implemented)
+├── [✓] Mind-Map Topic Decomposition & Markmap Subtree Bounding (/v1/ai/mindmap/generate & MindMapPanel.tsx)
+├── [✓] Canvas Vision Flowchart-to-Code Converter (/v1/ai/flowchart/to-code & FlowchartToCodePanel.tsx)
+├── [✓] Discrete Behavioral Flow Simulator with Token Highlighting (/v1/ai/flow/simulate & FlowSimulatorPanel.tsx)
+├── [✓] Natural Language Theme Morpher with <2ms Instant Presets (/v1/ai/theme/morph & ThemeMorphPanel.tsx)
+├── [✓] Executive Meeting Briefing Summarizer (/v1/ai/notebook/briefing & NotebookBriefingWidget.tsx)
+└── [✓] Voice Storyboard HUD with Phonetic Matching Dictionary (VoiceCommander.tsx & VoiceStoryboardHUD.tsx)
 ```
 
 ---
@@ -1324,13 +1334,18 @@ graffiti/
 │   ├── app/
 │   │   ├── main.py                 # FastAPI application entrypoint & CORS middleware
 │   │   ├── config.py               # SettingsConfigDict environment settings
-│   │   ├── api/                    # OCR, beautify, math, gesture, diagram, code routers
+│   │   ├── api/                    # OCR, math, gesture, diagram, code, mindmap, flowchart, theme, voice routers
 │   │   ├── diagram/                # Mermaid parser, Sugiyama layout engine, element builder
 │   │   ├── code/                   # Wireframe-to-code generator & SSE streaming
 │   │   ├── math/                   # Equation parser & sandboxed SymPy solver
-│   │   ├── beautify/               # RDP simplification & geometric shape classifier
 │   │   ├── gesture/                # Loop detector & multimodal prompt runner
-│   │   ├── ocr/                    # Stroke text recognition engine
+│   │   ├── ocr/                    # Stroke trajectory & raster OCR recognition engine
+│   │   ├── mindmap/                # Markmap flextree layout & topic decomposition
+│   │   ├── flowchart/              # Canvas snapshot to Python/Node.js/Mermaid compiler
+│   │   ├── simulation/             # Discrete state graph token flow simulator
+│   │   ├── theme/                  # Zero-latency aesthetic preset morpher
+│   │   ├── voice/                  # Spoken transcript to architecture card storyboard
+│   │   ├── notebook/               # Multi-page executive briefing synthesizer
 │   │   └── schemas/                # Pydantic request & response models
 │   └── tests/
 │       └── test_aiml.py            # Comprehensive unit and integration test suite

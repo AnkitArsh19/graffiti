@@ -7,6 +7,7 @@ import {
   GripVertical,
   GripHorizontal,
   Hand,
+  Layers,
   LayoutGrid,
   Lock,
   Minus,
@@ -20,6 +21,7 @@ import {
   RotateCw,
   Square,
   StickyNote,
+  Table2,
   Type,
   Unlock,
   type LucideIcon,
@@ -49,6 +51,8 @@ const WB_SHORTCUT_IDS: Partial<Record<ToolId, string>> = {
   arrow: "wb_arrow",
   text: "wb_text",
   sticky: "wb_sticky",
+  card: "wb_card",
+  table: "wb_table",
   eraser: "wb_eraser",
 };
 
@@ -68,6 +72,8 @@ const tools: Array<{ id: ToolId; label: string; shortcut: string; icon: LucideIc
   { id: "diamond", label: "Diamond", shortcut: "D", icon: Diamond },
   { id: "line", label: "Line", shortcut: "L", icon: Minus },
   { id: "arrow", label: "Arrow", shortcut: "A", icon: ArrowRight },
+  { id: "card", label: "Service Card", shortcut: "C", icon: Layers },
+  { id: "table", label: "ERD Table", shortcut: "Shift+T", icon: Table2 },
   { id: "text", label: "Text", shortcut: "T", icon: Type },
   { id: "sticky", label: "Sticky Note", shortcut: "N", icon: StickyNote },
   { id: "eraser", label: "Eraser", shortcut: "E", icon: Eraser },

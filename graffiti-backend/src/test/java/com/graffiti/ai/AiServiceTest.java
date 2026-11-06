@@ -79,7 +79,7 @@ class AiServiceTest {
 
     @Test
     void testRequestGracefulFailureWhenServiceOffline() {
-        Map<String, Object> result = aiService.request(Map.of("feature", "beautify", "points", List.of()));
+        Map<String, Object> result = aiService.request(Map.of("feature", "diagram", "prompt", "test"));
         assertNotNull(result);
         assertTrue(result.isEmpty());
     }

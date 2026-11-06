@@ -91,6 +91,9 @@ describe("voiceCommands parser", () => {
     expect(parseVoiceCommand("solve math")?.type).toBe("solveMath");
     expect(parseVoiceCommand("calculate")?.type).toBe("solveMath");
     expect(parseVoiceCommand("storyboard")?.type).toBe("storyboard");
+    expect(parseVoiceCommand("tidy up")?.type).toBe("tidyUp");
+    expect(parseVoiceCommand("card")?.type).toBe("selectTool");
+    expect(parseVoiceCommand("table")?.type).toBe("selectTool");
   });
 
   it("returns null for unrecognized speech", () => {

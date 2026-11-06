@@ -28,12 +28,14 @@ import {
   clamp,
   createId,
   createSeed,
+  detectClosedLoopGesture,
   findClosestAnchorPoint,
   doesElementIntersectBox,
   getElementAnchorPoints,
   isElementFullyInsideBox,
   normalizePenElement,
   screenToWorld,
+  worldToScreen,
   updateBoundArrows,
 } from "../lib/geometry";
 import { beautifyStroke } from "../lib/beautifier";
@@ -130,6 +132,11 @@ interface WhiteboardCanvasProps {
   onStreamDraft?: (draft: CanvasElement | null) => void;
   autoBeautify?: boolean;
   simulatedActiveNodeId?: string | null;
+  onCircleGesture?: (
+    bounds: { x: number; y: number; width: number; height: number },
+    enclosedElements: CanvasElement[],
+    screenPos: { x: number; y: number }
+  ) => void;
 }
 
 type PointerAction =
@@ -226,6 +233,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       onStreamDraft,
       autoBeautify = true,
       simulatedActiveNodeId,
+      onCircleGesture,
     },
     ref,
   ) {
@@ -1231,6 +1239,20 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       if (activeTool === "sticky") {
         nextDraft.width = 160;
         nextDraft.height = 120;
+      } else if (activeTool === "card") {
+        nextDraft.width = 220;
+        nextDraft.height = 130;
+        nextDraft.title = "Service: API Gateway";
+        nextDraft.text = "• Endpoint /api/v1\n• Auth: Bearer JWT\n• SLA: 99.99%";
+      } else if (activeTool === "table") {
+        nextDraft.width = 200;
+        nextDraft.height = 130;
+        nextDraft.title = "users";
+        nextDraft.columns = [
+          { key: "pk", name: "id", type: "UUID" },
+          { key: "", name: "email", type: "VARCHAR" },
+          { key: "", name: "created_at", type: "TIMESTAMP" },
+        ];
       }
       draftRef.current = nextDraft;
       setDraft(nextDraft);
@@ -1808,6 +1830,26 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
             if (mathAnswer) {
               onCommit(mathAnswer);
             }
+
+            // Closed-loop gesture check ("Circle to Ask/Modify")
+            const loop = detectClosedLoopGesture(normalizedForMath);
+            if (loop.isLoop) {
+              const enclosed = elements.filter(
+                (el) =>
+                  el.id !== normalizedForMath.id &&
+                  !(el as any).isDeleted &&
+                  (isElementFullyInsideBox(el, loop.bounds) || doesElementIntersectBox(el, loop.bounds))
+              );
+              if (enclosed.length >= 1) {
+                const screenPos = worldToScreen(
+                  { x: loop.bounds.x + loop.bounds.width / 2, y: loop.bounds.y },
+                  viewport.scrollX,
+                  viewport.scrollY,
+                  viewport.zoom
+                );
+                onCircleGesture?.(loop.bounds, enclosed, screenPos);
+              }
+            }
           }
           isHoldSnappedRef.current = false;
           snappedElementRef.current = null;
@@ -1852,6 +1894,8 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
 
         const canCommit =
           finishedDraft.type === "sticky" ||
+          finishedDraft.type === "card" ||
+          finishedDraft.type === "table" ||
           finishedDraft.width > 4 ||
           finishedDraft.height > 4;
 

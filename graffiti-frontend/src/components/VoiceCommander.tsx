@@ -19,6 +19,7 @@ interface VoiceCommanderProps {
   onInsertStoryboardElements?: (elements: CanvasElement[]) => void;
   existingElements?: CanvasElement[];
   onSolveMath?: () => void;
+  onTidyUp?: () => void;
 }
 
 export function VoiceCommander(props: VoiceCommanderProps) {
@@ -234,6 +235,9 @@ export function VoiceCommander(props: VoiceCommanderProps) {
         return true;
       case "beautify":
         p.onBeautify();
+        return true;
+      case "tidyUp":
+        p.onTidyUp?.();
         return true;
       case "solveMath":
         p.onSolveMath?.();

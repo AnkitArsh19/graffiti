@@ -414,3 +414,118 @@
   color: var(--accent-primary, #d4a359);
   transform: translateY(-1px);
 }
+
+/* Circle / Lasso AI Query Popover */
+.circle-query-popover {
+  width: 320px;
+  background: var(--bg-panel, #18181b);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(124, 58, 237, 0.2);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: fadeInPill 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  backdrop-filter: blur(12px);
+}
+
+.circle-query-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.circle-query-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #a78bfa;
+}
+
+.circle-query-close {
+  background: transparent;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.circle-query-close:hover {
+  color: #f4f4f5;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.circle-query-quick-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.quick-action-chip {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e4e4e7;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.quick-action-chip:hover:not(:disabled) {
+  background: rgba(124, 58, 237, 0.18);
+  border-color: rgba(124, 58, 237, 0.4);
+  color: #c4b5fd;
+}
+
+.circle-query-input-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.circle-query-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #f4f4f5;
+  outline: none;
+}
+
+.circle-query-input:focus {
+  border-color: #8b5cf6;
+}
+
+.circle-query-submit-btn {
+  background: #7c3aed;
+  border: none;
+  color: white;
+  border-radius: 6px;
+  padding: 0 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms ease;
+}
+
+.circle-query-submit-btn:hover:not(:disabled) {
+  background: #6d28d9;
+}
+
+.circle-query-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -355,3 +355,42 @@ export function isElementFullyInsideBox(
   );
 }
 
+/**
+ * Detects if a pen stroke forms a closed loop/circle around an area of the canvas.
+ */
+export function detectClosedLoopGesture(stroke: CanvasElement): {
+  isLoop: boolean;
+  bounds: { x: number; y: number; width: number; height: number };
+} {
+  if (stroke.type !== "pen" || !stroke.points || stroke.points.length < 8) {
+    return { isLoop: false, bounds: { x: 0, y: 0, width: 0, height: 0 } };
+  }
+
+  const pts = stroke.points;
+  const start = pts[0];
+  const end = pts[pts.length - 1];
+
+  const closureDist = Math.hypot(start.x - end.x, start.y - end.y);
+
+  let pathLen = 0;
+  for (let i = 1; i < pts.length; i++) {
+    pathLen += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  }
+
+  const w = stroke.width;
+  const h = stroke.height;
+
+  // Must be reasonably sized (>= 50px in both dims) and start-to-end closure within 22% of total path length
+  const isClosed = pathLen > 150 && w >= 50 && h >= 50 && closureDist / pathLen < 0.22;
+
+  return {
+    isLoop: isClosed,
+    bounds: {
+      x: stroke.x,
+      y: stroke.y,
+      width: stroke.width,
+      height: stroke.height,
+    },
+  };
+}
+
