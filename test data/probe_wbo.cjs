@@ -1,0 +1,24 @@
+const {chromium}=require('playwright');
+(async()=>{
+const b=await chromium.launch({channel:'chrome',headless:true});
+const c=await b.newContext({viewport:{width:1440,height:900}});
+const p=await c.newPage();
+p.on('pageerror',e=>console.log('PAGEERROR',e.message.slice(0,200)));
+await p.goto('https://wbo.ophir.dev/',{waitUntil:'domcontentloaded'});
+await p.getByRole('link',{name:'Create a private board'}).click();
+await p.getByRole('listitem',{name:'Rectangle'}).waitFor({timeout:30000});
+await p.getByText('Loading',{exact:true}).waitFor({state:'hidden',timeout:30000});
+console.log('url',p.url());
+console.log('svg',await p.locator('svg').count(),'rect',await p.locator('svg rect').count());
+console.log('svg IDs',await p.locator('svg').evaluateAll(nodes=>nodes.map(n=>({id:n.id,cls:n.getAttribute('class'),rects:n.querySelectorAll('rect').length}))));
+await p.screenshot({path:'data/wbo_probe_before.png'});
+await p.getByRole('listitem',{name:'Rectangle'}).click();
+await p.mouse.move(500,300); await p.mouse.down(); await p.mouse.move(620,380,{steps:5}); await p.mouse.up();
+await p.waitForTimeout(1800);
+console.log('after rect',await p.locator('svg rect').count());
+await p.screenshot({path:'data/wbo_probe.png'});
+await p.reload({waitUntil:'domcontentloaded'}); await p.getByRole('listitem',{name:'Rectangle'}).waitFor({timeout:30000}); await p.getByText('Loading',{exact:true}).waitFor({state:'hidden',timeout:30000});
+console.log('reload rect',await p.locator('svg rect').count());
+await p.screenshot({path:'data/wbo_probe_reload.png'});
+await b.close();
+})().catch(e=>{console.error(e);process.exitCode=1});

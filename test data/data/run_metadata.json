@@ -1,0 +1,17 @@
+{
+  "measuredAt": "2026-11-06T05:44:43.661Z",
+  "browserVersion": "156.0.8078.81",
+  "sourceCommit": "6bd6c47",
+  "appBuild": "Vite production preview",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "deviceScaleFactor": 1,
+  "url": "http://127.0.0.1:4173/",
+  "operatingSystem": "Windows_NT 10.0.26300",
+  "cpu": "12th Gen Intel(R) Core(TM) i7-1255U",
+  "logicalCores": 12,
+  "memoryBytes": 16874135552,
+  "nodeVersion": "v24.14.0"
+}

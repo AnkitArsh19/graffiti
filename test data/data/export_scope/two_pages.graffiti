@@ -1,0 +1,51 @@
+{
+  "pages": [
+    {
+      "id": "p1",
+      "title": "Page one",
+      "template": "blank",
+      "elements": [
+        {
+          "id": "visible",
+          "pageId": "p1",
+          "type": "rectangle",
+          "x": 200,
+          "y": 200,
+          "width": 90,
+          "height": 60,
+          "text": "visible",
+          "strokeColor": "#111827",
+          "backgroundColor": "transparent",
+          "strokeWidth": 2,
+          "roughness": 1,
+          "opacity": 100,
+          "seed": 1
+        }
+      ]
+    },
+    {
+      "id": "p2",
+      "title": "Page two",
+      "template": "cornell",
+      "elements": [
+        {
+          "id": "second-page",
+          "pageId": "p2",
+          "type": "rectangle",
+          "x": 300,
+          "y": 300,
+          "width": 90,
+          "height": 60,
+          "text": "second-page",
+          "strokeColor": "#111827",
+          "backgroundColor": "transparent",
+          "strokeWidth": 2,
+          "roughness": 1,
+          "opacity": 100,
+          "seed": 1
+        }
+      ]
+    }
+  ],
+  "activePageId": "p1"
+}

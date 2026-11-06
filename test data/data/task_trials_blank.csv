@@ -1,0 +1,1 @@
+participant_id,tool,tool_version_or_date,order_index,task,elapsed_seconds,labels_correct,connections_correct,style_correct,undo_confirmed,two_parts_present,reload_success,export_complete,actions,errors,artifact_path,notes

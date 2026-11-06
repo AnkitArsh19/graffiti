@@ -1,0 +1,16 @@
+{
+  "measuredAt": "2026-11-06T05:56:09.376Z",
+  "browserVersion": "156.0.8078.81",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "repeats": 10,
+  "method": "One rectangle created using visible UI; wait 1.5 s; reload same browser context; verify native object count.",
+  "limitation": "Hosted comparator versions and remote server/network conditions were not pinned. An immediate reload is not a long-term durability test.",
+  "operatingSystem": "Windows_NT 10.0.26300",
+  "cpu": "12th Gen Intel(R) Core(TM) i7-1255U",
+  "logicalCores": 12,
+  "memoryBytes": 16874135552,
+  "nodeVersion": "v24.14.0"
+}

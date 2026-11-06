@@ -1,0 +1,10 @@
+objects,format,downloaded,basic_validation_pass,validation_rule,observed,filename
+100,SVG,True,True,Exact exported object and label count,rectangles=100;labels=100,Benchmark page.svg
+100,JSON,True,True,Exact exported object and label count,pages=1;objects=100,graffiti-notebook.graffiti
+100,PNG,True,True,PNG signature and nonempty file only,bytes=125542;width=1126;height=770;sha256=f35b5f7a74670a8afebf2a29774202d46d857cc23fd64a285c363c5a7f5edd01,benchmark-page.png
+500,SVG,True,True,Exact exported object and label count,rectangles=500;labels=500,Benchmark page.svg
+500,JSON,True,True,Exact exported object and label count,pages=1;objects=500,graffiti-notebook.graffiti
+500,PNG,True,True,PNG signature and nonempty file only,bytes=420547;width=1126;height=770;sha256=346ae9222d5e6286a9d9ea7add0077eade31a21d9445d086808becbf5baa30e6,benchmark-page.png
+1000,SVG,True,True,Exact exported object and label count,rectangles=1000;labels=1000,Benchmark page.svg
+1000,JSON,True,True,Exact exported object and label count,pages=1;objects=1000,graffiti-notebook.graffiti
+1000,PNG,True,True,PNG signature and nonempty file only,bytes=420547;width=1126;height=770;sha256=346ae9222d5e6286a9d9ea7add0077eade31a21d9445d086808becbf5baa30e6,benchmark-page.png
