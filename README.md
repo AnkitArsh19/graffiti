@@ -28,10 +28,10 @@ Graffiti runs as a **fully self-contained, native desktop application** on Windo
 
 | Platform | Format | Status & Download Link |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (x64)** | `.exe` Setup (Recommended) | [Download Graffiti_0.2.0_x64-setup.exe](https://github.com/AnkitArsh19/graffiti/releases/download/v0.2.0/Graffiti_0.2.0_x64-setup.exe) / [Latest Release](https://github.com/AnkitArsh19/graffiti/releases/latest) |
-| **macOS (Apple Silicon M-Series)** | `.dmg` Installer / `.app` | [Download macOS ARM64 Release (v0.2.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
-| **macOS (Intel x64)** | `.dmg` Installer / `.app` | [Download macOS Intel Release (v0.2.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
-| **Linux (x64)** | `.AppImage` / `.deb` | [Download Linux Release (v0.2.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
+| **Windows 10 / 11 (x64)** | `.exe` Setup (Recommended) | [Download Graffiti_0.3.0_x64-setup.exe](https://github.com/AnkitArsh19/graffiti/releases/download/v0.3.0/Graffiti_0.3.0_x64-setup.exe) / [Latest Release](https://github.com/AnkitArsh19/graffiti/releases/latest) |
+| **macOS (Apple Silicon M-Series)** | `.dmg` Installer / `.app` | [Download macOS ARM64 Release (v0.3.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
+| **macOS (Intel x64)** | `.dmg` Installer / `.app` | [Download macOS Intel Release (v0.3.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
+| **Linux (x64)** | `.AppImage` / `.deb` | [Download Linux Release (v0.3.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
 
 ### Direct Local Execution (From This Repository)
 

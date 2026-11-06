@@ -13,6 +13,7 @@ pub struct OverlayToolbarBounds {
 #[derive(Default)]
 pub struct OverlayTrackingState {
     pub bounds: OverlayToolbarBounds,
+    pub regions: Vec<OverlayToolbarBounds>,
     pub is_click_through: bool,
     pub is_ignoring: bool,
 }
@@ -103,10 +104,12 @@ fn set_overlay_toolbar_bounds(
     app: tauri::AppHandle,
     state: tauri::State<'_, Arc<Mutex<OverlayTrackingState>>>,
     bounds: OverlayToolbarBounds,
+    regions: Option<Vec<OverlayToolbarBounds>>,
     click_through: bool,
 ) -> Result<(), String> {
     let mut s = state.lock().unwrap();
-    s.bounds = bounds;
+    s.bounds = bounds.clone();
+    s.regions = regions.unwrap_or_else(|| vec![bounds]);
     s.is_click_through = click_through;
     if !click_through {
         s.is_ignoring = false;
@@ -213,9 +216,14 @@ pub fn run() {
 
                     loop {
                         std::thread::sleep(std::time::Duration::from_millis(25));
-                        let (is_click_through, bounds, current_ignoring) = {
+                        let (is_click_through, regions, current_ignoring) = {
                             let s = state_clone.lock().unwrap();
-                            (s.is_click_through, s.bounds.clone(), s.is_ignoring)
+                            let reg = if s.regions.is_empty() {
+                                vec![s.bounds.clone()]
+                            } else {
+                                s.regions.clone()
+                            };
+                            (s.is_click_through, reg, s.is_ignoring)
                         };
 
                         if !is_click_through {
@@ -234,13 +242,15 @@ pub fn run() {
                                 let cx = (pt.x as f64) / scale;
                                 let cy = (pt.y as f64) / scale;
 
-                                // Buffer of 8px around toolbar for effortless, smooth hovering
-                                let in_toolbar = cx >= (bounds.x - 8.0)
-                                    && cx <= (bounds.x + bounds.width + 8.0)
-                                    && cy >= (bounds.y - 8.0)
-                                    && cy <= (bounds.y + bounds.height + 8.0);
+                                // Buffer of 8px around each interactive region (toolbar & dedicated canvas pad)
+                                let in_interactive_region = regions.iter().any(|b| {
+                                    cx >= (b.x - 8.0)
+                                        && cx <= (b.x + b.width + 8.0)
+                                        && cy >= (b.y - 8.0)
+                                        && cy <= (b.y + b.height + 8.0)
+                                });
 
-                                let should_ignore = !in_toolbar;
+                                let should_ignore = !in_interactive_region;
                                 if should_ignore != current_ignoring {
                                     let _ = win.set_ignore_cursor_events(should_ignore);
                                     let mut s = state_clone.lock().unwrap();

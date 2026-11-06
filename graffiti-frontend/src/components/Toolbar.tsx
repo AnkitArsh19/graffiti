@@ -17,6 +17,9 @@ import {
   PanelLeft,
   PanelRight,
   PanelTop,
+  Code2,
+  Laptop,
+  Shapes,
   PenLine,
   RotateCw,
   Square,
@@ -53,6 +56,9 @@ const WB_SHORTCUT_IDS: Partial<Record<ToolId, string>> = {
   sticky: "wb_sticky",
   card: "wb_card",
   table: "wb_table",
+  code: "wb_code",
+  deviceFrame: "wb_device_frame",
+  icon: "wb_icon",
   eraser: "wb_eraser",
 };
 
@@ -63,7 +69,8 @@ const DOC_SHORTCUT_IDS: Partial<Record<ToolId, string>> = {
   text: "doc_text",
 };
 
-const tools: Array<{ id: ToolId; label: string; shortcut: string; icon: LucideIcon }> = [
+// Core drawing primitive tools shown directly on the toolbar rail
+const primaryTools: Array<{ id: ToolId; label: string; shortcut: string; icon: LucideIcon }> = [
   { id: "select", label: "Select", shortcut: "V", icon: MousePointer2 },
   { id: "hand", label: "Pan", shortcut: "H", icon: Hand },
   { id: "pen", label: "Pen", shortcut: "P", icon: PenLine },
@@ -72,11 +79,24 @@ const tools: Array<{ id: ToolId; label: string; shortcut: string; icon: LucideIc
   { id: "diamond", label: "Diamond", shortcut: "D", icon: Diamond },
   { id: "line", label: "Line", shortcut: "L", icon: Minus },
   { id: "arrow", label: "Arrow", shortcut: "A", icon: ArrowRight },
-  { id: "card", label: "Service Card", shortcut: "C", icon: Layers },
-  { id: "table", label: "ERD Table", shortcut: "Shift+T", icon: Table2 },
   { id: "text", label: "Text", shortcut: "T", icon: Type },
   { id: "sticky", label: "Sticky Note", shortcut: "N", icon: StickyNote },
   { id: "eraser", label: "Eraser", shortcut: "E", icon: Eraser },
+];
+
+// Rich diagramming and architectural components tucked into a sleek popover menu
+const componentTools: Array<{
+  id: ToolId;
+  label: string;
+  description: string;
+  shortcut: string;
+  icon: LucideIcon;
+}> = [
+  { id: "table", label: "ERD Schema Table", description: "Database schema table with columns", shortcut: "Shift+T", icon: Table2 },
+  { id: "code", label: "Code Block", description: "Syntax-highlighted code container", shortcut: "Shift+C", icon: Code2 },
+  { id: "deviceFrame", label: "Device Mockup Frame", description: "Browser or mobile device frame", shortcut: "Shift+D", icon: Laptop },
+  { id: "card", label: "Architecture Service Card", description: "System microservice component card", shortcut: "C", icon: Layers },
+  { id: "icon", label: "Vector Icon", description: "Cloud & developer vector shapes", shortcut: "I", icon: Shapes },
 ];
 
 const dockOptions: Array<{ id: DockPosition; label: string; icon: LucideIcon }> = [
@@ -86,6 +106,22 @@ const dockOptions: Array<{ id: DockPosition; label: string; icon: LucideIcon }> 
   { id: "right", label: "Right", icon: PanelRight },
   { id: "floating", label: "Float", icon: Move },
 ];
+
+/**
+ * Format badge shortcuts cleanly so they never overflow a 35px button.
+ * Shift combinations (e.g. "Shift+T") become "⇧T".
+ * Long combinations (>2 chars) are omitted from the tiny badge and shown in the tooltip.
+ */
+function formatBadgeShortcut(shortcut: string): string {
+  if (!shortcut) return "";
+  if (shortcut.startsWith("Shift+")) {
+    return `⇧${shortcut.slice(6)}`;
+  }
+  if (shortcut.length > 2) {
+    return "";
+  }
+  return shortcut;
+}
 
 export function Toolbar({
   activeTool,
@@ -98,8 +134,30 @@ export function Toolbar({
 }: ToolbarProps) {
   const { getShortcut } = useShortcuts();
   const [isDockMenuOpen, setIsDockMenuOpen] = useState(false);
+  const [isComponentMenuOpen, setIsComponentMenuOpen] = useState(false);
   const railRef = useRef<HTMLElement>(null);
   const dockMenuRef = useRef<HTMLDivElement>(null);
+  const componentMenuRef = useRef<HTMLDivElement>(null);
+
+  // Active component element detection (table, code, deviceFrame, card, icon)
+  const activeComponent = componentTools.find((c) => c.id === activeTool);
+  const isComponentActive = Boolean(activeComponent);
+
+  const [lastComponentTool, setLastComponentTool] = useState<ToolId>("table");
+  useEffect(() => {
+    if (isComponentActive) {
+      setLastComponentTool(activeTool);
+    }
+  }, [activeTool, isComponentActive]);
+
+  const displayedComponent =
+    activeComponent || componentTools.find((c) => c.id === lastComponentTool) || componentTools[0];
+  const ComponentIcon = isComponentActive ? displayedComponent.icon : Shapes;
+
+  const activeCompShortcutKey = displayedComponent ? WB_SHORTCUT_IDS[displayedComponent.id] || "" : "";
+  const activeCompShortcut =
+    (activeCompShortcutKey ? getShortcut(activeCompShortcutKey) : "") || displayedComponent.shortcut;
+  const activeCompBadge = isComponentActive ? formatBadgeShortcut(activeCompShortcut) : "";
 
   // Floating orientation state (preserves vertical when dragged from left/right)
   const [floatingOrientation, setFloatingOrientation] = useState<"horizontal" | "vertical">(() => {
@@ -159,14 +217,17 @@ export function Toolbar({
       if (dockMenuRef.current && !dockMenuRef.current.contains(event.target as Node)) {
         setIsDockMenuOpen(false);
       }
+      if (componentMenuRef.current && !componentMenuRef.current.contains(event.target as Node)) {
+        setIsComponentMenuOpen(false);
+      }
     }
-    if (isDockMenuOpen) {
+    if (isDockMenuOpen || isComponentMenuOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isDockMenuOpen]);
+  }, [isDockMenuOpen, isComponentMenuOpen]);
 
   const handlePointerDownGrip = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
@@ -329,11 +390,12 @@ export function Toolbar({
 
         <div className="tool-rail-divider" aria-hidden="true" />
 
-        {/* Main Drawing Tools */}
-        {tools.map(({ id, label, shortcut, icon: Icon }) => {
+        {/* Drawing Primitives: Select, Pan, Pen, Rectangle, Ellipse, Diamond, Line, Arrow */}
+        {primaryTools.slice(0, 8).map(({ id, label, shortcut, icon: Icon }) => {
           const isActive = activeTool === id;
           const shortcutKey = (mode === "document" && DOC_SHORTCUT_IDS[id] ? DOC_SHORTCUT_IDS[id] : WB_SHORTCUT_IDS[id]) || "";
           const currentShortcut = (shortcutKey ? getShortcut(shortcutKey) : "") || shortcut;
+          const badge = formatBadgeShortcut(currentShortcut);
           return (
             <button
               key={id}
@@ -342,12 +404,126 @@ export function Toolbar({
               data-active={isActive}
               aria-label={`${label} tool (${currentShortcut})`}
               aria-pressed={isActive}
-              onClick={() => onToolChange(id)}
+              onClick={() => {
+                onToolChange(id);
+                setIsComponentMenuOpen(false);
+              }}
             >
               <Icon aria-hidden="true" size={17} strokeWidth={isActive ? 2.2 : 1.8} />
-              <span className="tool-shortcut-badge" aria-hidden="true">
-                {currentShortcut}
+              {badge ? (
+                <span className="tool-shortcut-badge" aria-hidden="true">
+                  {badge}
+                </span>
+              ) : null}
+              <span className="tool-tooltip">
+                {label} ({currentShortcut})
               </span>
+            </button>
+          );
+        })}
+
+        {/* Components & Architecture Elements Dropdown (ERD Table, Code, Device Mockup, Card, Icon) */}
+        {mode === "whiteboard" && (
+          <div className="component-picker-container" ref={componentMenuRef}>
+            <button
+              type="button"
+              className="tool-button component-picker-btn"
+              data-active={isComponentActive}
+              aria-label={
+                isComponentActive
+                  ? `${displayedComponent.label} (${activeCompShortcut}) · Components Menu`
+                  : "Insert Components (Table, Code, Frame, Card, Icon)"
+              }
+              aria-expanded={isComponentMenuOpen}
+              aria-haspopup="true"
+              onClick={() => {
+                setIsComponentMenuOpen((prev) => !prev);
+                setIsDockMenuOpen(false);
+              }}
+            >
+              <ComponentIcon
+                aria-hidden="true"
+                size={17}
+                strokeWidth={isComponentActive ? 2.2 : 1.8}
+              />
+              {activeCompBadge ? (
+                <span className="tool-shortcut-badge" aria-hidden="true">
+                  {activeCompBadge}
+                </span>
+              ) : null}
+              <span className="tool-tooltip">
+                {isComponentActive
+                  ? `${displayedComponent.label} (${activeCompShortcut}) · Switch Component`
+                  : "Insert Components (Table, Code, Frame, Card, Icon)"}
+              </span>
+            </button>
+
+            {isComponentMenuOpen ? (
+              <div className="component-popover" role="menu" aria-label="Components and Elements">
+                <div className="component-popover-header">
+                  <span className="component-popover-title">Components & Elements</span>
+                  <span className="component-popover-subtitle">Insert schemas, mockups & system elements</span>
+                </div>
+                <div className="component-options-list">
+                  {componentTools.map((comp) => {
+                    const isSelected = activeTool === comp.id;
+                    const shortcutKey = WB_SHORTCUT_IDS[comp.id] || "";
+                    const currentShortcut = (shortcutKey ? getShortcut(shortcutKey) : "") || comp.shortcut;
+                    const CompIcon = comp.icon;
+                    return (
+                      <button
+                        key={comp.id}
+                        type="button"
+                        className="component-option-btn"
+                        data-active={isSelected}
+                        role="menuitem"
+                        onClick={() => {
+                          onToolChange(comp.id);
+                          setIsComponentMenuOpen(false);
+                        }}
+                      >
+                        <div className="component-option-icon">
+                          <CompIcon size={16} strokeWidth={isSelected ? 2.2 : 1.8} />
+                        </div>
+                        <div className="component-option-info">
+                          <div className="component-option-name">{comp.label}</div>
+                          <div className="component-option-desc">{comp.description}</div>
+                        </div>
+                        <kbd className="component-option-shortcut">{currentShortcut}</kbd>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {/* Annotations & Cleanup: Text, Sticky Note, Eraser */}
+        {primaryTools.slice(8).map(({ id, label, shortcut, icon: Icon }) => {
+          const isActive = activeTool === id;
+          const shortcutKey = (mode === "document" && DOC_SHORTCUT_IDS[id] ? DOC_SHORTCUT_IDS[id] : WB_SHORTCUT_IDS[id]) || "";
+          const currentShortcut = (shortcutKey ? getShortcut(shortcutKey) : "") || shortcut;
+          const badge = formatBadgeShortcut(currentShortcut);
+          return (
+            <button
+              key={id}
+              type="button"
+              className="tool-button"
+              data-active={isActive}
+              aria-label={`${label} tool (${currentShortcut})`}
+              aria-pressed={isActive}
+              onClick={() => {
+                onToolChange(id);
+                setIsComponentMenuOpen(false);
+              }}
+            >
+              <Icon aria-hidden="true" size={17} strokeWidth={isActive ? 2.2 : 1.8} />
+              {badge ? (
+                <span className="tool-shortcut-badge" aria-hidden="true">
+                  {badge}
+                </span>
+              ) : null}
               <span className="tool-tooltip">
                 {label} ({currentShortcut})
               </span>
@@ -364,7 +540,10 @@ export function Toolbar({
             className="dock-changer-btn"
             aria-label="Change toolbar dock position"
             aria-expanded={isDockMenuOpen}
-            onClick={() => setIsDockMenuOpen((prev) => !prev)}
+            onClick={() => {
+              setIsDockMenuOpen((prev) => !prev);
+              setIsComponentMenuOpen(false);
+            }}
           >
             <LayoutGrid size={16} strokeWidth={1.8} />
             <span className="tool-tooltip">Dock position</span>

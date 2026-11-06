@@ -23,11 +23,14 @@ import {
   Check,
   Copy,
   Mail,
+  SquarePen,
 } from "lucide-react";
 import { useShortcuts } from "../contexts/ShortcutsContext";
 import { distanceToSegment } from "../lib/collision";
 import { apiCreateRoom, apiSaveRoomContent, apiGetRoom } from "../lib/api";
 import { StompClient, CollabOp } from "../collab/StompClient";
+import { OverlayScratchpad } from "./OverlayScratchpad";
+import { PENCIL_CURSOR, ERASER_CURSOR } from "../lib/cursors";
 
 // ---- types ----
 export type OverlayTool = "pen" | "highlighter" | "arrow" | "rect" | "circle" | "line" | "eraser";
@@ -156,44 +159,44 @@ function canvasElementToStroke(el: any): Stroke {
       size,
       points: [
         { x: el.x || 0, y: el.y || 0, pressure: 0.5 },
-        { x: (el.x || 0) + (el.width || 100), y: (el.y || 0) + (el.height || 100), pressure: 0.5 },
+        { x: (el.x || 0) + (el.width || 0), y: (el.y || 0) + (el.height || 0), pressure: 0.5 },
       ],
     };
   }
 
   if (tool === "arrow" || tool === "line") {
-    const pts = el.points || [{ x: 0, y: 0 }, { x: 100, y: 100 }];
+    const pts = el.points || [{ x: 0, y: 0 }, { x: 50, y: 50 }];
     return {
       id: el.id,
       tool,
       color,
       size,
-      points: pts.map((p: any) => ({ x: (el.x || 0) + (p.x || 0), y: (el.y || 0) + (p.y || 0), pressure: 0.5 })),
+      points: [
+        { x: (el.x || 0) + pts[0].x, y: (el.y || 0) + pts[0].y, pressure: 0.5 },
+        { x: (el.x || 0) + pts[pts.length - 1].x, y: (el.y || 0) + pts[pts.length - 1].y, pressure: 0.5 },
+      ],
     };
   }
 
   return {
     id: el.id,
-    tool: "pen",
+    tool,
     color,
     size,
     points: (el.points || []).map((p: any) => ({
-      x: (el.x || 0) + (p.x || 0),
-      y: (el.y || 0) + (p.y || 0),
+      x: (el.x || 0) + p.x,
+      y: (el.y || 0) + p.y,
       pressure: p.pressure || 0.5,
     })),
   };
 }
 
 function renderStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
-  if (stroke.points.length === 0) return;
-
   ctx.save();
 
   if (stroke.tool === "highlighter") {
-    if (stroke.points.length < 2) return;
     const outlinePoints = getStroke(stroke.points, {
-      size: stroke.size * 3.5,
+      size: stroke.size * 2.8,
       thinning: 0,
       smoothing: 0.6,
       streamline: 0.5,
@@ -208,7 +211,10 @@ function renderStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   }
 
   if (stroke.tool === "arrow") {
-    if (stroke.points.length < 2) return;
+    if (stroke.points.length < 2) {
+      ctx.restore();
+      return;
+    }
     const start = stroke.points[0];
     const end = stroke.points[stroke.points.length - 1];
 
@@ -319,6 +325,8 @@ export function OverlayCanvas() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [bgMode, setBgMode] = useState<BackgroundMode>("transparent");
   const [isClickThrough, setIsClickThrough] = useState(false);
+  const [isPadOpen, setIsPadOpen] = useState<boolean>(false);
+  const [padBounds, setPadBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   // Orientation: horizontal or vertical
   const [orientation, setOrientation] = useState<"horizontal" | "vertical">(() => {
@@ -360,6 +368,13 @@ export function OverlayCanvas() {
       localStorage.setItem("graffiti:overlay_pos", JSON.stringify(pos));
     } catch {}
   }, [pos]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("graffiti:overlay_pad_open", String(isPadOpen));
+    } catch {}
+  }, [isPadOpen]);
+
   const [isDragging, setIsDragging] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
@@ -486,26 +501,33 @@ export function OverlayCanvas() {
     return () => window.removeEventListener("resize", resize);
   }, [strokes, redraw]);
 
-  // Synchronize toolbar bounding box with Tauri Rust backend
+  // Synchronize toolbar & scratchpad bounding boxes with Tauri Rust backend
   const syncToolbarBounds = useCallback(() => {
     if (!toolbarRef.current) return;
     const rect = toolbarRef.current.getBoundingClientRect();
+    const toolbarBounds = {
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+    const regions = [toolbarBounds];
+    if (isPadOpen && padBounds) {
+      regions.push(padBounds);
+    }
+
     invoke("set_overlay_toolbar_bounds", {
-      bounds: {
-        x: rect.left,
-        y: rect.top,
-        width: rect.width,
-        height: rect.height,
-      },
+      bounds: toolbarBounds,
+      regions,
       clickThrough: isClickThrough,
     }).catch(() => {});
-  }, [isClickThrough]);
+  }, [isClickThrough, isPadOpen, padBounds]);
 
   useEffect(() => {
     syncToolbarBounds();
     const timer = setTimeout(syncToolbarBounds, 80);
     return () => clearTimeout(timer);
-  }, [pos, orientation, isClickThrough, syncToolbarBounds]);
+  }, [pos, orientation, isClickThrough, isPadOpen, padBounds, syncToolbarBounds]);
 
   // Close overlay
   const closeOverlay = useCallback(() => {
@@ -525,29 +547,28 @@ export function OverlayCanvas() {
   const handleOverlayShare = useCallback(async () => {
     let slug = overlayRoomSlug;
     if (!slug) {
+      slug = "overlay_" + Math.random().toString(36).substring(2, 8);
+      setOverlayRoomSlug(slug);
       try {
-        const snapshotState = {
-          strokes,
-        };
-        const room = await apiCreateRoom({ name: "Desktop Overlay", snapshotState });
-        slug = room.slug;
-        setOverlayRoomSlug(slug);
-        try {
-          localStorage.setItem("graffiti:current_room_slug", slug);
-        } catch {}
-        await apiSaveRoomContent(slug, {
-          name: "Desktop Overlay",
-          snapshotState,
-        }).catch(() => {});
-      } catch {
-        slug = "main";
-      }
+        localStorage.setItem("graffiti:current_room_slug", slug);
+      } catch {}
+      apiCreateRoom({ name: "Desktop Overlay", snapshotState: { strokes } })
+        .then((room) => {
+          if (room?.slug) {
+            setOverlayRoomSlug(room.slug);
+            try {
+              localStorage.setItem("graffiti:current_room_slug", room.slug);
+            } catch {}
+          }
+        })
+        .catch(() => {});
     } else {
       apiSaveRoomContent(slug, {
         name: "Desktop Overlay",
         snapshotState: { strokes },
       }).catch(() => {});
     }
+
     const origin =
       import.meta.env.VITE_PUBLIC_URL ||
       (typeof window !== "undefined" && window.location.hostname.includes("ankitarsh.me")
@@ -560,7 +581,7 @@ export function OverlayCanvas() {
     } catch {}
 
     setCopiedShare(true);
-    setShareToast("Invite link copied to clipboard!");
+    setShareToast("Live room link copied to clipboard!");
     setIsClickThrough(false);
     setShowShareModal(true);
     setTimeout(() => setShareToast(null), 3000);
@@ -687,6 +708,89 @@ export function OverlayCanvas() {
     invoke("close_overlay_window").catch(() => {});
   }, [strokes]);
 
+  // Pull up full Whiteboard integration: send dedicated pad drawings to Whiteboard canvas
+  const handlePadSendToWhiteboard = useCallback((padStrokes: Stroke[]) => {
+    if (padStrokes.length > 0) {
+      const converted = padStrokes.map((s, idx) => {
+        const elId = `imported_pad_${Date.now()}_${idx}`;
+        if (s.tool === "pen" || s.tool === "highlighter") {
+          return {
+            id: elId,
+            type: "pen",
+            x: 0,
+            y: 0,
+            points: s.points.map((p) => ({ x: p.x, y: p.y })),
+            strokeColor: s.color,
+            strokeWidth: s.size,
+            opacity: s.tool === "highlighter" ? 35 : 100,
+            roundness: "sharp",
+          };
+        }
+        if (s.tool === "rect") {
+          const p0 = s.points[0];
+          const p1 = s.points[s.points.length - 1];
+          return {
+            id: elId,
+            type: "rectangle",
+            x: Math.min(p0.x, p1.x),
+            y: Math.min(p0.y, p1.y),
+            width: Math.abs(p1.x - p0.x),
+            height: Math.abs(p1.y - p0.y),
+            strokeColor: s.color,
+            strokeWidth: s.size,
+            fillColor: "transparent",
+            opacity: 100,
+          };
+        }
+        if (s.tool === "circle") {
+          const p0 = s.points[0];
+          const p1 = s.points[s.points.length - 1];
+          return {
+            id: elId,
+            type: "ellipse",
+            x: Math.min(p0.x, p1.x),
+            y: Math.min(p0.y, p1.y),
+            width: Math.abs(p1.x - p0.x),
+            height: Math.abs(p1.y - p0.y),
+            strokeColor: s.color,
+            strokeWidth: s.size,
+            fillColor: "transparent",
+            opacity: 100,
+          };
+        }
+        const p0 = s.points[0];
+        const p1 = s.points[s.points.length - 1];
+        return {
+          id: elId,
+          type: s.tool === "arrow" ? "arrow" : "line",
+          x: p0.x,
+          y: p0.y,
+          points: [
+            { x: 0, y: 0 },
+            { x: p1.x - p0.x, y: p1.y - p0.y },
+          ],
+          strokeColor: s.color,
+          strokeWidth: s.size,
+          opacity: 100,
+        };
+      });
+
+      try {
+        localStorage.setItem("graffiti:overlay_imported_elements", JSON.stringify(converted));
+      } catch {}
+    }
+
+    invoke("focus_main_window").catch(() => {});
+    invoke("close_overlay_window").catch(() => {});
+  }, []);
+
+  const handlePadBoundsChange = useCallback(
+    (bounds: { x: number; y: number; width: number; height: number } | null) => {
+      setPadBounds(bounds);
+    },
+    []
+  );
+
   // Cycle background mode
   const cycleBgMode = useCallback(() => {
     setBgMode((prev) => {
@@ -755,6 +859,8 @@ export function OverlayCanvas() {
         cycleBgMode();
       } else if (e.key.toLowerCase() === "o") {
         setOrientation((prev) => (prev === "horizontal" ? "vertical" : "horizontal"));
+      } else if (matchesShortcut(e, shortcuts.ov_pad?.key) || e.key.toLowerCase() === "n") {
+        setIsPadOpen((prev) => !prev);
       } else if (matchesShortcut(e, shortcuts.ov_undo?.key) || (e.key.toLowerCase() === "z" && (e.ctrlKey || e.metaKey))) {
         e.preventDefault();
         undo();
@@ -932,6 +1038,7 @@ export function OverlayCanvas() {
   };
 
   const isVertical = orientation === "vertical";
+  const tooltipPlacement = isVertical ? "right" : pos.y <= 65 ? "bottom" : "top";
 
   // Shortcuts labels
   const penKey = getShortcut("ov_pen") || "P";
@@ -960,7 +1067,7 @@ export function OverlayCanvas() {
         style={{
           position: "absolute",
           inset: 0,
-          cursor: isClickThrough ? "default" : activeTool === "eraser" ? "cell" : "crosshair",
+          cursor: isClickThrough ? "default" : activeTool === "eraser" ? ERASER_CURSOR : PENCIL_CURSOR,
           pointerEvents: isClickThrough ? "none" : "auto",
           touchAction: "none",
         }}
@@ -1008,36 +1115,40 @@ export function OverlayCanvas() {
         </div>
 
         {/* Click-through toggle */}
-        <button
-          type="button"
-          onClick={() => setIsClickThrough((prev) => !prev)}
-          title={isClickThrough ? `Interact Mode (Clicking apps underneath) - Toggle (${toggleKey})` : `Draw Mode active - Click to pass-through (${toggleKey})`}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-            padding: "6px 10px",
-            borderRadius: 14,
-            border: "none",
-            cursor: "pointer",
-            background: isClickThrough ? "var(--accent-primary)" : "rgba(255, 255, 255, 0.12)",
-            color: isClickThrough ? "var(--accent-text)" : "#ffffff",
-            fontSize: 11,
-            fontWeight: 700,
-            transition: "all 150ms ease",
-            position: "relative",
-          }}
-        >
-          <MousePointer size={13} />
-          {!isVertical && <span>{isClickThrough ? "Click-Through" : "Draw"}</span>}
-          <span style={{ fontSize: 8.5, opacity: 0.75, marginLeft: 2, background: "rgba(0,0,0,0.3)", padding: "1px 4px", borderRadius: 4 }}>
-            {toggleKey}
+        <div className="overlay-tooltip-container" data-placement={tooltipPlacement}>
+          <button
+            type="button"
+            onClick={() => setIsClickThrough((prev) => !prev)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "6px 10px",
+              borderRadius: 14,
+              border: "none",
+              cursor: "pointer",
+              background: isClickThrough ? "var(--accent-primary)" : "rgba(255, 255, 255, 0.12)",
+              color: isClickThrough ? "var(--accent-text)" : "#ffffff",
+              fontSize: 11,
+              fontWeight: 700,
+              transition: "all 150ms ease",
+              position: "relative",
+            }}
+          >
+            <MousePointer size={13} />
+            {!isVertical && <span>{isClickThrough ? "Click-Through" : "Draw"}</span>}
+            <span style={{ fontSize: 8.5, opacity: 0.75, marginLeft: 2, background: "rgba(0,0,0,0.3)", padding: "1px 4px", borderRadius: 4 }}>
+              {toggleKey}
+            </span>
+          </button>
+          <span className="overlay-tooltip">
+            {isClickThrough ? `Click-Through Mode (${toggleKey})` : `Draw Mode active (${toggleKey})`}
           </span>
-        </button>
+        </div>
 
         <div style={{ width: isVertical ? "80%" : 1, height: isVertical ? 1 : 20, background: "rgba(255,255,255,0.15)", margin: "1px 2px" }} />
 
-        {/* Tool buttons with small shortcut badges */}
+        {/* Tool buttons with small shortcut badges and instant hover tooltips */}
         {([
           { id: "pen" as OverlayTool, label: "Pen", shortcut: penKey, icon: <Pen size={14} /> },
           { id: "highlighter" as OverlayTool, label: "Highlighter", shortcut: hlKey, icon: <Highlighter size={14} /> },
@@ -1047,46 +1158,49 @@ export function OverlayCanvas() {
           { id: "line" as OverlayTool, label: "Line", shortcut: lineKey, icon: <Minus size={14} /> },
           { id: "eraser" as OverlayTool, label: "Eraser", shortcut: eraserKey, icon: <Eraser size={14} /> },
         ]).map(({ id, label, shortcut, icon }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => {
-              setActiveTool(id);
-              setIsClickThrough(false);
-            }}
-            title={`${label} (${shortcut}) - Entire stroke object`}
-            style={{
-              width: 32,
-              height: 32,
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 8,
-              border: "none",
-              cursor: "pointer",
-              background: activeTool === id && !isClickThrough ? "rgba(255, 255, 255, 0.22)" : "transparent",
-              color: activeTool === id && !isClickThrough ? "#ffffff" : "rgba(255, 255, 255, 0.65)",
-              transition: "all 120ms ease",
-            }}
-          >
-            {icon}
-            <span
+          <div key={id} className="overlay-tooltip-container" data-placement={tooltipPlacement}>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTool(id);
+                setIsClickThrough(false);
+              }}
               style={{
-                position: "absolute",
-                bottom: 2,
-                right: 3,
-                fontSize: 8,
-                fontWeight: 800,
-                lineHeight: 1,
-                opacity: 0.7,
-                pointerEvents: "none",
-                color: activeTool === id ? "#ffffff" : "rgba(255, 255, 255, 0.5)",
+                width: 32,
+                height: 32,
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 8,
+                border: "none",
+                cursor: "pointer",
+                background: activeTool === id && !isClickThrough ? "rgba(255, 255, 255, 0.22)" : "transparent",
+                color: activeTool === id && !isClickThrough ? "#ffffff" : "rgba(255, 255, 255, 0.65)",
+                transition: "all 120ms ease",
               }}
             >
-              {shortcut}
+              {icon}
+              <span
+                style={{
+                  position: "absolute",
+                  bottom: 2,
+                  right: 3,
+                  fontSize: 8,
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  opacity: 0.7,
+                  pointerEvents: "none",
+                  color: activeTool === id ? "#ffffff" : "rgba(255, 255, 255, 0.5)",
+                }}
+              >
+                {shortcut}
+              </span>
+            </button>
+            <span className="overlay-tooltip">
+              {label} ({shortcut})
             </span>
-          </button>
+          </div>
         ))}
 
         <div style={{ width: isVertical ? "80%" : 1, height: isVertical ? 1 : 20, background: "rgba(255,255,255,0.15)", margin: "1px 2px" }} />
@@ -1094,27 +1208,28 @@ export function OverlayCanvas() {
         {/* Color swatches */}
         <div style={{ display: "flex", flexDirection: isVertical ? "column" : "row", gap: 4 }}>
           {COLOR_PRESETS.slice(0, 5).map(({ label, value }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => {
-                if (activeTool === "eraser") setActiveTool("pen");
-                setActiveColor(value);
-                setIsClickThrough(false);
-              }}
-              title={label}
-              style={{
-                width: 16,
-                height: 16,
-                borderRadius: "50%",
-                border: activeColor === value ? "2px solid #ffffff" : "1.5px solid rgba(255,255,255,0.25)",
-                background: value,
-                cursor: "pointer",
-                flexShrink: 0,
-                boxShadow: activeColor === value ? "0 0 0 2px rgba(255,255,255,0.6)" : "none",
-                transition: "all 120ms ease",
-              }}
-            />
+            <div key={value} className="overlay-tooltip-container" data-placement={tooltipPlacement}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeTool === "eraser") setActiveTool("pen");
+                  setActiveColor(value);
+                  setIsClickThrough(false);
+                }}
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: "50%",
+                  border: activeColor === value ? "2px solid #ffffff" : "1.5px solid rgba(255,255,255,0.25)",
+                  background: value,
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  boxShadow: activeColor === value ? "0 0 0 2px rgba(255,255,255,0.6)" : "none",
+                  transition: "all 120ms ease",
+                }}
+              />
+              <span className="overlay-tooltip">{label}</span>
+            </div>
           ))}
         </div>
 
@@ -1122,175 +1237,219 @@ export function OverlayCanvas() {
 
         {/* Size controls */}
         <div style={{ display: "flex", flexDirection: isVertical ? "column" : "row", alignItems: "center", gap: 2 }}>
-          <button
-            type="button"
-            onClick={() => setStrokeSize((s) => Math.max(2, s - 2))}
-            title="Thinner"
-            style={{ width: 22, height: 22, borderRadius: 5, border: "none", cursor: "pointer", background: "transparent", color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}
-          >
-            <Minus size={11} />
-          </button>
+          <div className="overlay-tooltip-container" data-placement={tooltipPlacement}>
+            <button
+              type="button"
+              onClick={() => setStrokeSize((s) => Math.max(2, s - 2))}
+              style={{ width: 22, height: 22, borderRadius: 5, border: "none", cursor: "pointer", background: "transparent", color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <Minus size={11} />
+            </button>
+            <span className="overlay-tooltip">Thinner</span>
+          </div>
           <div style={{ width: 14, height: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Circle size={Math.min(12, Math.max(5, strokeSize * 1.3))} fill={activeColor} color={activeColor} />
           </div>
-          <button
-            type="button"
-            onClick={() => setStrokeSize((s) => Math.min(24, s + 2))}
-            title="Thicker"
-            style={{ width: 22, height: 22, borderRadius: 5, border: "none", cursor: "pointer", background: "transparent", color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}
-          >
-            <Plus size={11} />
-          </button>
+          <div className="overlay-tooltip-container" data-placement={tooltipPlacement}>
+            <button
+              type="button"
+              onClick={() => setStrokeSize((s) => Math.min(24, s + 2))}
+              style={{ width: 22, height: 22, borderRadius: 5, border: "none", cursor: "pointer", background: "transparent", color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <Plus size={11} />
+            </button>
+            <span className="overlay-tooltip">Thicker</span>
+          </div>
         </div>
 
         <div style={{ width: isVertical ? "80%" : 1, height: isVertical ? 1 : 20, background: "rgba(255,255,255,0.15)", margin: "1px 2px" }} />
 
         {/* Backdrop Switcher (Transparent / Dim / Whiteboard / Blackboard) */}
-        <button
-          type="button"
-          onClick={cycleBgMode}
-          title={`Backdrop: ${bgMode.toUpperCase()} (B) - Click to cycle: Transparent -> Dim -> Whiteboard -> Blackboard`}
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 7,
-            border: "none",
-            cursor: "pointer",
-            background: bgMode !== "transparent" ? "var(--accent-subtle)" : "transparent",
-            color: bgMode !== "transparent" ? "var(--accent-primary)" : "rgba(255, 255, 255, 0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            position: "relative",
-          }}
-        >
-          <Layers size={13} />
-          <span style={{ position: "absolute", bottom: 1, right: 2, fontSize: 7, opacity: 0.7, fontWeight: 700 }}>B</span>
-        </button>
+        <div className="overlay-tooltip-container" data-placement={tooltipPlacement}>
+          <button
+            type="button"
+            onClick={cycleBgMode}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              border: "none",
+              cursor: "pointer",
+              background: bgMode !== "transparent" ? "var(--accent-subtle)" : "transparent",
+              color: bgMode !== "transparent" ? "var(--accent-primary)" : "rgba(255, 255, 255, 0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+            }}
+          >
+            <Layers size={13} />
+            <span style={{ position: "absolute", bottom: 1, right: 2, fontSize: 7, opacity: 0.7, fontWeight: 700 }}>B</span>
+          </button>
+          <span className="overlay-tooltip">Backdrop: {bgMode.toUpperCase()} (B)</span>
+        </div>
+
+        {/* Dedicated Canvas Pad (Resizable / Draggable / Collapsible White/Black Scratchpad) */}
+        <div className="overlay-tooltip-container" data-placement={tooltipPlacement}>
+          <button
+            type="button"
+            onClick={() => setIsPadOpen((prev) => !prev)}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              border: "none",
+              cursor: "pointer",
+              background: isPadOpen ? "var(--accent-primary, #d4a359)" : "transparent",
+              color: isPadOpen ? "#09090b" : "rgba(255, 255, 255, 0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+              fontWeight: 700,
+            }}
+          >
+            <SquarePen size={13} />
+            <span style={{ position: "absolute", bottom: 1, right: 2, fontSize: 7, opacity: 0.7, fontWeight: 700 }}>N</span>
+          </button>
+          <span className="overlay-tooltip">Canvas Pad ({getShortcut("ov_pad") || "N"})</span>
+        </div>
 
         {/* Send to Whiteboard / Pull up full canvas */}
-        <button
-          type="button"
-          onClick={handleSendToWhiteboard}
-          title="Open in Whiteboard Canvas / Collaborate (Transfers screen drawings)"
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 7,
-            border: "none",
-            cursor: "pointer",
-            background: "rgba(34, 197, 94, 0.2)",
-            color: "#22c55e",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            position: "relative",
-          }}
-        >
-          <LayoutDashboard size={13} />
-        </button>
+        <div className="overlay-tooltip-container" data-placement={tooltipPlacement}>
+          <button
+            type="button"
+            onClick={handleSendToWhiteboard}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              border: "none",
+              cursor: "pointer",
+              background: "rgba(34, 197, 94, 0.2)",
+              color: "#22c55e",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+            }}
+          >
+            <LayoutDashboard size={13} />
+          </button>
+          <span className="overlay-tooltip">Open in Whiteboard Canvas</span>
+        </div>
 
-        {/* Share Room / Invite */}
-        <button
-          type="button"
-          onClick={handleOverlayShare}
-          title={overlayRoomSlug ? `Live room: ${overlayRoomSlug} (${isCollabConnected ? "Connected" : "Reconnecting..."})` : "Share Room & Invite Collaborators"}
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 7,
-            border: isCollabConnected ? "1px solid rgba(34, 197, 94, 0.5)" : "none",
-            cursor: "pointer",
-            background: isCollabConnected ? "rgba(34, 197, 94, 0.2)" : "rgba(212, 163, 89, 0.2)",
-            color: isCollabConnected ? "#22c55e" : "var(--accent-primary, #d4a359)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            position: "relative",
-          }}
-        >
-          <Share2 size={13} />
-          {isCollabConnected && (
-            <span
-              style={{
-                position: "absolute",
-                top: 2,
-                right: 2,
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: "#22c55e",
-                boxShadow: "0 0 6px #22c55e",
-              }}
-            />
-          )}
-        </button>
+        {/* Share Room / Live Collaborate */}
+        <div className="overlay-tooltip-container" data-placement={tooltipPlacement}>
+          <button
+            type="button"
+            onClick={handleOverlayShare}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              border: isCollabConnected ? "1px solid rgba(34, 197, 94, 0.5)" : "none",
+              cursor: "pointer",
+              background: isCollabConnected ? "rgba(34, 197, 94, 0.2)" : "rgba(212, 163, 89, 0.2)",
+              color: isCollabConnected ? "#22c55e" : "var(--accent-primary, #d4a359)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+            }}
+          >
+            <Share2 size={13} />
+            {isCollabConnected && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: 2,
+                  right: 2,
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "#22c55e",
+                  boxShadow: "0 0 6px #22c55e",
+                }}
+              />
+            )}
+          </button>
+          <span className="overlay-tooltip">Share Room & Live Collaborate</span>
+        </div>
 
         {/* Orientation Switcher */}
-        <button
-          type="button"
-          onClick={() => setOrientation((prev) => (prev === "horizontal" ? "vertical" : "horizontal"))}
-          title={isVertical ? "Switch to Horizontal layout (O)" : "Switch to Vertical layout (O)"}
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 7,
-            border: "none",
-            cursor: "pointer",
-            background: "transparent",
-            color: "rgba(255, 255, 255, 0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            position: "relative",
-          }}
-        >
-          <RotateCw size={13} />
-          <span style={{ position: "absolute", bottom: 1, right: 2, fontSize: 7, opacity: 0.6, fontWeight: 700 }}>O</span>
-        </button>
+        <div className="overlay-tooltip-container" data-placement={tooltipPlacement}>
+          <button
+            type="button"
+            onClick={() => setOrientation((prev) => (prev === "horizontal" ? "vertical" : "horizontal"))}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              border: "none",
+              cursor: "pointer",
+              background: "transparent",
+              color: "rgba(255, 255, 255, 0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+            }}
+          >
+            <RotateCw size={13} />
+            <span style={{ position: "absolute", bottom: 1, right: 2, fontSize: 7, opacity: 0.6, fontWeight: 700 }}>O</span>
+          </button>
+          <span className="overlay-tooltip">Switch Orientation (O)</span>
+        </div>
 
         {/* Undo */}
-        <button
-          type="button"
-          onClick={undo}
-          title="Undo stroke (Ctrl+Z)"
-          style={{ width: 28, height: 28, borderRadius: 7, border: "none", cursor: "pointer", background: "transparent", color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}
-        >
-          <Undo2 size={13} />
-        </button>
+        <div className="overlay-tooltip-container" data-placement={tooltipPlacement}>
+          <button
+            type="button"
+            onClick={undo}
+            style={{ width: 28, height: 28, borderRadius: 7, border: "none", cursor: "pointer", background: "transparent", color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <Undo2 size={13} />
+          </button>
+          <span className="overlay-tooltip">Undo Stroke (Ctrl+Z)</span>
+        </div>
 
         {/* Clear All */}
-        <button
-          type="button"
-          onClick={clearAll}
-          title="Clear screen annotations"
-          style={{ width: 28, height: 28, borderRadius: 7, border: "none", cursor: "pointer", background: "transparent", color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}
-        >
-          <Trash2 size={13} />
-        </button>
+        <div className="overlay-tooltip-container" data-placement={tooltipPlacement}>
+          <button
+            type="button"
+            onClick={clearAll}
+            style={{ width: 28, height: 28, borderRadius: 7, border: "none", cursor: "pointer", background: "transparent", color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <Trash2 size={13} />
+          </button>
+          <span className="overlay-tooltip">Clear Screen Annotations</span>
+        </div>
 
         {/* Close Button */}
-        <button
-          type="button"
-          onClick={closeOverlay}
-          title="Close overlay (Esc)"
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 7,
-            border: "none",
-            cursor: "pointer",
-            background: "rgba(239, 68, 68, 0.2)",
-            color: "#ef4444",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            position: "relative",
-          }}
-        >
-          <X size={13} />
-          <span style={{ position: "absolute", bottom: 1, right: 2, fontSize: 7, opacity: 0.8, fontWeight: 700 }}>Esc</span>
-        </button>
+        <div className="overlay-tooltip-container" data-placement={tooltipPlacement}>
+          <button
+            type="button"
+            onClick={closeOverlay}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              border: "none",
+              cursor: "pointer",
+              background: "rgba(239, 68, 68, 0.2)",
+              color: "#ef4444",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+            }}
+          >
+            <X size={13} />
+            <span style={{ position: "absolute", bottom: 1, right: 2, fontSize: 7, opacity: 0.8, fontWeight: 700 }}>Esc</span>
+          </button>
+          <span className="overlay-tooltip">Close Overlay (Esc)</span>
+        </div>
       </div>
 
       {/* Floating Feedback Toast */}
@@ -1469,6 +1628,17 @@ export function OverlayCanvas() {
           </div>
         </div>
       )}
+
+      {/* Dedicated Resizable & Collapsible White/Black Canvas Pad */}
+      <OverlayScratchpad
+        isOpen={isPadOpen}
+        onClose={() => setIsPadOpen(false)}
+        activeTool={activeTool}
+        activeColor={activeColor}
+        strokeSize={strokeSize}
+        onSendToWhiteboard={handlePadSendToWhiteboard}
+        onBoundsChange={handlePadBoundsChange}
+      />
     </div>
   );
 }

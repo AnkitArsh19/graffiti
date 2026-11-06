@@ -46,6 +46,8 @@ interface TopHeaderProps {
   roomSlug?: string | null;
   isPresenterMode?: boolean;
   onTogglePresenterMode?: () => void;
+  enableCircleQuery?: boolean;
+  onToggleCircleQuery?: () => void;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
@@ -66,6 +68,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   roomSlug,
   isPresenterMode = false,
   onTogglePresenterMode,
+  enableCircleQuery = false,
+  onToggleCircleQuery,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(whiteboardName);
@@ -266,6 +270,34 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 <p><strong>100% Offline:</strong> Canvas drawing, notebooks, templates, and local exports require no internet.</p>
                 <div className="ai-info-divider" />
                 <p><strong>AI Features (Groq Llama 3.3 70B & Local Engines):</strong> Mind-Map Auto-Layout, Flowchart-to-Code, Live Executive Briefing, AI Theme Morphing, Flow Simulator, and Voice-to-Canvas Storyboarding.</p>
+                {onToggleCircleQuery && (
+                  <>
+                    <div className="ai-info-divider" />
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                      <div>
+                        <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-primary)" }}>Circle to Ask AI</div>
+                        <div style={{ fontSize: 9.5, color: "var(--text-muted)" }}>Circle elements with pen to query AI</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={onToggleCircleQuery}
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: "3px 8px",
+                          borderRadius: 10,
+                          border: "1px solid var(--border-default)",
+                          cursor: "pointer",
+                          backgroundColor: enableCircleQuery ? "var(--accent-primary)" : "rgba(255, 255, 255, 0.08)",
+                          color: enableCircleQuery ? "#ffffff" : "var(--text-muted)",
+                          transition: "all 120ms ease",
+                        }}
+                      >
+                        {enableCircleQuery ? "ON" : "OFF"}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

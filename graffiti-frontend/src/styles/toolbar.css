@@ -128,6 +128,10 @@
   position: absolute;
   bottom: 2px;
   right: 3px;
+  max-width: 15px;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
   font-size: 8.5px;
   font-weight: 700;
   line-height: 1;
@@ -137,6 +141,7 @@
   user-select: none;
   font-family: inherit;
   transition: opacity 120ms ease, color 120ms ease;
+  text-align: right;
 }
 
 .tool-button:hover .tool-shortcut-badge,
@@ -374,6 +379,187 @@
   left: calc(100% + 10px);
   bottom: 0;
   top: auto;
+}
+
+/* ==========================================================================
+   Insert Components & Elements Popover (.component-popover)
+   ========================================================================== */
+
+.component-picker-container {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.component-popover {
+  position: absolute;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--bg-popover, #121216);
+  border: 1px solid var(--border-default, #27272a);
+  border-radius: 12px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35);
+  width: 255px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: fadeInDown 120ms ease;
+  user-select: none;
+}
+
+.component-popover-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 6px 6px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+.component-popover-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  letter-spacing: -0.01em;
+}
+
+.component-popover-subtitle {
+  font-size: 10px;
+  color: var(--text-muted, #71717a);
+}
+
+.component-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.component-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-secondary, #a1a1aa);
+  text-align: left;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.component-option-btn:hover {
+  background: var(--bg-subtle, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary, #ffffff);
+}
+
+.component-option-btn[data-active="true"] {
+  background: var(--accent-subtle, rgba(59, 130, 246, 0.15));
+  border-color: var(--accent-primary, #3b82f6);
+  color: var(--accent-primary, #3b82f6);
+}
+
+.component-option-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  transition: transform 120ms ease;
+}
+
+.component-option-btn:hover .component-option-icon {
+  transform: scale(1.06);
+}
+
+.component-option-btn[data-active="true"] .component-option-icon {
+  background: var(--accent-primary, #3b82f6);
+  color: #ffffff;
+}
+
+.component-option-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.component-option-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.component-option-desc {
+  font-size: 9.5px;
+  color: var(--text-muted, #71717a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.component-option-shortcut {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-muted, #a1a1aa);
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+
+.component-option-btn[data-active="true"] .component-option-shortcut {
+  background: var(--accent-subtle, rgba(59, 130, 246, 0.2));
+  border-color: var(--accent-primary, #3b82f6);
+  color: var(--accent-primary, #3b82f6);
+}
+
+/* Positioning of component-popover across dock positions */
+.tool-rail[data-dock="top"] .component-popover {
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.tool-rail[data-dock="bottom"] .component-popover {
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.tool-rail[data-dock="left"] .component-popover {
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.tool-rail[data-dock="right"] .component-popover {
+  right: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.tool-rail[data-dock="floating"] .component-popover {
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.tool-rail[data-dock="floating"][data-orientation="vertical"] .component-popover {
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 /* Snap Preview Indicators */

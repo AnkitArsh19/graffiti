@@ -19,6 +19,7 @@ import {
   Plus,
   Trash2,
   Wand2,
+  Sparkles,
 } from "lucide-react";
 import { ColorPickerPopover } from "./ColorPickerPopover";
 import type {
@@ -44,6 +45,8 @@ interface InspectorProps {
   isEditingText?: boolean;
   autoBeautify?: boolean;
   onToggleAutoBeautify?: () => void;
+  enableCircleQuery?: boolean;
+  onToggleCircleQuery?: () => void;
   onStyleChange: (style: ElementStyle) => void;
   onSelectedChange: (patch: Partial<CanvasElement>) => void;
   onDuplicateSelected?: () => void;
@@ -110,6 +113,8 @@ export function Inspector({
   isEditingText = false,
   autoBeautify = true,
   onToggleAutoBeautify,
+  enableCircleQuery = false,
+  onToggleCircleQuery,
   onStyleChange,
   onSelectedChange,
   onDuplicateSelected,
@@ -359,6 +364,64 @@ export function Inspector({
               <LayoutGrid size={14} />
               <span>Tidy Up Grid</span>
             </button>
+          </section>
+        )}
+
+        {/* Code Block Language Options */}
+        {selected?.type === "code" && (
+          <section className="inspector-section">
+            <span className="section-label">Code Language</span>
+            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "4px" }}>
+              {["typescript", "python", "javascript", "java", "sql", "rust", "html"].map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  style={{
+                    padding: "3px 8px",
+                    borderRadius: "4px",
+                    fontSize: "11px",
+                    fontFamily: "monospace",
+                    border: (selected.language || "typescript") === lang ? "1px solid var(--accent-primary, #d4a359)" : "1px solid var(--border-default)",
+                    background: (selected.language || "typescript") === lang ? "rgba(212, 163, 89, 0.2)" : "transparent",
+                    color: (selected.language || "typescript") === lang ? "var(--accent-primary, #d4a359)" : "var(--text-secondary)",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => onSelectedChange?.({ language: lang })}
+                >
+                  {lang}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Device Mockup Frame Options */}
+        {selected?.type === "deviceFrame" && (
+          <section className="inspector-section">
+            <span className="section-label">Device Type</span>
+            <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
+              {(["browser", "phone", "tablet"] as const).map((dev) => (
+                <button
+                  key={dev}
+                  type="button"
+                  style={{
+                    flex: 1,
+                    padding: "5px 8px",
+                    borderRadius: "6px",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    textTransform: "capitalize",
+                    border: (selected.deviceType || "browser") === dev ? "1px solid var(--accent-primary, #d4a359)" : "1px solid var(--border-default)",
+                    background: (selected.deviceType || "browser") === dev ? "rgba(212, 163, 89, 0.2)" : "transparent",
+                    color: (selected.deviceType || "browser") === dev ? "var(--accent-primary, #d4a359)" : "var(--text-secondary)",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => onSelectedChange?.({ deviceType: dev })}
+                >
+                  {dev}
+                </button>
+              ))}
+            </div>
           </section>
         )}
 
@@ -648,6 +711,51 @@ export function Inspector({
                 }}
               >
                 {autoBeautify ? "ON" : "OFF"}
+              </span>
+            </button>
+          </section>
+        )}
+
+        {/* Circle to Ask AI Gesture (Opt-In Only, Disabled by Default) */}
+        {isPenMode && onToggleCircleQuery && (
+          <section className="inspector-section">
+            <span className="section-label">AI Gestures</span>
+            <button
+              type="button"
+              className="inspector-action-btn"
+              onClick={onToggleCircleQuery}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+                padding: "6px 10px",
+                borderRadius: "6px",
+                border: "1px solid var(--border-subtle, rgba(255, 255, 255, 0.12))",
+                background: enableCircleQuery ? "rgba(139, 92, 246, 0.15)" : "rgba(255, 255, 255, 0.04)",
+                color: enableCircleQuery ? "#a855f7" : "var(--text-muted, #71717a)",
+                cursor: "pointer",
+                fontWeight: 500,
+                fontSize: "12px",
+                transition: "all 120ms ease",
+              }}
+              title="Circle elements on canvas with the pen to query, restyle, or transform them with AI (Default: OFF)"
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Sparkles size={13} />
+                <span>Circle to Ask AI</span>
+              </div>
+              <span
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  padding: "1px 6px",
+                  borderRadius: "8px",
+                  backgroundColor: enableCircleQuery ? "#8b5cf6" : "rgba(113, 113, 122, 0.25)",
+                  color: enableCircleQuery ? "#ffffff" : "var(--text-muted, #71717a)",
+                }}
+              >
+                {enableCircleQuery ? "ON" : "OFF"}
               </span>
             </button>
           </section>

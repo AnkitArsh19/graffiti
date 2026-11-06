@@ -19,7 +19,7 @@ from app.config import settings
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.2.0",
+    version="0.3.0",
     description="Graffiti Asynchronous AI/ML Service for intelligent whiteboard and canvas features."
 )
 

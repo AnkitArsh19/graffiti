@@ -42,6 +42,7 @@ import { beautifyStroke } from "../lib/beautifier";
 import { evaluateHandwrittenMathOnStroke } from "../lib/handwrittenMath";
 import { apiOcrExtract } from "../lib/api";
 import { evaluateMathExpression } from "../lib/mathEvaluator";
+import { PENCIL_CURSOR, ERASER_CURSOR } from "../lib/cursors";
 import { RotateCcw } from "lucide-react";
 import type { CursorInfo } from "../collab/useCollaboration";
 import type {
@@ -131,6 +132,7 @@ interface WhiteboardCanvasProps {
   }>;
   onStreamDraft?: (draft: CanvasElement | null) => void;
   autoBeautify?: boolean;
+  enableCircleQuery?: boolean;
   simulatedActiveNodeId?: string | null;
   onCircleGesture?: (
     bounds: { x: number; y: number; width: number; height: number },
@@ -232,6 +234,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       remoteDrafts = [],
       onStreamDraft,
       autoBeautify = true,
+      enableCircleQuery = false,
       simulatedActiveNodeId,
       onCircleGesture,
     },
@@ -1253,6 +1256,21 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           { key: "", name: "email", type: "VARCHAR" },
           { key: "", name: "created_at", type: "TIMESTAMP" },
         ];
+      } else if (activeTool === "code") {
+        nextDraft.width = 280;
+        nextDraft.height = 160;
+        nextDraft.language = "typescript";
+        nextDraft.text = "interface Config {\n  env: 'prod';\n  port: number;\n}\nexport const app = { port: 8080 };";
+      } else if (activeTool === "deviceFrame") {
+        nextDraft.width = 380;
+        nextDraft.height = 240;
+        nextDraft.deviceType = "browser";
+        nextDraft.title = "https://app.graffiti.dev";
+      } else if (activeTool === "icon") {
+        nextDraft.width = 64;
+        nextDraft.height = 64;
+        nextDraft.iconFamily = "cloud";
+        nextDraft.svgPath = "M12 2a5 5 0 0 0-4.9 4A5 5 0 0 0 2 11a5 5 0 0 0 5 5h10a4 4 0 0 0 4-4 4 4 0 0 0-3.3-3.9A5 5 0 0 0 12 2z";
       }
       draftRef.current = nextDraft;
       setDraft(nextDraft);
@@ -1384,6 +1402,10 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           canvas.style.cursor = "text";
         } else if (activeTool === "hand") {
           canvas.style.cursor = "grab";
+        } else if (activeTool === "pen") {
+          canvas.style.cursor = PENCIL_CURSOR;
+        } else if (activeTool === "eraser") {
+          canvas.style.cursor = ERASER_CURSOR;
         } else {
           canvas.style.cursor = "crosshair";
         }
@@ -1831,23 +1853,25 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
               onCommit(mathAnswer);
             }
 
-            // Closed-loop gesture check ("Circle to Ask/Modify")
-            const loop = detectClosedLoopGesture(normalizedForMath);
-            if (loop.isLoop) {
-              const enclosed = elements.filter(
-                (el) =>
-                  el.id !== normalizedForMath.id &&
-                  !(el as any).isDeleted &&
-                  (isElementFullyInsideBox(el, loop.bounds) || doesElementIntersectBox(el, loop.bounds))
-              );
-              if (enclosed.length >= 1) {
-                const screenPos = worldToScreen(
-                  { x: loop.bounds.x + loop.bounds.width / 2, y: loop.bounds.y },
-                  viewport.scrollX,
-                  viewport.scrollY,
-                  viewport.zoom
+            // Closed-loop gesture check ("Circle to Ask/Modify") - strictly opt-in, disabled by default
+            if (enableCircleQuery) {
+              const loop = detectClosedLoopGesture(normalizedForMath);
+              if (loop.isLoop) {
+                const enclosed = elements.filter(
+                  (el) =>
+                    el.id !== normalizedForMath.id &&
+                    !(el as any).isDeleted &&
+                    (isElementFullyInsideBox(el, loop.bounds) || doesElementIntersectBox(el, loop.bounds))
                 );
-                onCircleGesture?.(loop.bounds, enclosed, screenPos);
+                if (enclosed.length >= 1) {
+                  const screenPos = worldToScreen(
+                    { x: loop.bounds.x + loop.bounds.width / 2, y: loop.bounds.y },
+                    viewport.scrollX,
+                    viewport.scrollY,
+                    viewport.zoom
+                  );
+                  onCircleGesture?.(loop.bounds, enclosed, screenPos);
+                }
               }
             }
           }

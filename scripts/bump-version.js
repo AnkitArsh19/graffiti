@@ -25,6 +25,8 @@ const tauriConfPath = path.join(rootDir, "graffiti-frontend", "src-tauri", "taur
 const cargoTomlPath = path.join(rootDir, "graffiti-frontend", "src-tauri", "Cargo.toml");
 const readmePath = path.join(rootDir, "README.md");
 const appTsxPath = path.join(rootDir, "graffiti-frontend", "src", "App.tsx");
+const aimlMainPath = path.join(rootDir, "graffiti-aiml", "app", "main.py");
+const backendPomPath = path.join(rootDir, "graffiti-backend", "pom.xml");
 
 // Read current version from package.json
 const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, "utf-8"));
@@ -101,7 +103,23 @@ if (fs.existsSync(appTsxPath)) {
   }
 }
 
-// 6. Sync Cargo.lock
+// 6. Update graffiti-aiml/app/main.py version if present
+if (fs.existsSync(aimlMainPath)) {
+  let aimlMain = fs.readFileSync(aimlMainPath, "utf-8");
+  aimlMain = aimlMain.replace(/version="[^"]+"/, `version="${targetVersion}"`);
+  fs.writeFileSync(aimlMainPath, aimlMain);
+  console.log(`✓ Updated ${aimlMainPath}`);
+}
+
+// 7. Update graffiti-backend/pom.xml version if present
+if (fs.existsSync(backendPomPath)) {
+  let backendPom = fs.readFileSync(backendPomPath, "utf-8");
+  backendPom = backendPom.replace(/<artifactId>demo<\/artifactId>\s*<version>[^<]+<\/version>/, `<artifactId>demo</artifactId>\n\t<version>${targetVersion}</version>`);
+  fs.writeFileSync(backendPomPath, backendPom);
+  console.log(`✓ Updated ${backendPomPath}`);
+}
+
+// 8. Sync Cargo.lock
 try {
   console.log("Syncing Cargo.lock via cargo check...");
   execSync("cargo check", {

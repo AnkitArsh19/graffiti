@@ -431,6 +431,56 @@ export function drawShapeOnCanvas(
         }
       }
 
+      // Syntax-Highlighted Code Block
+      if (element.type === "code") {
+        const codeText = element.text || "const config = {\n  env: 'production',\n  port: 8080,\n};\nexport default config;";
+        const lines = codeText.split("\n");
+        lines.slice(0, 18).forEach((line, index) => {
+          const y = 48 + index * 18;
+          if (y < element.height - 8) {
+            // Line number
+            context.font = "11px monospace";
+            context.fillStyle = isDarkMode ? "#64748b" : "#94a3b8";
+            context.fillText(String(index + 1).padStart(2, " "), 10, y);
+            // Code line
+            context.font = "12px monospace";
+            context.fillStyle = isDarkMode ? "#e2e8f0" : "#1e293b";
+            context.fillText(line, 36, y);
+          }
+        });
+      }
+
+      // Device Mockup Frames (Browser Window or Mobile Phone)
+      if (element.type === "deviceFrame") {
+        const isPhone = element.deviceType === "phone";
+        if (isPhone) {
+          // Dynamic island / top speaker notch
+          context.fillStyle = isDarkMode ? "#27272a" : "#cbd5e1";
+          const notchW = Math.min(80, element.width * 0.4);
+          context.beginPath();
+          context.roundRect((element.width - notchW) / 2, 7, notchW, 14, 7);
+          context.fill();
+        } else {
+          // Browser window 3 traffic light dots
+          const dots = ["#ef4444", "#f59e0b", "#10b981"];
+          dots.forEach((color, i) => {
+            context.fillStyle = color;
+            context.beginPath();
+            context.arc(14 + i * 14, 15, 4.5, 0, Math.PI * 2);
+            context.fill();
+          });
+          // Address bar pill
+          context.fillStyle = isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
+          const barW = Math.max(80, element.width - 90);
+          context.beginPath();
+          context.roundRect(64, 6, barW, 18, 4);
+          context.fill();
+          context.font = "10px Inter, sans-serif";
+          context.fillStyle = isDarkMode ? "#94a3b8" : "#64748b";
+          context.fillText(element.title || "https://app.graffiti.dev", 72, 10);
+        }
+      }
+
       // ERD Schema Table columns
       if (element.type === "table") {
         (element.columns || []).forEach((column, index) => {

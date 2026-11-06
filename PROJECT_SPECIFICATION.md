@@ -109,7 +109,7 @@ The system is architected to be built **progressively across distinct, verifiabl
 | **Local Offline File Mode** | Allows standalone offline usage with direct hard drive save/open via native OS file dialogs (`NSOpenPanel` / `IFileDialog`). |
 | **100% Offline Zero-Server Runtime** | Operates completely standalone without external servers, databases, or network connection. All canvases, notebooks, pages, workspaces, and folders persist locally in OS AppData. |
 | **Standalone Distribution Packages** | Self-contained single-executable and installer bundles that can be distributed directly to users without container runtimes or external prerequisites. |
-| **Transparent Desktop Screen Overlay Mode** | Global shortcut `F6` or `Ctrl+Shift+O` opens fullscreen transparent overlay; Win32 cursor tracking allows seamless click-through to underlying apps while annotating on-screen with real-time room sync. |
+| **Transparent Desktop Screen Overlay & Dedicated Scratchpad** | Global shortcut `F6` or `Ctrl+Shift+O` opens fullscreen transparent overlay; Win32 cursor tracking allows seamless click-through to underlying apps while annotating on-screen with real-time room sync. Includes a dedicated, resizable, draggable, and collapsible White/Black Canvas Pad (`N`) for writing in an isolated area while observing underlying desktop apps. |
 | **Deep-linking & Desktop Browser Handoff** | Registered `graffiti://` custom protocol handler and backend `DesktopHandoffCode` session polling for zero-friction sign-in via default browser without exposing secrets. |
 | **Multi-Format Document Presentation Studio** | Built-in viewer for PDF (`pdfjs-dist`), Word (`docx-preview`), PPTX (`pptxgenjs`), Markdown, Code, and Images with live drawing markup and export back to annotated PDF, PPTX, or Images. |
 | **Google Drive Multi-Account Cloud Integration** | Multi-account Google Drive connector with folder browsing, search, direct import of documents, and export of canvases as PDF/Markdown/JSON with instant public shareable links. |
@@ -1238,6 +1238,7 @@ Phase 5: Multimodal AI & Desktop Packaging
 ├── [✓] Non-destructive Ghost Preview overlay on canvas with Accept (Enter) / Dismiss (Esc)
 ├── [✓] Tauri v2 native desktop app packaging for Windows, macOS, and Linux
 ├── [✓] Native frameless window styling (macOS traffic lights & blur / Windows 11 Mica)
+├── [✓] Dedicated Resizable, Draggable & Collapsible White/Black Canvas Scratchpad on Desktop Screen Overlay (OverlayScratchpad.tsx)
 └── [✓] Native OS top menu bar and local offline .graffiti file management
 
 Phase 6: Workspaces, Projects & Eraser-Style Architecture Diagramming
@@ -1247,11 +1248,11 @@ Phase 6: Workspaces, Projects & Eraser-Style Architecture Diagramming
 ├── [✓] Architecture Service Card Presets ('C') with header, icon badge, divider & body text
 ├── [✓] Smart Orthogonal (Elbow) Arrow Routing ('Shift + A') with 90-degree obstacle bypass
 ├── [✓] Database Entity Relationship Diagram (ERD) Schema Table component ('Shift + T')
-├── [ ] Global Slash Command Palette ('/' or '+') with real-time fuzzy search
-├── [ ] Searchable Vector Icon Engine ('I') bundling Lucide, Simple Icons & Cloud SVGs
-├── [ ] Syntax-Highlighted Code Block component ('Shift + C' or '<>') on canvas
-├── [ ] Device Mockup Frames (Browser window & Mobile phone frames)
-└── [ ] 'Document | Both | Canvas' Split View Mode (Ctrl + \)
+├── [✓] Global Slash Command Palette ('/' or '+') with real-time fuzzy search (CommandPalette.tsx)
+├── [✓] Searchable Vector Icon Engine ('I') bundling Lucide, Simple Icons & Cloud SVGs
+├── [✓] Syntax-Highlighted Code Block component ('Shift + C' or '<>') on canvas
+├── [✓] Device Mockup Frames (Browser window & Mobile phone frames with 'Shift + D')
+└── [✓] 'Document | Both | Canvas' Split View Mode (Ctrl + \)
 
 Phase 7: Advanced Canvas Intelligence Microservices (Implemented)
 ├── [✓] Mind-Map Topic Decomposition & Markmap Subtree Bounding (/v1/ai/mindmap/generate & MindMapPanel.tsx)

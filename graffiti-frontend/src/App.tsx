@@ -49,7 +49,7 @@ import {
   Activity,
 } from "lucide-react";
 
-const DESKTOP_VERSION = "0.2.0";
+const DESKTOP_VERSION = "0.3.0";
 const DESKTOP_EXE_DOWNLOAD_URL = `https://github.com/AnkitArsh19/graffiti/releases/download/v${DESKTOP_VERSION}/Graffiti_${DESKTOP_VERSION}_x64-setup.exe`;
 const RELEASES_PAGE_URL = "https://github.com/AnkitArsh19/graffiti/releases/latest";
 
@@ -74,6 +74,7 @@ import { GoogleDriveExportModal } from "./components/GoogleDriveExportModal";
 import { DesktopAuthModal } from "./components/DesktopAuthModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { CircleQueryPopover } from "./components/CircleQueryPopover";
+import { CommandPalette } from "./components/CommandPalette";
 import { alignElements, distributeElements, tidyUpElements, type AlignmentType, type DistributionDirection } from "./lib/alignment";
 import { isDesktopApp, getLaunchDeepLink, exchangeDesktopHandoffCode } from "./lib/desktopAuth";
 
@@ -311,6 +312,26 @@ export default function App() {
       return next;
     });
   }, []);
+
+  // Circle to Ask AI gesture toggle - disabled by default so it never runs randomly
+  const [enableCircleQuery, setEnableCircleQuery] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("graffiti:enable_circle_query");
+      return saved === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleCircleQuery = useCallback(() => {
+    setEnableCircleQuery((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("graffiti:enable_circle_query", String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const liveMenuRef = useRef<HTMLDivElement>(null);
 
@@ -416,6 +437,8 @@ export default function App() {
     screenPos: { x: number; y: number };
   } | null>(null);
   const [isCircleQueryLoading, setIsCircleQueryLoading] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [splitViewMode, setSplitViewMode] = useState<"canvas" | "both" | "document">("canvas");
 
   const handleStyleChange = useCallback((newStyle: Partial<ElementStyle>) => {
     setElementStyle((prev) => {
@@ -2250,6 +2273,27 @@ export default function App() {
         return;
       }
 
+      // Global Slash Command Palette ('/' or Ctrl+K)
+      if (
+        matchesKeyShortcut(event, shortcuts.cmd_palette?.key) ||
+        key === "/" ||
+        ((event.ctrlKey || event.metaKey) && key === "k")
+      ) {
+        event.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      // Split View Mode (Ctrl+\)
+      if (
+        matchesKeyShortcut(event, shortcuts.view_split_mode?.key) ||
+        ((event.ctrlKey || event.metaKey) && (key === "\\" || key === "|"))
+      ) {
+        event.preventDefault();
+        setSplitViewMode((prev) => (prev === "canvas" ? "both" : prev === "both" ? "document" : "canvas"));
+        return;
+      }
+
       if (event.key === "Escape") {
         if (ghostElements.length) { event.preventDefault(); dismissGhosts(); return; }
         event.preventDefault();
@@ -2304,6 +2348,9 @@ export default function App() {
         ["wb_sticky", "sticky"],
         ["wb_card", "card"],
         ["wb_table", "table"],
+        ["wb_code", "code"],
+        ["wb_device_frame", "deviceFrame"],
+        ["wb_icon", "icon"],
         ["wb_eraser", "eraser"],
       ];
 
@@ -2319,6 +2366,27 @@ export default function App() {
       if (matchesKeyShortcut(event, shortcuts.wb_table?.key) || (event.shiftKey && key === "t")) {
         event.preventDefault();
         setActiveTool("table");
+        return;
+      }
+
+      // Code Block shortcut (Shift+C)
+      if (matchesKeyShortcut(event, shortcuts.wb_code?.key) || (event.shiftKey && key === "c")) {
+        event.preventDefault();
+        setActiveTool("code");
+        return;
+      }
+
+      // Device Frame shortcut (Shift+D)
+      if (matchesKeyShortcut(event, shortcuts.wb_device_frame?.key) || (event.shiftKey && key === "d")) {
+        event.preventDefault();
+        setActiveTool("deviceFrame");
+        return;
+      }
+
+      // Vector Icon shortcut (I)
+      if (matchesKeyShortcut(event, shortcuts.wb_icon?.key) || key === "i") {
+        event.preventDefault();
+        setActiveTool("icon");
         return;
       }
 
@@ -2768,6 +2836,32 @@ export default function App() {
                     }}
                   >
                     {autoBeautify ? "ON" : "OFF"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="dropdown-item-btn"
+                  role="menuitem"
+                  onClick={toggleCircleQuery}
+                  title="Circle canvas elements with pen to ask AI or restyle them (Default: OFF)"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Sparkles size={14} style={{ color: enableCircleQuery ? "var(--accent-primary)" : "var(--text-muted)" }} />
+                    <span>Circle to Ask AI</span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: "1px 6px",
+                      borderRadius: 10,
+                      backgroundColor: enableCircleQuery ? "rgba(139, 92, 246, 0.2)" : "rgba(113, 113, 122, 0.2)",
+                      color: enableCircleQuery ? "#a855f7" : "var(--text-muted)",
+                    }}
+                  >
+                    {enableCircleQuery ? "ON" : "OFF"}
                   </span>
                 </button>
 
@@ -3572,6 +3666,7 @@ export default function App() {
           remoteDrafts={remoteDrafts}
           onStreamDraft={(draft) => streamDraft(draft, activePage.id)}
           autoBeautify={autoBeautify}
+          enableCircleQuery={enableCircleQuery}
           simulatedActiveNodeId={simulatedActiveNodeId}
           onCircleGesture={handleCircleGesture}
         />
@@ -3645,6 +3740,8 @@ export default function App() {
           isEditingText={isEditingText || activeTool === "text" || selectedElement?.type === "text"}
           autoBeautify={autoBeautify}
           onToggleAutoBeautify={toggleAutoBeautify}
+          enableCircleQuery={enableCircleQuery}
+          onToggleCircleQuery={toggleCircleQuery}
           onStyleChange={handleStyleChange}
           onSelectedChange={updateSelected}
           onDuplicateSelected={duplicateSelected}
@@ -3803,27 +3900,40 @@ export default function App() {
         onClose={() => setMoveModalBoardId(null)}
         onMove={handleMoveWhiteboard}
       />
-      {/* Document Annotation Viewer */}
+      {/* Document Annotation Viewer / Split Mode */}
       {annotatingFile && (
-        <DocumentViewer
-          file={annotatingFile}
-          onClose={() => {
-            setAnnotatingFile(null);
-            clearActiveDocumentCache().catch(() => {});
+        <div
+          style={{
+            position: "fixed",
+            left: 0,
+            top: 48,
+            bottom: 0,
+            width: splitViewMode === "both" ? "50%" : "100%",
+            zIndex: 40,
+            borderRight: splitViewMode === "both" ? "1px solid var(--border-default)" : "none",
+            display: splitViewMode === "canvas" ? "none" : "block",
           }}
-          onSendToWhiteboard={(elements) => {
-            updateActivePage((page) => ({
-              ...page,
-              elements: [...page.elements, ...elements],
-            }));
-            setAnnotatingFile(null);
-            clearActiveDocumentCache().catch(() => {});
-          }}
-          onShare={handleOpenShare}
-          roomSlug={slug || undefined}
-          sendOp={sendOp}
-          lastRemoteOp={lastRemoteDocOp}
-        />
+        >
+          <DocumentViewer
+            file={annotatingFile}
+            onClose={() => {
+              setAnnotatingFile(null);
+              clearActiveDocumentCache().catch(() => {});
+            }}
+            onSendToWhiteboard={(elements) => {
+              updateActivePage((page) => ({
+                ...page,
+                elements: [...page.elements, ...elements],
+              }));
+              setAnnotatingFile(null);
+              clearActiveDocumentCache().catch(() => {});
+            }}
+            onShare={handleOpenShare}
+            roomSlug={slug || undefined}
+            sendOp={sendOp}
+            lastRemoteOp={lastRemoteDocOp}
+          />
+        </div>
       )}
 
       {/* Landscape Orientation Prompt for Mobile Devices */}
@@ -3993,6 +4103,32 @@ export default function App() {
 
       {/* Global & Multi-Mode Settings Modal */}
       <SettingsModal />
+
+      {/* Global Slash Command Palette ('/' or Ctrl+K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onSelectTool={setActiveTool}
+        onAlign={handleAlign}
+        onDistribute={handleDistribute}
+        onTidyUp={handleTidyUp}
+        onToggleSplitMode={() =>
+          setSplitViewMode((prev) => (prev === "canvas" ? "both" : prev === "both" ? "document" : "canvas"))
+        }
+        onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+        onOpenMindMap={() => setIsMindMapOpen(true)}
+        onOpenFlowchartToCode={() => setIsFlowchartToCodeOpen(true)}
+        onOpenFlowSimulator={() => setIsFlowSimulatorOpen(true)}
+        onOpenThemeMorph={() => setIsThemeMorphOpen(true)}
+        onOpenBriefing={() => setIsNotebookBriefingOpen(true)}
+        onOpenVoiceHUD={() => setIsVoiceListening(true)}
+        onExportPdf={exportPdf}
+        onExportSvg={exportSvg}
+        onShareRoom={handleOpenShare}
+        theme={theme}
+        enableCircleQuery={enableCircleQuery}
+        onToggleCircleQuery={toggleCircleQuery}
+      />
     </main>
   );
 }

@@ -26,6 +26,9 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutBinding> = {
   "wb_elbow_arrow": { id: "wb_elbow_arrow", category: "whiteboard", label: "Elbow / Orthogonal Arrow", description: "Draw 90-degree orthogonal connector arrows", defaultKey: "Shift+A", key: "Shift+A" },
   "wb_card": { id: "wb_card", category: "whiteboard", label: "Architecture Service Card", description: "Insert architecture service component card", defaultKey: "C", key: "C" },
   "wb_table": { id: "wb_table", category: "whiteboard", label: "ERD Schema Table", description: "Insert database schema table", defaultKey: "Shift+T", key: "Shift+T" },
+  "wb_code": { id: "wb_code", category: "whiteboard", label: "Code Block", description: "Insert syntax-highlighted code block", defaultKey: "Shift+C", key: "Shift+C" },
+  "wb_device_frame": { id: "wb_device_frame", category: "whiteboard", label: "Device Mockup Frame", description: "Insert browser or mobile device frame", defaultKey: "Shift+D", key: "Shift+D" },
+  "wb_icon": { id: "wb_icon", category: "whiteboard", label: "Vector Icon", description: "Insert vector cloud or developer icon", defaultKey: "I", key: "I" },
   "wb_text": { id: "wb_text", category: "whiteboard", label: "Text Tool", description: "Insert rich canvas typography & labels", defaultKey: "T", key: "T" },
   "wb_sticky": { id: "wb_sticky", category: "whiteboard", label: "Sticky Note", description: "Create brainstorming sticky notes", defaultKey: "N", key: "N" },
   "wb_eraser": { id: "wb_eraser", category: "whiteboard", label: "Eraser", description: "Erase elements and stroke paths", defaultKey: "E", key: "E" },
@@ -41,6 +44,7 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutBinding> = {
   "ov_circle": { id: "ov_circle", category: "overlay", label: "Focus Ellipse / Circle", description: "Draw circular outlines around screen areas", defaultKey: "C", key: "C" },
   "ov_line": { id: "ov_line", category: "overlay", label: "Straight Line", description: "Draw straight underline or divider lines", defaultKey: "L", key: "L" },
   "ov_eraser": { id: "ov_eraser", category: "overlay", label: "Overlay Eraser", description: "Erase screen annotation marks", defaultKey: "E", key: "E" },
+  "ov_pad": { id: "ov_pad", category: "overlay", label: "Dedicated Canvas Pad", description: "Toggle floating resizable whiteboard/blackboard scratchpad", defaultKey: "N", key: "N" },
   "ov_undo": { id: "ov_undo", category: "overlay", label: "Undo Stroke", description: "Undo the last screen mark", defaultKey: "Ctrl+Z", key: "Ctrl+Z" },
   "ov_clear": { id: "ov_clear", category: "overlay", label: "Clear Screen", description: "Clear all strokes from the overlay", defaultKey: "Delete", key: "Delete" },
   "ov_close": { id: "ov_close", category: "overlay", label: "Close Overlay", description: "Exit desktop overlay mode", defaultKey: "Escape", key: "Escape" },
@@ -55,6 +59,8 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutBinding> = {
   "doc_prev": { id: "doc_prev", category: "document", label: "Previous Page", description: "Jump to the previous document page", defaultKey: "PageUp", key: "PageUp" },
 
   // --- General & Global Navigation ---
+  "cmd_palette": { id: "cmd_palette", category: "general", label: "Command Palette", description: "Open global slash command palette", defaultKey: "/", key: "/" },
+  "view_split_mode": { id: "view_split_mode", category: "general", label: "Toggle Split View Mode", description: "Toggle between Canvas, Both, and Document", defaultKey: "Ctrl+\\", key: "Ctrl+\\" },
   "gen_overlay": { id: "gen_overlay", category: "general", label: "Launch Desktop Overlay", description: "Open fullscreen screen annotation overlay", defaultKey: "Ctrl+Shift+D", key: "Ctrl+Shift+D" },
   "gen_sidebar": { id: "gen_sidebar", category: "general", label: "Toggle Workspace Sidebar", description: "Show or collapse the workspace file tree", defaultKey: "Ctrl+B", key: "Ctrl+B" },
   "gen_search": { id: "gen_search", category: "general", label: "Find on Canvas", description: "Search shapes, text, and sticky notes", defaultKey: "Ctrl+F", key: "Ctrl+F" },
