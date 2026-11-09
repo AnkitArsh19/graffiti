@@ -425,7 +425,7 @@
   background: var(--bg-panel, #18181b);
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.16));
   border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(124, 58, 237, 0.2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(212, 163, 89, 0.25);
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
@@ -446,7 +446,7 @@
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #a78bfa;
+  color: var(--accent-primary, #d4a359);
 }
 
 .circle-query-close {
@@ -486,9 +486,9 @@
 }
 
 .quick-action-chip:hover:not(:disabled) {
-  background: rgba(124, 58, 237, 0.18);
-  border-color: rgba(124, 58, 237, 0.4);
-  color: #c4b5fd;
+  background: rgba(212, 163, 89, 0.18);
+  border-color: rgba(212, 163, 89, 0.4);
+  color: #fef08a;
 }
 
 .circle-query-input-row {
@@ -509,13 +509,13 @@
 }
 
 .circle-query-input:focus {
-  border-color: #8b5cf6;
+  border-color: var(--accent-primary, #d4a359);
 }
 
 .circle-query-submit-btn {
-  background: #7c3aed;
+  background: var(--accent-primary, #d4a359);
   border: none;
-  color: white;
+  color: #09090b;
   border-radius: 6px;
   padding: 0 10px;
   cursor: pointer;
@@ -526,7 +526,7 @@
 }
 
 .circle-query-submit-btn:hover:not(:disabled) {
-  background: #6d28d9;
+  background: #b47b18;
 }
 
 .circle-query-submit-btn:disabled {

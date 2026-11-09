@@ -19,18 +19,22 @@ def _format_solution_value(val: Any) -> str:
     try:
         if isinstance(val, (int, sp.Integer)):
             return str(val)
+        if isinstance(val, sp.Rational):
+            return f"{val.p}/{val.q}"
         if isinstance(val, (float, sp.Float)):
             if float(val).is_integer():
                 return str(int(val))
             return f"{float(val):.4f}".rstrip("0").rstrip(".")
-        if hasattr(val, "evalf") and val.is_number:
+        if hasattr(val, "evalf") and getattr(val, "is_number", False):
+            if isinstance(val, sp.Rational):
+                return f"{val.p}/{val.q}"
             num = float(val.evalf())
             if num.is_integer():
                 return str(int(num))
             return f"{num:.4f}".rstrip("0").rstrip(".")
-        return str(val)
+        return str(val).replace("**", "^")
     except Exception:
-        return str(val)
+        return str(val).replace("**", "^")
 
 
 def solve_math_expression(
@@ -53,41 +57,100 @@ def solve_math_expression(
                     except Exception:
                         pass
 
-        # 2. Check for calculus expressions: diff(expr, x), d/dx(expr), integrate(expr, x), int(expr, x)
-        diff_match = re.match(r"^(?:d/d([a-zA-Z])|diff)\s*\((.+)\)$", clean_expr, re.IGNORECASE)
-        int_match = re.match(r"^(?:int|integrate)\s*\((.+)\)$", clean_expr, re.IGNORECASE)
+        # 2. Check for calculus expressions
+        # Definite integral: \int_{a}^{b} f(x) dx or int_{a}^{b}
+        int_def_match = re.match(
+            r"^\\?int(?:egrate)?_(?:\{([^}]+)\}|([^\s\^]+))\^(?:\{([^}]+)\}|([^\s]+))\s+(.+?)\s*d([a-zA-Z])$",
+            clean_expr,
+            re.IGNORECASE,
+        )
+        # Indefinite integral: \int f(x) dx or int f(x) dx or int(f(x), x) or integrate(f(x), x)
+        int_indef_match = re.match(
+            r"^\\?int(?:egrate)?(?:\s+(.+?)\s*d([a-zA-Z])|\s*\((.+?)\)(?:\s*d([a-zA-Z]))?)$",
+            clean_expr,
+            re.IGNORECASE,
+        )
+        # Derivative: d/dx(expr), \frac{d}{dx}(expr), diff(expr, x)
+        diff_match = re.match(
+            r"^(?:\\?frac\{d\}\{d([a-zA-Z])\}|d/d([a-zA-Z])|diff)\s*(?:\((.+)\)|(.+))$",
+            clean_expr,
+            re.IGNORECASE,
+        )
+        # Limit: \lim_{x \to 0} expr or lim(expr, x, 0)
+        lim_match = re.match(
+            r"^\\?lim(?:it)?(?:_\{?([a-zA-Z])\s*(?:\\to|->)\s*([^}]+)\}?|\s*\((.+?),([a-zA-Z]),(.+?)\))\s*(.+)$",
+            clean_expr,
+            re.IGNORECASE,
+        )
 
-        if diff_match:
-            var_name = diff_match.group(1) or "x"
-            inner = diff_match.group(2).strip()
-            # If comma-separated args: diff(x^3, x)
-            if "," in inner:
-                parts = [p.strip() for p in inner.split(",", 1)]
-                f_expr = parse_expr(parts[0], transformations=transformations)
-                sym = sp.Symbol(parts[1])
-            else:
-                f_expr = parse_expr(inner, transformations=transformations)
-                sym = sp.Symbol(var_name)
+        if int_def_match:
+            lower = int_def_match.group(1) or int_def_match.group(2)
+            upper = int_def_match.group(3) or int_def_match.group(4)
+            integrand_str = int_def_match.group(5).strip()
+            var_str = int_def_match.group(6).strip()
+            f_expr = parse_expr(integrand_str, transformations=transformations)
+            sym = sp.Symbol(var_str)
+            lower_expr = parse_expr(lower, transformations=transformations)
+            upper_expr = parse_expr(upper, transformations=transformations)
             if subs_dict:
                 f_expr = f_expr.subs(subs_dict)
-            derivative = sp.diff(f_expr, sym)
-            result_str = str(derivative)
+                lower_expr = lower_expr.subs(subs_dict)
+                upper_expr = upper_expr.subs(subs_dict)
+            val = sp.integrate(f_expr, (sym, lower_expr, upper_expr))
+            result_str = _format_solution_value(val)
 
-        elif int_match:
-            inner = int_match.group(1).strip()
-            if "," in inner:
-                parts = [p.strip() for p in inner.split(",", 1)]
-                f_expr = parse_expr(parts[0], transformations=transformations)
-                sym = sp.Symbol(parts[1])
-            else:
-                f_expr = parse_expr(inner, transformations=transformations)
-                sym = sp.Symbol("x")
+        elif int_indef_match:
+            integrand_str = (int_indef_match.group(1) or int_indef_match.group(3) or "").strip()
+            var_str = (int_indef_match.group(2) or int_indef_match.group(4) or "").strip()
+            if not var_str:
+                if "," in integrand_str:
+                    parts = [p.strip() for p in integrand_str.split(",", 1)]
+                    integrand_str = parts[0]
+                    var_str = parts[1]
+                else:
+                    var_str = "x"
+            # Strip surrounding parentheses if matched (e.g. \int (3x^2 + 2x + 1) dx)
+            if integrand_str.startswith("(") and integrand_str.endswith(")"):
+                inner = integrand_str[1:-1].strip()
+                if inner.count("(") == inner.count(")"):
+                    integrand_str = inner
+            f_expr = parse_expr(integrand_str, transformations=transformations)
+            sym = sp.Symbol(var_str)
             if subs_dict:
                 f_expr = f_expr.subs(subs_dict)
             integral = sp.integrate(f_expr, sym)
-            result_str = f"{integral} + C"
+            result_str = f"{str(integral).replace('**', '^')} + C"
 
-        # 3. Check for algebraic equation with '=': e.g. x^2 - 5x + 6 = 0, 3x + 12 = 27
+        elif diff_match:
+            var_str = diff_match.group(1) or diff_match.group(2) or "x"
+            inner = (diff_match.group(3) or diff_match.group(4) or "").strip()
+            if "," in inner:
+                parts = [p.strip() for p in inner.split(",", 1)]
+                f_expr = parse_expr(parts[0], transformations=transformations)
+                sym = sp.Symbol(parts[1])
+            else:
+                f_expr = parse_expr(inner, transformations=transformations)
+                sym = sp.Symbol(var_str)
+            if subs_dict:
+                f_expr = f_expr.subs(subs_dict)
+            derivative = sp.diff(f_expr, sym)
+            result_str = str(derivative).replace("**", "^")
+
+        elif lim_match:
+            if lim_match.group(1):
+                sym = sp.Symbol(lim_match.group(1))
+                point = parse_expr(lim_match.group(2).strip(), transformations=transformations)
+                f_expr = parse_expr(lim_match.group(6).strip(), transformations=transformations)
+            else:
+                f_expr = parse_expr(lim_match.group(3).strip(), transformations=transformations)
+                sym = sp.Symbol(lim_match.group(4))
+                point = parse_expr(lim_match.group(5).strip(), transformations=transformations)
+            if subs_dict:
+                f_expr = f_expr.subs(subs_dict)
+            lim_val = sp.limit(f_expr, sym, point)
+            result_str = _format_solution_value(lim_val)
+
+        # 3. Check for algebraic equation with '=': e.g. 6x^2 + 11x - 35 = 0, u^2 - 5u - 14 = 0
         elif "=" in clean_expr:
             left_side, right_side = clean_expr.split("=", 1)
             left_parsed = parse_expr(left_side.strip(), transformations=transformations)
@@ -101,6 +164,7 @@ def solve_math_expression(
             free_symbols = list(eq.free_symbols)
 
             if free_symbols:
+                free_symbols.sort(key=lambda s: s.name)
                 target_sym = free_symbols[0]
                 solutions = sp.solve(eq, target_sym)
                 if isinstance(solutions, list):
@@ -115,7 +179,7 @@ def solve_math_expression(
                     result_str = f"{target_sym} = {_format_solution_value(solutions)}"
             else:
                 # Numeric equality check: e.g. 5 + 5 = 10 -> True
-                result_str = "True" if eq else "False"
+                result_str = "True" if bool(eq) else "False"
 
         # 4. Standard arithmetic / algebraic evaluation
         else:
@@ -123,13 +187,13 @@ def solve_math_expression(
             if subs_dict:
                 parsed = parsed.subs(subs_dict)
 
-            if parsed.is_number:
-                result_str = _format_solution_value(parsed.evalf())
+            if hasattr(parsed, "is_number") and parsed.is_number:
+                result_str = _format_solution_value(parsed)
             else:
-                result_str = str(parsed)
+                result_str = str(parsed).replace("**", "^")
 
     except Exception as err:
-        print(f"[SymPySolver] Error solving '{equation_raw}': {err}")
+        print(f"[SymPySolver] Error solving '{equation_raw}' (cleaned: '{clean_expr}'): {err}")
         result_str = "Error"
 
     now = int(time.time() * 1000)
@@ -142,11 +206,11 @@ def solve_math_expression(
         "height": 30.0,
         "text": f" {result_str}",
         "fontSize": "medium",
-        "fontFamily": "handwriting",  # Authentic Apple Math Notes script font
+        "fontFamily": "handwriting",
         "textAlign": "left",
         "verticalAlign": "middle",
         "angle": 0,
-        "strokeColor": "#22c55e",  # Distinctive Apple Math Notes green
+        "strokeColor": "#22c55e",
         "backgroundColor": "transparent",
         "strokeWidth": 2,
         "strokeStyle": "solid",
@@ -165,6 +229,7 @@ def solve_math_expression(
             "aiGenerated": True,
             "mathSolved": True,
             "originalEquation": equation_raw,
+            "cleanedEquation": clean_expr,
             "solution": result_str,
         },
     }

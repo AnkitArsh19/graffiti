@@ -7,7 +7,7 @@ router = APIRouter(prefix="/v1/ai/notebook", tags=["Notebook"])
 
 @router.post("/summarize", response_model=NotebookSummarizeResponse)
 async def notebook_summarize_endpoint(req: NotebookSummarizeRequest):
-    """Semantic Notebook Summarizer and Action-Item Extractor powered by Groq API (llama-3.1-8b-instant)."""
+    """Semantic Notebook Summarizer and Action-Item Extractor powered by Groq API (openai/gpt-oss-20b)."""
     try:
         return await summarize_notebook(req)
     except Exception as e:

@@ -89,7 +89,7 @@ def _heuristic_summary(text: str) -> NotebookSummarizeResponse:
 
 
 async def summarize_notebook(req: NotebookSummarizeRequest) -> NotebookSummarizeResponse:
-    """Uses Groq API (llama-3.1-8b-instant) for lightning-fast semantic briefing extraction."""
+    """Uses Groq API (openai/gpt-oss-20b) for lightning-fast semantic briefing extraction."""
     t0 = time.time()
     text = (req.text or "").strip()
     if not text:
@@ -135,14 +135,7 @@ async def summarize_notebook(req: NotebookSummarizeRequest) -> NotebookSummarize
         try:
             from groq import AsyncGroq
             client = AsyncGroq(api_key=groq_key)
-            models_to_try = [
-                settings.groq_fast_model,
-                settings.groq_model,
-                "openai/gpt-oss-120b",
-                "openai/gpt-oss-20b",
-                "llama-3.3-70b-versatile",
-                "qwen/qwen3.8-27b",
-            ]
+            models_to_try = settings.get_groq_models()
             for m in models_to_try:
                 try:
                     completion = await client.chat.completions.create(

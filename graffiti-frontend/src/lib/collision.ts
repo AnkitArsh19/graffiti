@@ -68,7 +68,12 @@ export function pointInElement(
   // For freehand pen
   if (element.type === "pen") {
     if (!element.points || element.points.length === 0) return false;
-    const local = { x: worldPoint.x - element.x, y: worldPoint.y - element.y };
+    const cx = element.x + element.width / 2;
+    const cy = element.y + element.height / 2;
+    const [testPtX, testPtY] = element.angle
+      ? rotatePoint([worldPoint.x, worldPoint.y], [cx, cy], -element.angle)
+      : [worldPoint.x, worldPoint.y];
+    const local = { x: testPtX - element.x, y: testPtY - element.y };
     if (element.points.length === 1) {
       return (
         Math.hypot(local.x - element.points[0].x, local.y - element.points[0].y) <=
@@ -189,17 +194,47 @@ export function getElementTransformHandles(
   const cy = y + h / 2;
   const rotDistance = 22 / zoom;
 
-  const unrotated: Record<string, [number, number]> = {
-    nw: [x, y],
-    ne: [x + w, y],
-    se: [x + w, y + h],
-    sw: [x, y + h],
-    n: [cx, y],
-    s: [cx, y + h],
-    w: [x, cy],
-    e: [x + w, cy],
-    rotation: [cx, y - rotDistance],
-  };
+  const isThinH = (h * zoom < 64 || h < 60) || (w > 80 && h < 70 && w > h * 2.5);
+  const isThinW = (w * zoom < 64 || w < 60) || (h > 80 && w < 70 && h > w * 2.5);
+
+  let unrotated: Record<string, [number, number]>;
+
+  if (isThinH && !isThinW) {
+    // Thin horizontal line / stroke: show only Left (w) and Right (e) handles + rotation
+    // This avoids top and bottom handles colliding into stacked double squares!
+    unrotated = {
+      w: [x, cy],
+      e: [x + w, cy],
+      rotation: [cx, y - rotDistance],
+    };
+  } else if (isThinW && !isThinH) {
+    // Thin vertical line / stroke: show only Top (n) and Bottom (s) handles + rotation
+    unrotated = {
+      n: [cx, y],
+      s: [cx, y + h],
+      rotation: [cx, y - rotDistance],
+    };
+  } else if (isThinW && isThinH) {
+    // Tiny element in both dimensions
+    unrotated = {
+      nw: [x, y],
+      se: [x + w, y + h],
+      rotation: [cx, y - rotDistance],
+    };
+  } else {
+    // Standard 2D box / shape: full 8 handles + rotation
+    unrotated = {
+      nw: [x, y],
+      ne: [x + w, y],
+      se: [x + w, y + h],
+      sw: [x, y + h],
+      n: [cx, y],
+      s: [cx, y + h],
+      w: [x, cy],
+      e: [x + w, cy],
+      rotation: [cx, y - rotDistance],
+    };
+  }
 
   if (!element.angle) {
     return unrotated as any;
@@ -220,22 +255,26 @@ export function getHitTransformHandle(
   element: CanvasElement,
   zoom: number,
 ): TransformHandleType | null {
-  const handleHitRadius = 10 / zoom;
+  const handleHitRadius = 12 / zoom;
   const handles = getElementTransformHandles(element, zoom);
+
+  let bestHandle: TransformHandleType | null = null;
+  let minDistanceSq = handleHitRadius * handleHitRadius;
 
   for (const [handleType, [hx, hy]] of Object.entries(handles) as [
     TransformHandleType,
     [number, number],
   ][]) {
-    if (
-      Math.abs(worldPoint.x - hx) <= handleHitRadius &&
-      Math.abs(worldPoint.y - hy) <= handleHitRadius
-    ) {
-      return handleType;
+    const dx = worldPoint.x - hx;
+    const dy = worldPoint.y - hy;
+    const distSq = dx * dx + dy * dy;
+    if (distSq <= minDistanceSq) {
+      minDistanceSq = distSq;
+      bestHandle = handleType;
     }
   }
 
-  return null;
+  return bestHandle;
 }
 
 export function getHandleCursor(handle: TransformHandleType | null): string {

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { GitBranch, Sparkles, X, Check, RefreshCw, Layers, ArrowRight, PlusCircle, AlignLeft } from "lucide-react";
+import { GitBranch, Network, X, Check, RefreshCw, Layers, ArrowRight, PlusCircle, AlignLeft } from "lucide-react";
 import type { CanvasElement } from "../types";
 import { apiAutoLayoutMindmap, apiGenerateMindmap } from "../lib/api";
 
@@ -62,7 +62,7 @@ export function MindMapPanel({
 
       if (resp && resp.success) {
         setSummary(resp.summary || "Mind-map layout calculated.");
-        setAiProvider(resp.aiProvider || "groq-llama-3.1-70b-versatile");
+        setAiProvider(resp.aiProvider || "groq-openai/gpt-oss-120b");
         onApplyLayout(resp.nodes || [], resp.connectors || []);
       } else {
         setErrorMsg(resp?.detail || "Failed to generate mind-map layout.");
@@ -145,14 +145,14 @@ export function MindMapPanel({
               width: 32,
               height: 32,
               borderRadius: 8,
-              background: "rgba(99, 102, 241, 0.15)",
-              color: "#818cf8",
+              background: "rgba(212, 163, 89, 0.15)",
+              color: "var(--accent-primary, #d4a359)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <GitBranch size={18} />
+            <Network size={18} />
           </div>
           <div>
             <div id="mindmap-modal-title" style={{ fontWeight: 600, fontSize: 15 }}>
@@ -189,12 +189,12 @@ export function MindMapPanel({
             flex: 1,
             padding: "10px 14px",
             border: "none",
-            background: activeTab === "layout" ? "rgba(99, 102, 241, 0.15)" : "transparent",
-            color: activeTab === "layout" ? "#818cf8" : "var(--text-muted, #a1a1aa)",
+            background: activeTab === "layout" ? "rgba(212, 163, 89, 0.15)" : "transparent",
+            color: activeTab === "layout" ? "var(--accent-primary, #d4a359)" : "var(--text-muted, #a1a1aa)",
             fontWeight: activeTab === "layout" ? 600 : 400,
             fontSize: 12,
             cursor: "pointer",
-            borderBottom: activeTab === "layout" ? "2px solid #818cf8" : "2px solid transparent",
+            borderBottom: activeTab === "layout" ? "2px solid var(--accent-primary, #d4a359)" : "2px solid transparent",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -211,12 +211,12 @@ export function MindMapPanel({
             flex: 1,
             padding: "10px 14px",
             border: "none",
-            background: activeTab === "generate" ? "rgba(99, 102, 241, 0.15)" : "transparent",
-            color: activeTab === "generate" ? "#818cf8" : "var(--text-muted, #a1a1aa)",
+            background: activeTab === "generate" ? "rgba(212, 163, 89, 0.15)" : "transparent",
+            color: activeTab === "generate" ? "var(--accent-primary, #d4a359)" : "var(--text-muted, #a1a1aa)",
             fontWeight: activeTab === "generate" ? 600 : 400,
             fontSize: 12,
             cursor: "pointer",
-            borderBottom: activeTab === "generate" ? "2px solid #818cf8" : "2px solid transparent",
+            borderBottom: activeTab === "generate" ? "2px solid var(--accent-primary, #d4a359)" : "2px solid transparent",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -296,9 +296,9 @@ export function MindMapPanel({
                     padding: "4px 8px",
                     borderRadius: 6,
                     fontSize: 11,
-                    background: topicPrompt === topic ? "rgba(99, 102, 241, 0.25)" : "rgba(255, 255, 255, 0.05)",
-                    border: topicPrompt === topic ? "1px solid #6366f1" : "1px solid rgba(255, 255, 255, 0.08)",
-                    color: topicPrompt === topic ? "#c7d2fe" : "var(--text-secondary, #a1a1aa)",
+                    background: topicPrompt === topic ? "rgba(212, 163, 89, 0.25)" : "rgba(255, 255, 255, 0.05)",
+                    border: topicPrompt === topic ? "1px solid var(--accent-primary, #d4a359)" : "1px solid rgba(255, 255, 255, 0.08)",
+                    color: topicPrompt === topic ? "#fef08a" : "var(--text-secondary, #a1a1aa)",
                     cursor: "pointer",
                   }}
                 >
@@ -315,7 +315,7 @@ export function MindMapPanel({
                 style={{
                   background: "transparent",
                   border: "none",
-                  color: "#818cf8",
+                  color: "var(--accent-primary, #d4a359)",
                   fontSize: 11,
                   cursor: "pointer",
                   display: "flex",
@@ -369,9 +369,9 @@ export function MindMapPanel({
                   borderRadius: 8,
                   fontSize: 11,
                   fontWeight: preferredModel === m ? 600 : 400,
-                  border: preferredModel === m ? "1px solid #6366f1" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
-                  background: preferredModel === m ? "rgba(99, 102, 241, 0.2)" : "rgba(255, 255, 255, 0.03)",
-                  color: preferredModel === m ? "#c7d2fe" : "var(--text-secondary, #a1a1aa)",
+                  border: preferredModel === m ? "1px solid var(--accent-primary, #d4a359)" : "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+                  background: preferredModel === m ? "rgba(212, 163, 89, 0.2)" : "rgba(255, 255, 255, 0.03)",
+                  color: preferredModel === m ? "#fef08a" : "var(--text-secondary, #a1a1aa)",
                   cursor: "pointer",
                   textTransform: "capitalize",
                 }}
@@ -414,7 +414,7 @@ export function MindMapPanel({
               padding: "12px 16px",
               borderRadius: 10,
               border: "none",
-              background: candidateElements.length === 0 ? "rgba(255, 255, 255, 0.08)" : "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+              background: candidateElements.length === 0 ? "rgba(255, 255, 255, 0.08)" : "linear-gradient(135deg, #d4a359 0%, #b47b18 100%)",
               color: "#ffffff",
               fontWeight: 600,
               fontSize: 13,
@@ -423,7 +423,7 @@ export function MindMapPanel({
               alignItems: "center",
               justifyContent: "center",
               gap: 8,
-              boxShadow: candidateElements.length > 0 ? "0 4px 14px rgba(99, 102, 241, 0.4)" : "none",
+              boxShadow: candidateElements.length > 0 ? "0 4px 14px rgba(212, 163, 89, 0.4)" : "none",
               transition: "all 0.2s ease",
             }}
           >
@@ -434,7 +434,7 @@ export function MindMapPanel({
               </>
             ) : (
               <>
-                <Sparkles size={15} />
+                <Network size={15} />
                 <span>Balance & Auto-Layout Canvas</span>
               </>
             )}
@@ -449,7 +449,7 @@ export function MindMapPanel({
               padding: "12px 16px",
               borderRadius: 10,
               border: "none",
-              background: (!topicPrompt.trim() && !markdownInput.trim()) ? "rgba(255, 255, 255, 0.08)" : "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+              background: (!topicPrompt.trim() && !markdownInput.trim()) ? "rgba(255, 255, 255, 0.08)" : "linear-gradient(135deg, #d4a359 0%, #b47b18 100%)",
               color: "#ffffff",
               fontWeight: 600,
               fontSize: 13,
@@ -458,7 +458,7 @@ export function MindMapPanel({
               alignItems: "center",
               justifyContent: "center",
               gap: 8,
-              boxShadow: (topicPrompt.trim() || markdownInput.trim()) ? "0 4px 14px rgba(99, 102, 241, 0.4)" : "none",
+              boxShadow: (topicPrompt.trim() || markdownInput.trim()) ? "0 4px 14px rgba(212, 163, 89, 0.4)" : "none",
               transition: "all 0.2s ease",
             }}
           >
@@ -469,7 +469,7 @@ export function MindMapPanel({
               </>
             ) : (
               <>
-                <Sparkles size={15} />
+                <Network size={15} />
                 <span>Generate & Place Mind-Map</span>
               </>
             )}

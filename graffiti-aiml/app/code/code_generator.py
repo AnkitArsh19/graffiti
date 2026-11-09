@@ -170,7 +170,7 @@ async def stream_diagram_to_code(
     gemini_key = settings.get_gemini_key()
     openai_key = settings.get_openai_key()
 
-    # 1. Primary: If Groq key is present, stream from Groq (llama-3.3-70b-versatile)
+    # 1. Primary: If Groq key is present, stream from Groq (openai/gpt-oss-120b)
     if groq_key:
         try:
             from groq import AsyncGroq

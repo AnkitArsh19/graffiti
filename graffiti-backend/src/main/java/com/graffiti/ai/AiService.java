@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /** Small, failure-isolated proxy for the optional AI service. */
 @Service
@@ -118,6 +119,28 @@ public class AiService {
             } else {
                 proposed = List.of(payloadObj);
             }
+        }
+
+        // Support explanation responses without pre-existing proposed elements (e.g. circle-query explain)
+        if ((proposed == null || (proposed instanceof List && ((List<?>) proposed).isEmpty()))
+                && result.containsKey("explanationText") && result.get("explanationText") != null) {
+            String expText = String.valueOf(result.get("explanationText"));
+            Map<String, Object> sticky = new LinkedHashMap<>();
+            sticky.put("id", "sticky_" + UUID.randomUUID().toString().substring(0, 8));
+            sticky.put("type", "sticky");
+            sticky.put("x", 320.0);
+            sticky.put("y", 200.0);
+            sticky.put("width", 300.0);
+            sticky.put("height", 180.0);
+            sticky.put("text", "💡 AI Explanation:\n\n" + expText);
+            sticky.put("fontSize", "small");
+            sticky.put("fontFamily", "clean");
+            sticky.put("strokeColor", "#1e1e1e");
+            sticky.put("backgroundColor", "#fef3c7");
+            sticky.put("strokeWidth", 1);
+            sticky.put("opacity", 100);
+            sticky.put("customData", Map.of("aiGenerated", true, "ghostPreview", true));
+            proposed = List.of(sticky);
         }
 
         List<?> proposedList = (proposed instanceof List) ? (List<?>) proposed : Collections.emptyList();

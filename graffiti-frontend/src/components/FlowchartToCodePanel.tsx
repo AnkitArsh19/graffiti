@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Code2, Sparkles, X, Copy, Check, FileCode, Play, Terminal, Layers, RefreshCw } from "lucide-react";
+import { Code2, X, Copy, Check, FileCode, Play, Terminal, Layers, RefreshCw } from "lucide-react";
 import { apiConvertFlowchartToCode } from "../lib/api";
 import type { CanvasElement } from "../types";
 
@@ -263,7 +263,7 @@ export function FlowchartToCodePanel({
               boxShadow: "0 4px 14px rgba(16, 185, 129, 0.3)",
             }}
           >
-            {isLoading ? <RefreshCw size={15} className="animate-spin" /> : <Sparkles size={15} />}
+            {isLoading ? <RefreshCw size={15} className="animate-spin" /> : <Code2 size={15} />}
             <span>{isLoading ? "Synthesizing Architecture & Code..." : "Scan & Compile Flowchart to Code"}</span>
           </button>
         </div>

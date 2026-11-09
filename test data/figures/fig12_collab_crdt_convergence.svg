@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="310" viewBox="0 0 600 310">
+    <rect width="100%" height="100%" fill="#ffffff" />
+    <text x="30" y="30" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#1e293b">Figure 12: Dual-Pipeline LWW-CRDT Scalability & Convergence</text>
+    <text x="30" y="47" font-family="Arial, sans-serif" font-size="11" fill="#64748b">Stress-tested up to 500 concurrent users | 471,000 merged operations | 100.00% consistency</text>
+
+    <!-- 100% Convergence Banner -->
+    <rect x="30" y="58" width="540" height="30" rx="4" fill="#f0fdf4" stroke="#bbf7d0" />
+    <text x="45" y="77" font-family="Arial, sans-serif" font-size="11" fill="#15803d" font-weight="bold">State Convergence: 100.00% across all 8 tiers (0 divergences under arrival shuffle &amp; reversal)</text>
+
+    <!-- Table Layout for IEEE publication style -->
+    <rect x="30" y="98" width="540" height="195" rx="4" fill="#f8fafc" stroke="#cbd5e1" />
+    
+    <!-- Table Header -->
+    <rect x="30" y="98" width="540" height="24" fill="#e2e8f0" />
+    <text x="45" y="114" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="#1e293b">Active Users</text>
+    <text x="135" y="114" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="#1e293b">Total Ops</text>
+    <text x="210" y="114" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="#1e293b">Convergence</text>
+    <text x="310" y="114" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="#1e293b">Merge Time (p95)</text>
+    <text x="430" y="114" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="#1e293b">Network Fanout (60Hz)</text>
+
+    <!-- Row 1: 10 Users -->
+    <line x1="30" y1="142" x2="570" y2="142" stroke="#cbd5e1" />
+    <text x="45" y="136" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">10 Users</text>
+    <text x="135" y="136" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">5,000</text>
+    <text x="210" y="136" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="#15803d">100% (0 div)</text>
+    <text x="310" y="136" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">0.13 µs</text>
+    <text x="430" y="136" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">5,400 msgs/s</text>
+
+    <!-- Row 2: 25 Users -->
+    <line x1="30" y1="164" x2="570" y2="164" stroke="#cbd5e1" />
+    <text x="45" y="158" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">25 Users</text>
+    <text x="135" y="158" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">12,500</text>
+    <text x="210" y="158" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="#15803d">100% (0 div)</text>
+    <text x="310" y="158" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">0.10 µs</text>
+    <text x="430" y="158" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">36,000 msgs/s</text>
+
+    <!-- Row 3: 50 Users -->
+    <line x1="30" y1="186" x2="570" y2="186" stroke="#cbd5e1" />
+    <text x="45" y="180" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">50 Users</text>
+    <text x="135" y="180" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">25,000</text>
+    <text x="210" y="180" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="#15803d">100% (0 div)</text>
+    <text x="310" y="180" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">0.15 µs</text>
+    <text x="430" y="180" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">147,000 msgs/s</text>
+
+    <!-- Row 4: 100 Users -->
+    <line x1="30" y1="208" x2="570" y2="208" stroke="#cbd5e1" />
+    <text x="45" y="202" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">100 Users</text>
+    <text x="135" y="202" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">50,000</text>
+    <text x="210" y="202" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="#15803d">100% (0 div)</text>
+    <text x="310" y="202" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">0.05 µs</text>
+    <text x="430" y="202" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="#ca8a04">594,000 msgs/s (Network Limit)</text>
+
+    <!-- Row 5: 250 Users -->
+    <line x1="30" y1="230" x2="570" y2="230" stroke="#cbd5e1" />
+    <text x="45" y="224" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">250 Users</text>
+    <text x="135" y="224" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">125,000</text>
+    <text x="210" y="224" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="#15803d">100% (0 div)</text>
+    <text x="310" y="224" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">0.08 µs</text>
+    <text x="430" y="224" font-family="Arial, sans-serif" font-size="9.5" fill="#dc2626">3.73M msgs/s (Requires Cluster)</text>
+
+    <!-- Row 6: 500 Users -->
+    <line x1="30" y1="252" x2="570" y2="252" stroke="#cbd5e1" />
+    <text x="45" y="246" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="#1e293b">500 Users</text>
+    <text x="135" y="246" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">250,000</text>
+    <text x="210" y="246" font-family="Arial, sans-serif" font-size="9.5" font-weight="bold" fill="#15803d">100% (0 div)</text>
+    <text x="310" y="246" font-family="Arial, sans-serif" font-size="9.5" fill="#1e293b">0.05 µs (&gt;10M ops/s)</text>
+    <text x="430" y="246" font-family="Arial, sans-serif" font-size="9.5" fill="#dc2626">14.97M msgs/s (Requires Sharding)</text>
+
+    <text x="45" y="278" font-family="Arial, sans-serif" font-size="9.5" fill="#64748b">*System Breaking Point: Client CRDT state merge remains sub-microsecond (&lt;0.2 µs); the architectural ceiling is O(N²) network socket broadcast fanout.</text>
+  </svg>

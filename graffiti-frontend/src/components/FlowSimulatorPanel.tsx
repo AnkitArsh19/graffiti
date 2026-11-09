@@ -5,7 +5,7 @@ import {
   SkipForward,
   SkipBack,
   RotateCcw,
-  Sparkles,
+  Cpu,
   X,
   Activity,
   Terminal,
@@ -385,7 +385,7 @@ export function FlowSimulatorPanel({
             boxShadow: "0 4px 14px rgba(2, 132, 199, 0.35)",
           }}
         >
-          <Sparkles size={15} />
+          <Cpu size={15} />
           <span>{isLoading ? "Compiling State Graph..." : "Simulate Flowchart Execution"}</span>
         </button>
 

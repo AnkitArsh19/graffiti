@@ -35,7 +35,7 @@
    - [ADR-021: Shape-Interior Text Clipping & Bound-Text Drag Grouping on Canvas](#adr-021-shape-interior-text-clipping--bound-text-drag-grouping-on-canvas)
    - [ADR-022: Voice Live Storyboard with Speech Synthesis Audio Confirmation](#adr-022-voice-live-storyboard-with-speech-synthesis-audio-confirmation)
    - [ADR-023: Client-Side Deterministic Stroke Beautification & Multi-Orientation Polygon/Ellipse Snapping Engine](#adr-023-client-side-deterministic-stroke-beautification--multi-orientation-polygonellipse-snapping-engine)
-   - [ADR-024: AI/ML Microservice Provider Modernization (Gemini 3.8 Flash & Groq Llama 3.3 70B)](#adr-024-aiml-microservice-provider-modernization-gemini-38-flash--groq-llama-33-70b)
+   - [ADR-024: AI/ML Microservice Provider Modernization (Gemini 3.8 Flash & Groq OpenAI/Qwen)](#adr-024-aiml-microservice-provider-modernization-gemini-38-flash--groq-openaiqwen)
    - [ADR-025: Apple Pencil "Draw and Hold" (Snap-and-Hold / QuickShape) Interaction Model](#adr-025-apple-pencil-draw-and-hold-snap-and-hold--quickshape-interaction-model)
    - [ADR-026: Multi-Stroke Handwritten Equation Engine (iPadOS 18 Math Notes Architecture)](#adr-026-multi-stroke-handwritten-equation-engine-ipados-18-math-notes-architecture)
    - [ADR-027: Unified Backend API Gateway & Elimination of Direct Port 8000 Exposure](#adr-027-unified-backend-api-gateway--elimination-of-direct-port-8000-exposure)
@@ -46,6 +46,10 @@
    - [ADR-032: Robust AI Schema Validation & Resilient Panel State Lifecycle](#adr-032-robust-ai-schema-validation--resilient-panel-state-lifecycle)
    - [ADR-033: Docker Containerization for Python AI Microservice (Zero Local Virtual Environments)](#adr-033-docker-containerization-for-python-ai-microservice-zero-local-virtual-environments)
    - [ADR-034: Semantic Canvas Topology Extraction & Multi-Candidate Groq / Vision Code Compilation](#adr-034-semantic-canvas-topology-extraction--multi-candidate-groq--vision-code-compilation)
+   - [ADR-035: Zero-Latency Theme Preset Bypass & Pastel Creative Aesthetic Preset](#adr-035-zero-latency-theme-preset-bypass--pastel-creative-aesthetic-preset)
+   - [ADR-036: Collision-Free Hierarchical Mind-Map Layout (Markmap Flextree Spacing) & Topic Synthesis](#adr-036-collision-free-hierarchical-mind-map-layout-markmap-flextree-spacing--topic-synthesis)
+   - [ADR-037: Deterministic Multi-Feature Stroke OCR & Non-Blocking Background Canvas Indexing](#adr-037-deterministic-multi-feature-stroke-ocr--non-blocking-background-canvas-indexing)
+   - [ADR-038: High-Aspect-Ratio Linear Stroke Handle Culling & Unrestricted Drag Bounds](#adr-038-high-aspect-ratio-linear-stroke-handle-culling--unrestricted-drag-bounds)
 
 ---
 
@@ -93,6 +97,11 @@ Graffiti solves this through a high-performance **Server-Authoritative CRDT Hybr
 ### ADR-002: Asynchronous Write-Behind Op Buffer & Micro-Batching
 
 * **Status:** Implemented in [`OpService.java`](file:///e:/graffiti/graffiti-backend/src/main/java/com/graffiti/op/OpService.java)
+
+<p align="center">
+  <img src="docs/images/fig2_sync_paths.png" alt="Bifurcated State Synchronization Paths" width="100%"/>
+</p>
+
 * **Context:** Synchronous single-row `INSERT INTO ops` execution on every STOMP WebSocket frame causes thread blocking and database lock contention under rapid drawing.
 * **Decision:** 
   1. Incoming ops are immediately assigned an atomic Lamport timestamp and enqueued into a thread-safe, lock-free `ConcurrentLinkedQueue<Op> writeBuffer`.
@@ -322,7 +331,7 @@ Graffiti solves this through a high-performance **Server-Authoritative CRDT Hybr
 * **Status:** Implemented in [`graffiti-aiml/`](file:///e:/graffiti/graffiti-aiml/) — branch `feature/new-aiml-features`
 * **Date:** November 2026
 * **Context:** The original AI/ML microservice (`v0.1`) covered stroke beautification, handwriting OCR, math solving, circle-gesture queries, text-to-diagram, and wireframe-to-code. As the product matured, users required higher-level canvas intelligence: automatic diagram layouts, executable flowchart simulations, voice-driven design, AI-powered notebook summarization, visual theme transformation, and reverse engineering of drawn flowcharts into executable code.
-* **Decision:** Extend the FastAPI service with **six independent, fully self-contained AI feature modules**, each with its own router, service layer, Pydantic schemas, and dual LLM provider chain (Groq llama-3.1-70b primary → Gemini 1.5 Flash secondary → deterministic heuristic fallback):
+* **Decision:** Extend the FastAPI service with **six independent, fully self-contained AI feature modules**, each with its own router, service layer, Pydantic schemas, and dual LLM provider chain (Groq openai/gpt-oss-120b primary → Gemini 3.8 Flash secondary → deterministic heuristic fallback):
 
   | Module | Endpoint | Frontend Component | Capability |
   | :--- | :--- | :--- | :--- |
@@ -418,15 +427,15 @@ Graffiti solves this through a high-performance **Server-Authoritative CRDT Hybr
 
 ---
 
-### ADR-024: AI/ML Microservice Provider Modernization (Gemini 3.8 Flash & Groq Llama 3.3 70B)
+### ADR-024: AI/ML Microservice Provider Modernization (Gemini 3.8 Flash & Groq OpenAI/Qwen)
 
 * **Status:** Implemented in [`graffiti-aiml/`](file:///e:/graffiti/graffiti-aiml/)
 * **Date:** November 2026
-* **Context:** The `graffiti-aiml` microservice previously referenced deprecated LLM model versions: Groq `llama-3.1-70b-versatile` was decommissioned, Google `gemini-1.5-flash` was legacy, and `gemini-2.0-flash` was scheduled for shutdown. Inconsistent environment variable keys caused provider fallbacks to fail silently when keys were loaded from disparate configs.
+* **Context:** The `graffiti-aiml` microservice previously referenced decommissioned Groq models (`llama3-70b-8192`, `llama3-8b-8192`, `mixtral-8x7b-32768`, `gemma2-9b-it`).
 * **Decision:**
   1. **Model Upgrades**:
      - **Google Gemini**: Standardized to `gemini-3.8-flash` across all vision, multimodal, code generation, and voice storyboard modules.
-     - **Groq Cloud**: Upgraded to `llama-3.3-70b-versatile` for high-throughput mind-map layout, natural language planning, and text processing.
+     - **Groq Cloud**: Upgraded to verified live models `openai/gpt-oss-120b` (flagship MoE), `openai/gpt-oss-20b` (fast reasoning), and `qwen/qwen3.8-27b` (multimodal) for high-throughput mind-map layout, natural language planning, and text processing.
   2. **Dynamic Configuration via `config.py`**: Added explicit fields `openai_model` (`gpt-4o-mini`) and `anthropic_model` (`claude-3-5-sonnet-20241022`), along with unified key getter methods (`get_gemini_key()`, `get_openai_key()`, `get_anthropic_key()`).
   3. **Unified Environment Configuration**: Updated `.env` and `.env.example` to centralize all provider credentials and model identifiers under consistent keys.
   4. **Health Endpoint Diagnostics**: Enhanced `/health` endpoint to actively inspect and report the live availability status of all 4 provider keys (Gemini, Groq, OpenAI, Anthropic).
@@ -573,13 +582,13 @@ Graffiti solves this through a high-performance **Server-Authoritative CRDT Hybr
 
 * **Status:** Implemented in [`flowchart_to_code.py`](file:///e:/graffiti/graffiti-aiml/app/flowchart/flowchart_to_code.py), [`flowchart_schema.py`](file:///e:/graffiti/graffiti-aiml/app/schemas/flowchart_schema.py), & [`FlowchartToCodePanel.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/FlowchartToCodePanel.tsx)
 * **Date:** November 2026
-* **Context:** Flowchart-to-code previously assumed a multi-modal vision LLM (e.g., Gemini 1.5 Flash Vision). When developers only provide high-speed text LLM API keys (such as Groq Cloud with `openai/gpt-oss-120b`, `llama-3.3-70b-versatile`, or `qwen3.8-27b`), vision-only inference pipelines fail. Furthermore, learning from `abi/screenshot-to-code` and Excalidraw's `DiagramToCodePlugin` demonstrates that raster vision LLMs frequently hallucinate text and scramble complex branch conditions compared to structured vector element graphs.
+* **Context:** Flowchart-to-code previously assumed a multi-modal vision LLM (e.g., Gemini 1.5 Flash Vision). When developers only provide high-speed text LLM API keys (such as Groq Cloud with `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, or `qwen3.8-27b`), vision-only inference pipelines fail. Furthermore, learning from `abi/screenshot-to-code` and Excalidraw's `DiagramToCodePlugin` demonstrates that raster vision LLMs frequently hallucinate text and scramble complex branch conditions compared to structured vector element graphs.
 * **Decision:**
   1. **Dual Extraction Pipeline (`extract_flowchart_graph_from_elements`)**:
      - Parse canvas elements (`activePage.elements` or selection) to extract shapes (`rectangle` $\to$ process, `diamond` $\to$ decision, `ellipse` $\to$ start/end terminal), direct and container-bound text labels, and directional arrow bindings (`startBinding`, `endBinding`, condition labels).
      - Construct a normalized topological graph: Nodes (`id`, `label`, `type`) and Edges (`source`, `target`, `condition`).
   2. **Multi-Candidate Groq Model Fallback**:
-     - Attempt configured models dynamically (`openai/gpt-oss-120b`, `llama-3.3-70b-versatile`, `qwen/qwen3.8-27b`, `openai/gpt-oss-20b`) before fallback, eliminating single-model 404 availability failures.
+     - Attempt configured models dynamically (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `qwen/qwen3.8-27b`) before fallback, eliminating single-model 404 availability failures.
   3. **Multi-Modal Vision Support**: When a Gemini API key is configured alongside canvas screenshots, vision inference runs with semantic topology validation.
   4. **Multi-Language Production Code Synthesis**:
      - Generates idiomatic, typed Python 3 workflow classes with state management, error handling, and executable `__main__` entrypoints.
@@ -640,5 +649,29 @@ Graffiti solves this through a high-performance **Server-Authoritative CRDT Hybr
   3. **Instant Searchability**:
      - Elements indexed with `customData.ocrText` are immediately searchable via `CanvasSearch.tsx` (`Ctrl+F`) and included in Markdown notebook exports.
 * **Consequences:** Whiteboard handwriting becomes fully searchable and exportable without introducing drawing lag or requiring external vision API credits.
+
+---
+
+### ADR-038: High-Aspect-Ratio Linear Stroke Handle Culling & Unrestricted Drag Bounds
+
+* **Status:** Implemented in [`collision.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/collision.ts), [`canvasRenderer.ts`](file:///e:/graffiti/graffiti-frontend/src/lib/canvasRenderer.ts), & [`WhiteboardCanvas.tsx`](file:///e:/graffiti/graffiti-frontend/src/components/WhiteboardCanvas.tsx)
+* **Date:** November 2026
+* **Context:** Several edge-case interaction defects degraded vector stroke manipulation:
+  1. *Stacked Transform Handles on Linear Strokes*: Selecting a drawn horizontal line or thin pen stroke rendered all 8 standard 2D bounding handles (`nw`, `ne`, `se`, `sw`, `n`, `s`, `w`, `e`). Because vertical height was small ($\le 45\text{px}$), the top and bottom handles collapsed onto each other, appearing as doubled/stacked square buttons along the stroke.
+  2. *Stroke Scaling Distortion*: Dragging resize handles on thin strokes clamped dimensions to `10px`, which forced an artificial 500% vertical stretch on $2\text{px}$ strokes.
+  3. *Invisible Wall Dragging Lock*: Dragging elements near the bottom canvas boundary triggered a synchronous edge auto-pan that mutated `viewport.scrollY` during `onPointerMove`. Because `startWorld` was invariant, each scroll update cancelled out cursor delta, freezing the element in place like an invisible wall.
+  4. *Pen Stroke Rotation Desync*: Pen strokes were rendered without center rotation in `renderCanvasElement` despite rotation handles applying `angle`, causing visual stroke geometry and selection bounding boxes to diverge.
+* **Decision:**
+  1. **Dynamic Handle Culling for Linear & Thin Elements**:
+     - Apply thin-element detection: $\text{isThinH} = (h \cdot \text{zoom} < 64 \lor h < 60) \lor (w > 80 \land h < 70 \land w > 2.5 \cdot h)$.
+     - Cull conflicting top/bottom handles (`n`, `s`, `nw`, `ne`, `sw`, `se`), exposing only clean endpoints (`w` on the left, `e` on the right) and the rotation stem.
+  2. **Dynamic Dimension Bounds & Coordinate Protection**:
+     - Replace static minimums with dynamic bounds: `minW = Math.min(10, Math.max(2, orig.width))` and `minH = Math.min(10, Math.max(2, orig.height))`.
+     - When resizing horizontal strokes, preserve orthogonal `y` ink points without scaling to prevent thickness distortion.
+  3. **Unrestricted Pointer Dragging**:
+     - Remove the synchronous viewport auto-pan mutator from pointer-move element translation. Figures drag fluidly across all canvas edges.
+  4. **Center-Rotated Pen Stroke Pipeline**:
+     - Unify pen stroke rendering with 2D shapes around $(cx, cy)$ center rotation, and unrotate points in `pointInElement` for pixel-accurate hit-testing.
+* **Consequences:** Eliminates stacked handle clutter on lines, prevents stroke distortion during resizing, and restores smooth dragging across the entire canvas viewport.
 
 

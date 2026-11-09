@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Sparkles, X, MessageSquare, Palette, RefreshCw, Send } from "lucide-react";
+import { ScanEye, X, MessageSquare, Palette, RefreshCw, Send } from "lucide-react";
 import type { CanvasElement } from "../types";
 
 export interface CircleQueryPopoverProps {
@@ -22,13 +22,22 @@ export function CircleQueryPopover({
 }: CircleQueryPopoverProps) {
   const [prompt, setPrompt] = useState("");
 
-  if (!isOpen || enclosedElements.length === 0) return null;
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (prompt.trim()) {
-      onSubmit(prompt.trim(), "transform");
+    const clean = prompt.trim();
+    if (!clean) return;
+
+    // Detect action intent from prompt
+    const lower = clean.toLowerCase();
+    let actionType: "explain" | "restyle" | "transform" = "explain";
+    if (["restyle", "color", "theme", "clean", "beautify", "align", "palette"].some((w) => lower.includes(w))) {
+      actionType = "restyle";
+    } else if (["transform", "card", "convert", "expand", "flowchart", "boxes"].some((w) => lower.includes(w))) {
+      actionType = "transform";
     }
+    onSubmit(clean, actionType);
   };
 
   return (
@@ -43,8 +52,12 @@ export function CircleQueryPopover({
     >
       <div className="circle-query-header">
         <div className="circle-query-title">
-          <Sparkles size={14} className="sparkle-icon" />
-          <span>Circled {enclosedElements.length} {enclosedElements.length === 1 ? "element" : "elements"}</span>
+          <ScanEye size={14} className="sparkle-icon" />
+          <span>
+            {enclosedElements.length > 0
+              ? `Circled ${enclosedElements.length} ${enclosedElements.length === 1 ? "element" : "elements"}`
+              : "Circled canvas region"}
+          </span>
         </div>
         <button type="button" className="circle-query-close" onClick={onClose} title="Dismiss">
           <X size={14} />
@@ -56,7 +69,7 @@ export function CircleQueryPopover({
           type="button"
           className="quick-action-chip"
           disabled={isLoading}
-          onClick={() => onSubmit("Explain this diagram and its flow", "explain")}
+          onClick={() => onSubmit(prompt.trim() || "Explain the circled content and key concepts", "explain")}
         >
           <MessageSquare size={12} />
           <span>Explain</span>
@@ -66,7 +79,7 @@ export function CircleQueryPopover({
           type="button"
           className="quick-action-chip"
           disabled={isLoading}
-          onClick={() => onSubmit("Clean up, align, and restyle with cohesive theme", "restyle")}
+          onClick={() => onSubmit(prompt.trim() || "Clean up, align, and restyle with cohesive theme", "restyle")}
         >
           <Palette size={12} />
           <span>Restyle</span>
@@ -76,7 +89,7 @@ export function CircleQueryPopover({
           type="button"
           className="quick-action-chip"
           disabled={isLoading}
-          onClick={() => onSubmit("Transform into structured architecture cards", "transform")}
+          onClick={() => onSubmit(prompt.trim() || "Transform into structured architecture cards", "transform")}
         >
           <RefreshCw size={12} />
           <span>Transform</span>

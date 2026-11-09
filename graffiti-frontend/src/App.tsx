@@ -11,6 +11,7 @@ import {
   FolderOpen,
   HardDrive,
   ImageDown,
+  Image as ImageIcon,
   FileText,
   Layers,
   Menu,
@@ -41,16 +42,20 @@ import {
   Monitor,
   Settings as SettingsIcon,
   LogIn,
+  Upload,
   Copy,
   Check,
   GitBranch,
+  Network,
+  Workflow,
+  Cpu,
   Code2,
   Palette,
   Activity,
 } from "lucide-react";
 
 const DESKTOP_VERSION = "0.3.0";
-const DESKTOP_EXE_DOWNLOAD_URL = `https://github.com/AnkitArsh19/graffiti/releases/download/v${DESKTOP_VERSION}/Graffiti_${DESKTOP_VERSION}_x64-setup.exe`;
+const DESKTOP_EXE_DOWNLOAD_URL = `https://github.com/AnkitArsh19/graffiti/releases/download/${DESKTOP_VERSION}/Graffiti_${DESKTOP_VERSION}_x64-setup.exe`;
 const RELEASES_PAGE_URL = "https://github.com/AnkitArsh19/graffiti/releases/latest";
 
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -72,11 +77,12 @@ import { ThemeMorphPanel } from "./components/ThemeMorphPanel";
 import { FlowSimulatorPanel } from "./components/FlowSimulatorPanel";
 import { GoogleDriveExportModal } from "./components/GoogleDriveExportModal";
 import { DesktopAuthModal } from "./components/DesktopAuthModal";
+import { DesktopUpdateModal } from "./components/DesktopUpdateModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { CircleQueryPopover } from "./components/CircleQueryPopover";
 import { CommandPalette } from "./components/CommandPalette";
 import { alignElements, distributeElements, tidyUpElements, type AlignmentType, type DistributionDirection } from "./lib/alignment";
-import { isDesktopApp, getLaunchDeepLink, exchangeDesktopHandoffCode } from "./lib/desktopAuth";
+import { isDesktopApp, getLaunchDeepLink, exchangeDesktopHandoffCode, openExternalBrowser } from "./lib/desktopAuth";
 
 import {
   apiGetRoom,
@@ -96,6 +102,7 @@ import {
   apiCreateFolder,
   apiUpdateFolder,
   apiDeleteFolder,
+  apiUploadMedia,
 } from "./lib/api";
 
 import { Inspector } from "./components/Inspector";
@@ -140,6 +147,7 @@ import type {
   CanvasElement,
   DockPosition,
   ElementStyle,
+  ElementType,
   NotebookPage,
   PaperTemplate,
   ToolId,
@@ -294,6 +302,7 @@ export default function App() {
   const [isCopiedCode, setIsCopiedCode] = useState(false);
   const [roomInfo, setRoomInfo] = useState<any>(null);
   const [ghostElements, setGhostElements] = useState<CanvasElement[]>([]);
+  const [aiExplanation, setAiExplanation] = useState<string | null>(null);
   const [autoBeautify, setAutoBeautify] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem("graffiti:auto_beautify");
@@ -313,24 +322,11 @@ export default function App() {
     });
   }, []);
 
-  // Circle to Ask AI gesture toggle - disabled by default so it never runs randomly
-  const [enableCircleQuery, setEnableCircleQuery] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem("graffiti:enable_circle_query");
-      return saved === "true";
-    } catch {
-      return false;
-    }
-  });
+  // Circle to Ask AI gesture toggle - strictly OFF by default
+  const [enableCircleQuery, setEnableCircleQuery] = useState<boolean>(false);
 
   const toggleCircleQuery = useCallback(() => {
-    setEnableCircleQuery((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem("graffiti:enable_circle_query", String(next));
-      } catch {}
-      return next;
-    });
+    setEnableCircleQuery((prev) => !prev);
   }, []);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const liveMenuRef = useRef<HTMLDivElement>(null);
@@ -403,6 +399,7 @@ export default function App() {
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
   const [driveModalMode, setDriveModalMode] = useState<"export" | "import">("export");
   const [isDesktopAuthOpen, setIsDesktopAuthOpen] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
 
@@ -423,7 +420,14 @@ export default function App() {
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const docFileInputRef = useRef<HTMLInputElement>(null);
+  const mediaFileInputRef = useRef<HTMLInputElement>(null);
   const [annotatingFile, setAnnotatingFile] = useState<File | null>(null);
+  const [mediaAuthPrompt, setMediaAuthPrompt] = useState<{
+    open: boolean;
+    fileName: string;
+    fileSizeMb: string;
+  } | null>(null);
+  const [mediaToast, setMediaToast] = useState<string | null>(null);
 
   // Teacher Follow-Me Mode & Circle Gesture State
   const [isPresenterMode, setIsPresenterMode] = useState(false);
@@ -484,18 +488,38 @@ export default function App() {
           };
           targetName = activeWhiteboardName;
         } else {
+          // Flush save current local work to storage first so work is safe
+          if (storage && activeWhiteboardId && !slug) {
+            try {
+              const existing = await storage.getWhiteboard(activeWhiteboardId);
+              if (existing) {
+                const updatedPages = present.pages.map((p, idx) => ({
+                  id: p.id,
+                  whiteboardId: activeWhiteboardId,
+                  title: p.title,
+                  template: p.template,
+                  pageOrder: idx,
+                  elements: p.elements,
+                  createdAt: Date.now(),
+                }));
+                await storage.saveWhiteboard({
+                  ...existing,
+                  name: activeWhiteboardName,
+                  folderId: activeFolderId,
+                  activePageId: present.activePageId,
+                  pages: updatedPages,
+                  updatedAt: Date.now(),
+                });
+              }
+            } catch {}
+          }
+
           const freshPage = createPage("Canvas 1", "grid");
           targetSnapshot = {
             activePageId: freshPage.id,
             pages: [freshPage],
           };
           targetName = "New Collaborative Canvas";
-          setActiveWhiteboardName(targetName);
-          setHistory({
-            past: [],
-            present: targetSnapshot,
-            future: [],
-          });
         }
 
         const room = await apiCreateRoom({
@@ -528,7 +552,7 @@ export default function App() {
         setIsShareOpen(true);
       }
     },
-    [navigate, activeWhiteboardName, present]
+    [navigate, activeWhiteboardName, present, storage, activeWhiteboardId, activeFolderId, slug]
   );
 
   // Apply theme class and data-theme attribute
@@ -542,8 +566,9 @@ export default function App() {
     localStorage.setItem(STORAGE_DOCK_KEY, dockPosition);
   }, [dockPosition]);
 
-  // Persist notebook
+  // Persist notebook - do not overwrite local notebook when collaborating in a cloud room
   useEffect(() => {
+    if (slug) return;
     const timeout = window.setTimeout(() => {
       localStorage.setItem(STORAGE_NOTEBOOK_KEY, JSON.stringify(present));
     }, 250);
@@ -676,9 +701,9 @@ export default function App() {
     };
   }, []);
 
-  // Auto-save active whiteboard to local storage and server
+  // Auto-save active whiteboard to local storage and server (only when on local board, NOT in a cloud room)
   useEffect(() => {
-    if (!storage || !activeWhiteboardId) return;
+    if (!storage || !activeWhiteboardId || slug) return;
 
     const timeout = window.setTimeout(async () => {
       try {
@@ -714,8 +739,8 @@ export default function App() {
             )
           );
 
-          // If authenticated, also save full whiteboard content to Graffiti backend server
-          if (isAuthenticated) {
+          // If authenticated and whiteboard has a valid cloud room slug, save full whiteboard content to Graffiti backend server
+          if (isAuthenticated && existing?.slug && existing.slug.trim()) {
             apiSaveRoomContent(existing.slug, {
               name: activeWhiteboardName,
               workspaceId: activeWorkspaceId,
@@ -735,7 +760,53 @@ export default function App() {
     }, 300);
 
     return () => window.clearTimeout(timeout);
-  }, [present, activeWhiteboardId, activeWhiteboardName, activeFolderId, activeWorkspaceId, storage, isAuthenticated]);
+  }, [present, activeWhiteboardId, activeWhiteboardName, activeFolderId, activeWorkspaceId, storage, isAuthenticated, slug]);
+
+  // When returning to homepage (!slug), restore the user's active local whiteboard and workspace cleanly
+  useEffect(() => {
+    if (slug || !storage) return;
+
+    let cancelled = false;
+    async function restoreLocalBoard() {
+      try {
+        const wsList = await storage!.listWorkspaces();
+        if (wsList.length === 0 || cancelled) return;
+        const currentWsId = activeWorkspaceId || wsList[0].id;
+        const wbList = await storage!.listWhiteboards(currentWsId);
+        if (wbList.length === 0 || cancelled) return;
+
+        const savedWbId = localStorage.getItem("graffiti:active_whiteboard_id");
+        const targetWb = (savedWbId ? wbList.find((w) => w.id === savedWbId) : null) || wbList[0];
+        const detail = await storage!.getWhiteboard(targetWb.id);
+        if (detail && detail.pages.length > 0 && !cancelled) {
+          setActiveWhiteboardId(detail.id);
+          setActiveWhiteboardName(detail.name);
+          setActiveFolderId(detail.folderId);
+          setHistory({
+            past: [],
+            present: {
+              pages: detail.pages.map((p) => ({
+                id: p.id,
+                title: p.title,
+                template: p.template,
+                elements: (p.elements || []).map(normalizePenElement),
+              })),
+              activePageId: detail.activePageId || detail.pages[0].id,
+            },
+            future: [],
+          });
+          isRoomLoadedRef.current = false;
+        }
+      } catch (err) {
+        console.warn("Failed to restore local whiteboard on homepage:", err);
+      }
+    }
+
+    restoreLocalBoard();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, storage]);
 
   // Cloud Room auto-sync: When collaborating in a room (/room/:slug), sync canvas snapshot to server & cache locally
   useEffect(() => {
@@ -1231,6 +1302,9 @@ export default function App() {
       if (op.type === "AI_GHOST_OP") {
         const proposed = op.payload?.proposedElements;
         setGhostElements(Array.isArray(proposed) ? proposed.map(normalizePenElement) : []);
+        if (op.payload?.explanationText) {
+          setAiExplanation(String(op.payload.explanationText));
+        }
         return;
       }
 
@@ -1479,8 +1553,12 @@ export default function App() {
       const elementsWithPage = newElements.map((el) => (el.pageId ? el : { ...el, pageId: present.activePageId }));
       updateActivePage((page) => {
         const idMap = new Map(elementsWithPage.map((el) => [el.id, el]));
-        const updated = page.elements.map((item) => idMap.get(item.id) ?? item);
-        let finalElements = updated;
+        const existingIds = new Set(page.elements.map((el) => el.id));
+        const updated = page.elements
+          .map((item) => idMap.get(item.id) ?? item)
+          .filter((item) => !(item as any).isDeleted);
+        const added = elementsWithPage.filter((el) => !existingIds.has(el.id) && !(el as any).isDeleted);
+        let finalElements = [...updated, ...added];
         elementsWithPage.forEach((el) => {
           finalElements = updateBoundArrows(finalElements, el);
         });
@@ -1489,7 +1567,13 @@ export default function App() {
           elements: finalElements,
         };
       });
-      elementsWithPage.forEach((el) => sendOp(el.id, "CREATE_OR_UPDATE", el));
+      elementsWithPage.forEach((el) => {
+        if ((el as any).isDeleted) {
+          sendOp(el.id, "DELETE", el);
+        } else {
+          sendOp(el.id, "CREATE_OR_UPDATE", el);
+        }
+      });
     },
     [updateActivePage, sendOp, present.activePageId],
   );
@@ -1616,7 +1700,7 @@ export default function App() {
 
       const pageVars = extractVariablesFromElements(activePage.elements);
 
-      if (target.type === "text") {
+      if (target.type === "text" || Boolean(target.text)) {
         let raw = (target.text || "").trim();
         const cleanNoEquals = raw.replace(/=\s*(\?.*)?$/, "").trim();
 
@@ -1628,7 +1712,12 @@ export default function App() {
           const updated: CanvasElement = {
             ...target,
             text: updatedText,
-            width: newWidth,
+            width: target.type === "text" ? newWidth : target.width,
+            customData: {
+              ...(target.customData || {}),
+              mathSolved: true,
+              solution: String(solved.formatted),
+            },
           };
           updateActivePage((page) => ({
             ...page,
@@ -1649,14 +1738,21 @@ export default function App() {
 
           if (apiRes && apiRes.result && apiRes.result !== "Error") {
             const hasAlgebraRoots = apiRes.result.includes("=");
+            const baseClean = apiRes.cleanedEquation || cleanNoEquals;
             const updatedText = hasAlgebraRoots
-              ? `${cleanNoEquals}  ⇒  ${apiRes.result}`
-              : `${cleanNoEquals} = ${apiRes.result}`;
+              ? (baseClean.includes("=") ? `${baseClean}  ⇒  ${apiRes.result}` : `${baseClean} = ${apiRes.result}`)
+              : `${baseClean} = ${apiRes.result}`;
             const newWidth = Math.max(target.width, updatedText.length * 11 + 24);
             const updated: CanvasElement = {
               ...target,
               text: updatedText,
-              width: newWidth,
+              width: target.type === "text" ? newWidth : target.width,
+              customData: {
+                ...(target.customData || {}),
+                mathSolved: true,
+                cleanedEquation: apiRes.cleanedEquation,
+                solution: apiRes.result,
+              },
             };
             updateActivePage((page) => ({
               ...page,
@@ -1730,6 +1826,135 @@ export default function App() {
     tidied.forEach((el) => sendOp(el.id, "CREATE_OR_UPDATE", el));
   }, [selectedIds, activePage.elements, updateActivePage, sendOp]);
 
+  // Media upload handler (image, video, audio, files)
+  const handleMediaUpload = useCallback(
+    async (file: File, targetPoint?: { x: number; y: number }) => {
+      const isVideo = file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name);
+      const isAudio = file.type.startsWith("audio/") || /\.(mp3|wav|ogg|m4a|aac)$/i.test(file.name);
+      const isImage = file.type.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(file.name);
+
+      const elemType: ElementType = isVideo ? "video" : isAudio ? "audio" : "image";
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+      const MAX_LOCAL_SIZE = 3 * 1024 * 1024; // 3MB limit for client IndexedDB storage
+
+      const placeX = targetPoint?.x ?? (-viewport.scrollX + (window.innerWidth / (2 * viewport.zoom)) - 150);
+      const placeY = targetPoint?.y ?? (-viewport.scrollY + (window.innerHeight / (2 * viewport.zoom)) - 100);
+
+      let mediaSrc = "";
+      let isServerStored = false;
+
+      if (file.size > MAX_LOCAL_SIZE) {
+        if (!isAuthenticated) {
+          setMediaAuthPrompt({
+            open: true,
+            fileName: file.name,
+            fileSizeMb: sizeMb,
+          });
+          return;
+        }
+
+        try {
+          setMediaToast(`Uploading ${file.name} (${sizeMb} MB) to Graffiti server...`);
+          const res = await apiUploadMedia(file);
+          mediaSrc = res.url;
+          isServerStored = true;
+          setMediaToast(`Uploaded ${file.name} successfully!`);
+          setTimeout(() => setMediaToast(null), 3000);
+        } catch (err) {
+          console.error("Failed to upload media to server:", err);
+          setMediaToast(`Failed to upload ${file.name} to server`);
+          setTimeout(() => setMediaToast(null), 3500);
+          return;
+        }
+      } else {
+        try {
+          mediaSrc = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        } catch (e) {
+          console.warn("Failed to read media file locally:", e);
+          return;
+        }
+      }
+
+      let width = 320;
+      let height = 220;
+      if (isImage) {
+        try {
+          const img = new Image();
+          img.src = mediaSrc;
+          await new Promise((res) => { img.onload = res; img.onerror = res; });
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            const maxDim = 420;
+            const scale = Math.min(maxDim / img.naturalWidth, maxDim / img.naturalHeight, 1);
+            width = Math.round(img.naturalWidth * scale);
+            height = Math.round(img.naturalHeight * scale);
+          }
+        } catch {}
+      } else if (isVideo) {
+        width = 440;
+        height = 250;
+      } else if (isAudio) {
+        width = 340;
+        height = 80;
+      }
+
+      const newElement: CanvasElement = {
+        id: createId(elemType),
+        pageId: activePage.id,
+        type: elemType,
+        x: Math.round(placeX),
+        y: Math.round(placeY),
+        width,
+        height,
+        strokeColor: isVideo ? "#8b5cf6" : isAudio ? "#10b981" : "#4dabf7",
+        backgroundColor: "#18181b",
+        strokeWidth: 1,
+        roughness: 0,
+        opacity: 100,
+        seed: Math.floor(Math.random() * 100000),
+        title: file.name,
+        customData: {
+          src: mediaSrc,
+          url: mediaSrc,
+          name: file.name,
+          contentType: file.type,
+          size: file.size,
+          isServerAsset: isServerStored,
+        },
+      };
+
+      updateActivePage((page) => ({
+        ...page,
+        elements: [...page.elements, newElement],
+      }));
+      setSelectedId(newElement.id);
+      setSelectedIds([newElement.id]);
+      sendOp(newElement.id, "CREATE_OR_UPDATE", newElement);
+    },
+    [isAuthenticated, viewport, activePage.id, updateActivePage, sendOp]
+  );
+
+  // Global clipboard paste listener for images and media files (Ctrl+V)
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || (activeEl as HTMLElement).isContentEditable)) {
+        return;
+      }
+      if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+        e.preventDefault();
+        const file = e.clipboardData.files[0];
+        handleMediaUpload(file);
+      }
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [handleMediaUpload]);
+
   // Circle / Lasso Gesture AI Trigger
   const handleCircleGesture = useCallback(
     (
@@ -1749,7 +1974,19 @@ export default function App() {
       try {
         await handleAiRequest(createId("circle"), {
           feature: "circle-query",
-          circleBounds: circleQueryData.bounds,
+          circleBounds: {
+            x: circleQueryData.bounds.x,
+            y: circleQueryData.bounds.y,
+            w: circleQueryData.bounds.width,
+            h: circleQueryData.bounds.height,
+            width: circleQueryData.bounds.width,
+            height: circleQueryData.bounds.height,
+          },
+          viewport: {
+            zoom: viewport.zoom,
+            scrollX: viewport.scrollX,
+            scrollY: viewport.scrollY,
+          },
           enclosedElements: circleQueryData.enclosed,
           userPrompt: prompt,
           actionType,
@@ -1757,9 +1994,10 @@ export default function App() {
       } finally {
         setIsCircleQueryLoading(false);
         setCircleQueryData(null);
+        setEnableCircleQuery(false);
       }
     },
-    [circleQueryData, handleAiRequest]
+    [circleQueryData, handleAiRequest, viewport]
   );
 
   // Presenter / Follow-Me Mode Toggle
@@ -1805,11 +2043,45 @@ export default function App() {
 
   const acceptGhosts = useCallback(() => {
     if (!ghostElements.length) return;
-    commitElements(ghostElements.map((element) => ({ ...element, customData: { ...element.customData, ghostPreview: false, aiGenerated: true } })));
+    const nonDeleted = ghostElements.filter((el) => !(el as any).isDeleted);
+    const flowGroupId = nonDeleted.length > 1
+      ? String(nonDeleted[0].groupIds?.[0] || nonDeleted[0].customData?.groupId || createId("grp_flowchart"))
+      : undefined;
+
+    const finalized: CanvasElement[] = ghostElements.map((element) => {
+      if ((element as any).isDeleted) return element;
+      return {
+        ...element,
+        groupIds: flowGroupId ? [flowGroupId] : (element.groupIds || []),
+        customData: {
+          ...element.customData,
+          groupId: flowGroupId || element.customData?.groupId,
+          ghostPreview: false,
+          aiGenerated: true,
+        },
+      };
+    });
+
+    commitElements(finalized);
     setGhostElements([]);
+    setAiExplanation(null);
+
+    // Auto-select all newly generated elements as a group!
+    if (nonDeleted.length > 1) {
+      setSelectedIds(nonDeleted.map((el) => el.id));
+      setSelectedId(nonDeleted[0].id);
+      setActiveTool("select");
+    } else if (nonDeleted.length === 1) {
+      setSelectedId(nonDeleted[0].id);
+      setSelectedIds([nonDeleted[0].id]);
+      setActiveTool("select");
+    }
   }, [commitElements, ghostElements]);
 
-  const dismissGhosts = useCallback(() => setGhostElements([]), []);
+  const dismissGhosts = useCallback(() => {
+    setGhostElements([]);
+    setAiExplanation(null);
+  }, []);
 
   // Load initial room data if opening a collaborative room
   useEffect(() => {
@@ -2295,6 +2567,11 @@ export default function App() {
       }
 
       if (event.key === "Escape") {
+        if (enableCircleQuery) {
+          event.preventDefault();
+          setEnableCircleQuery(false);
+          return;
+        }
         if (ghostElements.length) { event.preventDefault(); dismissGhosts(); return; }
         event.preventDefault();
         setIsSidebarOpen(false);
@@ -2514,9 +2791,122 @@ export default function App() {
     }
   };
 
+  // Helper to center generated element clusters (diagrams, mind maps) directly in current screen viewport, scaling to zoom
+  const centerElementsInViewport = useCallback(
+    (elementsToCenter: CanvasElement[]): CanvasElement[] => {
+      if (elementsToCenter.length === 0) return elementsToCenter;
+      const centerWorldX = (window.innerWidth / 2) / viewport.zoom - viewport.scrollX;
+      const centerWorldY = (window.innerHeight / 2) / viewport.zoom - viewport.scrollY;
+
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      elementsToCenter.forEach((el) => {
+        minX = Math.min(minX, el.x);
+        minY = Math.min(minY, el.y);
+        maxX = Math.max(maxX, el.x + (el.width || 0));
+        maxY = Math.max(maxY, el.y + (el.height || 0));
+      });
+
+      if (!isFinite(minX)) return elementsToCenter;
+
+      const groupCenterX = (minX + maxX) / 2;
+      const groupCenterY = (minY + maxY) / 2;
+      const groupWidth = Math.max(maxX - minX, 10);
+      const groupHeight = Math.max(maxY - minY, 10);
+      const screenW = groupWidth * viewport.zoom;
+      const screenH = groupHeight * viewport.zoom;
+
+      // Adaptively scale if diagram is uncomfortably small or large on screen
+      let scale = 1;
+      const targetScreenW = window.innerWidth * 0.65;
+      const targetScreenH = window.innerHeight * 0.65;
+
+      if (
+        (screenW < window.innerWidth * 0.28 || screenW > window.innerWidth * 0.88) &&
+        (screenH < window.innerHeight * 0.25 || screenH > window.innerHeight * 0.88)
+      ) {
+        const scaleX = targetScreenW / screenW;
+        const scaleY = targetScreenH / screenH;
+        scale = Math.min(scaleX, scaleY);
+        scale = Math.max(0.25, Math.min(scale, 4.0));
+      }
+
+      return elementsToCenter.map((el) => {
+        const relX = el.x - groupCenterX;
+        const relY = el.y - groupCenterY;
+        const scaledWidth = Math.round((el.width || 0) * scale);
+        const scaledHeight = Math.round((el.height || 0) * scale);
+        const scaledX = Math.round(centerWorldX + relX * scale);
+        const scaledY = Math.round(centerWorldY + relY * scale);
+
+        let newEl: CanvasElement = {
+          ...el,
+          x: scaledX,
+          y: scaledY,
+          width: scaledWidth,
+          height: scaledHeight,
+        };
+        if (el.points && Array.isArray(el.points)) {
+          newEl.points = el.points.map((p) => ({
+            ...p,
+            x: Math.round(p.x * scale),
+            y: Math.round(p.y * scale),
+          }));
+        }
+        if (el.customFontSize) {
+          newEl.customFontSize = Math.round(el.customFontSize * scale);
+        }
+        return newEl;
+      });
+    },
+    [viewport]
+  );
+
+  const handleInsertDiagramElements = useCallback(
+    (els: CanvasElement[]) => {
+      const flowGroupId = els.length > 1
+        ? String(els[0].groupIds?.[0] || els[0].customData?.groupId || createId("grp_flowchart"))
+        : undefined;
+
+      const grouped: CanvasElement[] = els.map((el) => ({
+        ...el,
+        groupIds: flowGroupId ? [flowGroupId] : (el.groupIds || []),
+        customData: {
+          ...el.customData,
+          groupId: flowGroupId || el.customData?.groupId,
+          aiGenerated: true,
+        },
+      }));
+
+      const centered = centerElementsInViewport(grouped);
+      commitElements(centered);
+
+      if (centered.length > 0) {
+        setSelectedIds(centered.map((el) => el.id));
+        setSelectedId(centered[0].id);
+        setActiveTool("select");
+      }
+    },
+    [centerElementsInViewport, commitElements]
+  );
+
   // --- AI Feature Helpers ---
   const handleApplyMindMapLayout = (updatedNodes: CanvasElement[], connectors: CanvasElement[]) => {
-    const nodeMap = new Map(updatedNodes.map((n) => [n.id, n]));
+    const existingIds = new Set(activePage.elements.map((el) => el.id));
+    const isBrandNewGeneration = updatedNodes.length > 0 && updatedNodes.every((n) => !existingIds.has(n.id));
+
+    let processedNodes = updatedNodes;
+    let processedConnectors = connectors;
+
+    if (isBrandNewGeneration) {
+      const combined = centerElementsInViewport([...updatedNodes, ...connectors]);
+      processedNodes = combined.filter((e) => e.type !== "arrow");
+      processedConnectors = combined.filter((e) => e.type === "arrow");
+    }
+
+    const nodeMap = new Map(processedNodes.map((n) => [n.id, n]));
     const updatedPageElements = activePage.elements.map((el) => {
       const match = nodeMap.get(el.id);
       if (match) {
@@ -2531,15 +2921,14 @@ export default function App() {
       return el;
     });
 
-    const existingIds = new Set(activePage.elements.map((el) => el.id));
-    const newNodes: CanvasElement[] = updatedNodes
+    const newNodes: CanvasElement[] = processedNodes
       .filter((n) => !existingIds.has(n.id))
       .map((n) => ({
         ...n,
         pageId: activePage.id,
       }));
 
-    const styledConnectors: CanvasElement[] = connectors.map((c) => ({
+    const styledConnectors: CanvasElement[] = processedConnectors.map((c) => ({
       ...c,
       pageId: activePage.id,
     }));
@@ -2719,6 +3108,18 @@ export default function App() {
         style={{ display: "none" }}
         onChange={handleDocumentFileChange}
       />
+      <input
+        ref={mediaFileInputRef}
+        type="file"
+        accept="image/*,video/*,audio/*,application/pdf"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            handleMediaUpload(e.target.files[0]);
+          }
+          e.target.value = "";
+        }}
+      />
 
       {/* Top Navigation Bar */}
       <header className="topbar">
@@ -2870,11 +3271,25 @@ export default function App() {
                   className="dropdown-item-btn"
                   role="menuitem"
                   onClick={() => {
+                    mediaFileInputRef.current?.click();
+                    setIsToolsOpen(false);
+                  }}
+                >
+                  <ImageIcon size={14} style={{ color: "var(--accent-primary, #d4a359)" }} />
+                  <span>Insert Image / Video</span>
+                  <kbd className="shortcut-badge">Media</kbd>
+                </button>
+
+                <button
+                  type="button"
+                  className="dropdown-item-btn"
+                  role="menuitem"
+                  onClick={() => {
                     setIsDiagramOpen(true);
                     setIsToolsOpen(false);
                   }}
                 >
-                  <Sparkles size={14} style={{ color: "var(--accent-primary)" }} />
+                  <Workflow size={14} style={{ color: "var(--accent-primary)" }} />
                   <span>Text-to-Flowchart AI</span>
                 </button>
 
@@ -2918,7 +3333,7 @@ export default function App() {
                     setIsToolsOpen(false);
                   }}
                 >
-                  <GitBranch size={14} style={{ color: "#818cf8" }} />
+                  <Network size={14} style={{ color: "var(--accent-primary)" }} />
                   <span>Mind-Map Layout AI</span>
                 </button>
 
@@ -2931,7 +3346,7 @@ export default function App() {
                     setIsToolsOpen(false);
                   }}
                 >
-                  <Code2 size={14} style={{ color: "#34d399" }} />
+                  <Code2 size={14} style={{ color: "var(--accent-primary)" }} />
                   <span>Convert Diagram to Code</span>
                 </button>
 
@@ -2944,7 +3359,7 @@ export default function App() {
                     setIsToolsOpen(false);
                   }}
                 >
-                  <FileText size={14} style={{ color: "#fbbf24" }} />
+                  <FileText size={14} style={{ color: "var(--accent-primary)" }} />
                   <span>Executive Briefing</span>
                 </button>
 
@@ -2957,7 +3372,7 @@ export default function App() {
                     setIsToolsOpen(false);
                   }}
                 >
-                  <Palette size={14} style={{ color: "#f472b6" }} />
+                  <Palette size={14} style={{ color: "var(--accent-primary)" }} />
                   <span>AI Theme & Aesthetics</span>
                 </button>
 
@@ -2970,7 +3385,7 @@ export default function App() {
                     setIsToolsOpen(false);
                   }}
                 >
-                  <Activity size={14} style={{ color: "#38bdf8" }} />
+                  <Cpu size={14} style={{ color: "var(--accent-primary)" }} />
                   <span>Flow Simulator</span>
                 </button>
 
@@ -3453,6 +3868,18 @@ export default function App() {
             <button
               type="button"
               className="app-menu-item"
+              onClick={() => {
+                mediaFileInputRef.current?.click();
+                setIsMenuOpen(false);
+              }}
+            >
+              <ImageIcon size={14} style={{ color: "var(--accent-primary, #d4a359)" }} />
+              <span>Insert Image or Video</span>
+              <span className="app-menu-shortcut">{formatShortcut("Ctrl+U")}</span>
+            </button>
+            <button
+              type="button"
+              className="app-menu-item"
               onClick={importFromGoogleDrive}
               title="Import from Drive"
             >
@@ -3598,14 +4025,26 @@ export default function App() {
               {isDesktopApp() ? (
                 <>
                   <span>Graffiti Desktop v{DESKTOP_VERSION}</span>
-                  <a
-                    href={RELEASES_PAGE_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setIsMenuOpen(false)}
+                  <button
+                    type="button"
+                    className="menu-footer-action-link"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setIsUpdateModalOpen(true);
+                    }}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--accent-primary, #d4a359)",
+                      cursor: "pointer",
+                      padding: 0,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      textDecoration: "underline",
+                    }}
                   >
-                    Check Updates
-                  </a>
+                    Check for Updates
+                  </button>
                 </>
               ) : (
                 <>
@@ -3614,7 +4053,16 @@ export default function App() {
                     href={DESKTOP_EXE_DOWNLOAD_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={() => setIsMenuOpen(false)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setIsMenuOpen(false);
+                      openExternalBrowser(DESKTOP_EXE_DOWNLOAD_URL);
+                    }}
+                    style={{
+                      color: "var(--accent-primary, #d4a359)",
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                    }}
                   >
                     Get Desktop App
                   </a>
@@ -3635,6 +4083,7 @@ export default function App() {
           dockPosition={dockPosition}
           onToolChange={setActiveTool}
           onDockChange={setDockPosition}
+          onInsertMedia={() => mediaFileInputRef.current?.click()}
         />
 
         {/* Vector Canvas Engine */}
@@ -3658,6 +4107,7 @@ export default function App() {
           onDelete={deleteElement}
           onToolChange={setActiveTool}
           onZoomChange={setZoom}
+          onViewportChange={setViewport}
           onEditingTextChange={setIsEditingText}
           onStyleChange={handleStyleChange}
           cursors={cursors}
@@ -3666,9 +4116,14 @@ export default function App() {
           remoteDrafts={remoteDrafts}
           onStreamDraft={(draft) => streamDraft(draft, activePage.id)}
           autoBeautify={autoBeautify}
+          onSolveMath={solveSelectedMath}
           enableCircleQuery={enableCircleQuery}
+          onToggleCircleQuery={setEnableCircleQuery}
           simulatedActiveNodeId={simulatedActiveNodeId}
           onCircleGesture={handleCircleGesture}
+          onDropFiles={(files, pos) => {
+            if (files.length > 0) handleMediaUpload(files[0], pos);
+          }}
         />
 
         {/* Presenter Follow Toast */}
@@ -3717,13 +4172,109 @@ export default function App() {
             enclosedElements={circleQueryData.enclosed}
             screenPos={circleQueryData.screenPos}
             isLoading={isCircleQueryLoading}
-            onClose={() => setCircleQueryData(null)}
+            onClose={() => {
+              setCircleQueryData(null);
+              setEnableCircleQuery(false);
+            }}
             onSubmit={handleCircleQuerySubmit}
           />
         )}
 
+        {/* Circle to Search Mobile-Style Active Pill */}
+        {enableCircleQuery && (
+          <div
+            className="circle-search-active-pill"
+            style={{
+              position: "fixed",
+              top: 70,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 10000,
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              background: "rgba(147, 51, 234, 0.95)",
+              color: "#ffffff",
+              boxShadow: "0 6px 24px rgba(147, 51, 234, 0.45)",
+              borderRadius: "24px",
+              padding: "8px 18px",
+              fontSize: "13px",
+              fontWeight: 600,
+              backdropFilter: "blur(8px)",
+              pointerEvents: "auto",
+            }}
+          >
+            <Sparkles size={16} />
+            <span>Circle to Search Active: Draw a circle around anything</span>
+            <button
+              type="button"
+              onClick={() => setEnableCircleQuery(false)}
+              style={{
+                background: "rgba(0, 0, 0, 0.3)",
+                border: "none",
+                borderRadius: "12px",
+                color: "#ffffff",
+                padding: "3px 10px",
+                fontSize: "11px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Cancel (Esc)
+            </button>
+          </div>
+        )}
+
+        {aiExplanation && (
+          <div
+            className="ai-explanation-toast"
+            role="alert"
+            style={{
+              position: "fixed",
+              top: 72,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 10000,
+              background: "var(--bg-panel, #1e1e24)",
+              color: "var(--text-primary, #ffffff)",
+              border: "1px solid var(--accent-ring, #5c7cfa)",
+              boxShadow: "0 8px 30px rgba(0,0,0,0.35)",
+              borderRadius: "10px",
+              padding: "12px 18px",
+              maxWidth: "540px",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "12px",
+              fontSize: "13px",
+              lineHeight: 1.5,
+            }}
+          >
+            <Sparkles size={18} style={{ color: "var(--accent-primary, #5c7cfa)", flexShrink: 0, marginTop: 2 }} />
+            <div style={{ flex: 1, whiteSpace: "pre-wrap" }}>{aiExplanation}</div>
+            <button
+              type="button"
+              onClick={() => setAiExplanation(null)}
+              title="Close"
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "inherit",
+                cursor: "pointer",
+                padding: 2,
+                opacity: 0.7,
+              }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {ghostElements.length > 0 && (
-          <div className="ai-ghost-toolbar" role="status">
+          <div
+            className="ai-ghost-toolbar"
+            role="status"
+            style={aiExplanation ? { top: "auto", bottom: "84px" } : undefined}
+          >
             <span>AI suggestion ready</span>
             <button type="button" onClick={acceptGhosts}>Accept <kbd>Enter</kbd></button>
             <button type="button" onClick={dismissGhosts}>Dismiss <kbd>Esc</kbd></button>
@@ -3753,6 +4304,24 @@ export default function App() {
           onAlign={handleAlign}
           onDistribute={handleDistribute}
           onTidyUp={handleTidyUp}
+          onSelectGroup={(gid) => {
+            const matches = activePage.elements.filter((el) => {
+              if ((el as any).isDeleted) return false;
+              const g = el.groupIds?.[0] || el.customData?.groupId;
+              return g === gid;
+            });
+            if (matches.length > 0) {
+              setSelectedIds(matches.map((el) => el.id));
+              setSelectedId(matches[0].id);
+              setActiveTool("select");
+            }
+          }}
+          groupCount={(() => {
+            const el = selectedElement ?? (selectedIds.length > 0 ? activePage.elements.find((i) => selectedIds.includes(i.id)) : null);
+            const gid = el?.groupIds?.[0] || el?.customData?.groupId;
+            if (!gid) return undefined;
+            return activePage.elements.filter((i) => !(i as any).isDeleted && (i.groupIds?.[0] === gid || i.customData?.groupId === gid)).length;
+          })()}
         />
 
         {/* Bottom Viewport HUD */}
@@ -4029,7 +4598,7 @@ export default function App() {
         isOpen={isDiagramOpen}
         pageId={activePage.id}
         onClose={() => setIsDiagramOpen(false)}
-        onInsertElements={commitElements}
+        onInsertElements={handleInsertDiagramElements}
         onRequestAiDiagram={(p) => {
           handleAiRequest(createId("diagram"), { feature: "diagram", prompt: p });
         }}
@@ -4101,6 +4670,13 @@ export default function App() {
         onClose={() => setIsDesktopAuthOpen(false)}
       />
 
+      {/* Desktop App Interactive Update Check & Delivery Modal */}
+      <DesktopUpdateModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+        currentVersion={DESKTOP_VERSION}
+      />
+
       {/* Global & Multi-Mode Settings Modal */}
       <SettingsModal />
 
@@ -4129,6 +4705,124 @@ export default function App() {
         enableCircleQuery={enableCircleQuery}
         onToggleCircleQuery={toggleCircleQuery}
       />
+
+      {/* Large Media Storage Authentication Modal */}
+      {mediaAuthPrompt && mediaAuthPrompt.open && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setMediaAuthPrompt(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#18181b",
+              border: "1px solid rgba(255, 255, 255, 0.12)",
+              borderRadius: "14px",
+              maxWidth: 440,
+              width: "90%",
+              padding: 24,
+              boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
+              color: "#f4f4f5",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+              <div
+                style={{
+                  background: "rgba(212, 163, 89, 0.18)",
+                  color: "var(--accent-primary, #d4a359)",
+                  borderRadius: "50%",
+                  padding: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Upload size={22} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Large File Server Storage</h3>
+            </div>
+            <p style={{ fontSize: 14, color: "#a1a1aa", lineHeight: 1.55, marginBottom: 22 }}>
+              <strong style={{ color: "#fff" }}>{mediaAuthPrompt.fileName}</strong> ({mediaAuthPrompt.fileSizeMb} MB) exceeds local browser storage limit (3 MB). Sign in to upload large high-res images, videos, and audio to the Graffiti server.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setMediaAuthPrompt(null)}
+                style={{
+                  padding: "9px 18px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  background: "transparent",
+                  color: "#d4d4d8",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: 500,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMediaAuthPrompt(null);
+                  setIsDesktopAuthOpen(true);
+                }}
+                style={{
+                  padding: "9px 18px",
+                  borderRadius: 8,
+                  background: "var(--accent-primary, #d4a359)",
+                  border: "none",
+                  color: "#09090b",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: 600,
+                }}
+              >
+                Sign In to Upload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Media Action Toast */}
+      {mediaToast && (
+        <div
+          className="media-upload-toast"
+          style={{
+            position: "fixed",
+            bottom: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#18181b",
+            border: "1px solid rgba(212, 163, 89, 0.4)",
+            color: "#f4f4f5",
+            padding: "8px 18px",
+            borderRadius: "8px",
+            fontSize: "13px",
+            fontWeight: 500,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <Upload size={14} color="var(--accent-primary, #d4a359)" />
+          <span>{mediaToast}</span>
+        </div>
+      )}
     </main>
   );
 }

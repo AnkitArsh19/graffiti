@@ -1,6 +1,6 @@
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -41,6 +41,19 @@ class Settings(BaseSettings):
 
     def get_groq_key(self) -> Optional[str]:
         return os.environ.get("GROQ_API_KEY") or self.groq_api_key
+
+    def get_groq_models(self) -> List[str]:
+        chain: List[str] = []
+        if self.groq_model:
+            chain.append(self.groq_model)
+        for m in [
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+            "qwen/qwen3.8-27b",
+        ]:
+            if m not in chain:
+                chain.append(m)
+        return chain
 
     def get_openai_key(self) -> Optional[str]:
         return os.environ.get("OPENAI_API_KEY") or self.openai_api_key

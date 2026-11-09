@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, Sparkles, X, Layers, Activity } from "lucide-react";
+import { Mic, MicOff, Radio, X, Layers, Activity } from "lucide-react";
 import type { ToolId, CanvasElement } from "../types";
 import { apiVoiceStoryboard } from "../lib/api";
 import { parseVoiceCommand } from "../lib/voiceCommands";
@@ -294,9 +294,9 @@ export function VoiceCommander(props: VoiceCommanderProps) {
         type="button"
         onClick={() => setIsStoryboardMode((prev) => !prev)}
         style={{
-          background: isStoryboardMode ? "rgba(168, 85, 247, 0.25)" : "rgba(255, 255, 255, 0.08)",
-          border: isStoryboardMode ? "1px solid #a855f7" : "1px solid rgba(255, 255, 255, 0.15)",
-          color: isStoryboardMode ? "#d8b4fe" : "#d4d4d8",
+          background: isStoryboardMode ? "rgba(212, 163, 89, 0.25)" : "rgba(255, 255, 255, 0.08)",
+          border: isStoryboardMode ? "1px solid var(--accent-primary, #d4a359)" : "1px solid rgba(255, 255, 255, 0.15)",
+          color: isStoryboardMode ? "#fef08a" : "#d4d4d8",
           padding: "2px 8px",
           borderRadius: 12,
           fontSize: 10,
@@ -307,15 +307,15 @@ export function VoiceCommander(props: VoiceCommanderProps) {
           gap: 4,
         }}
       >
-        <Sparkles size={10} />
+        <Radio size={10} />
         <span>{isStoryboardMode ? "Live Storyboard" : "Commands"}</span>
       </button>
 
       <div style={{ fontSize: 13, fontWeight: 500, minWidth: 200, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {isProcessingAi ? (
-          <span style={{ color: "#d8b4fe" }}>Extracting entities & layout...</span>
+          <span style={{ color: "#d4a359" }}>Extracting entities & layout...</span>
         ) : transcript ? (
-          <span style={{ color: isStoryboardMode ? "#e9d5ff" : "#fca5a5" }}>"{transcript}"</span>
+          <span style={{ color: isStoryboardMode ? "#fef08a" : "#fca5a5" }}>"{transcript}"</span>
         ) : lastAction ? (
           <span style={{ color: "#86efac" }}>{lastAction}</span>
         ) : (

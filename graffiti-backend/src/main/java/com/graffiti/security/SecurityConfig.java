@@ -1,6 +1,7 @@
 package com.graffiti.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -47,13 +48,20 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"error\": \"Unauthorized\", \"message\": \"" + authException.getMessage() + "\"}");
+                        })
+                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/auth/register", "/auth/login",
                                 "/auth/desktop-handoff/exchange", "/auth/desktop-handoff/poll", "/auth/desktop-handoff/complete",
                                 "/rooms", "/rooms/**",
                                 "/workspaces/**", "/folders/**",
-                                "/upload/image/**",
+                                "/upload/image/**", "/upload/media/**",
                                 "/ws/**", "/internal/**",
                                 "/export/**",
                                 "/ai/**",

@@ -34,5 +34,5 @@ class NotebookSummarizeResponse(BaseModel):
     actionItems: List[ActionItem] = Field(default_factory=list)
     keyDecisions: List[KeyDecision] = Field(default_factory=list)
     openQuestions: List[OpenQuestion] = Field(default_factory=list)
-    aiProvider: str = "groq-llama-3.3-70b-versatile"
+    aiProvider: str = "groq-openai/gpt-oss-120b"
     latencyMs: Optional[float] = None

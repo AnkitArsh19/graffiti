@@ -1,0 +1,98 @@
+{
+  "benchmark": "Canvas Rendering Physical Breaking Point (Unculled 100% Visible)",
+  "thresholds": {
+    "breakingPoint60Fps": 1000,
+    "breakingPoint30Fps": 1500,
+    "breakingPoint10Fps": 4000
+  },
+  "results": [
+    {
+      "simultaneously_visible_shapes": 100,
+      "mean_frame_time_ms": 3.54,
+      "p95_frame_time_ms": 8.58,
+      "effective_fps": 282.5,
+      "frame_budget_percent": 21.2,
+      "status": "Smooth 60 FPS"
+    },
+    {
+      "simultaneously_visible_shapes": 250,
+      "mean_frame_time_ms": 5.76,
+      "p95_frame_time_ms": 8.02,
+      "effective_fps": 173.6,
+      "frame_budget_percent": 34.5,
+      "status": "Smooth 60 FPS"
+    },
+    {
+      "simultaneously_visible_shapes": 500,
+      "mean_frame_time_ms": 14.06,
+      "p95_frame_time_ms": 19.6,
+      "effective_fps": 71.1,
+      "frame_budget_percent": 84.3,
+      "status": "Smooth 60 FPS"
+    },
+    {
+      "simultaneously_visible_shapes": 1000,
+      "mean_frame_time_ms": 22.62,
+      "p95_frame_time_ms": 32.42,
+      "effective_fps": 44.2,
+      "frame_budget_percent": 135.7,
+      "status": "DROPPING (<60 FPS)"
+    },
+    {
+      "simultaneously_visible_shapes": 1500,
+      "mean_frame_time_ms": 49.3,
+      "p95_frame_time_ms": 67.27,
+      "effective_fps": 20.3,
+      "frame_budget_percent": 295.8,
+      "status": "SEVERE DROP (<30 FPS)"
+    },
+    {
+      "simultaneously_visible_shapes": 2000,
+      "mean_frame_time_ms": 66.8,
+      "p95_frame_time_ms": 110.67,
+      "effective_fps": 15,
+      "frame_budget_percent": 400.7,
+      "status": "SEVERE DROP (<30 FPS)"
+    },
+    {
+      "simultaneously_visible_shapes": 3000,
+      "mean_frame_time_ms": 81.92,
+      "p95_frame_time_ms": 99.78,
+      "effective_fps": 12.2,
+      "frame_budget_percent": 491.4,
+      "status": "SEVERE DROP (<30 FPS)"
+    },
+    {
+      "simultaneously_visible_shapes": 4000,
+      "mean_frame_time_ms": 100.22,
+      "p95_frame_time_ms": 153.19,
+      "effective_fps": 10,
+      "frame_budget_percent": 601.2,
+      "status": "CRITICAL FREEZE (<10 FPS)"
+    },
+    {
+      "simultaneously_visible_shapes": 5000,
+      "mean_frame_time_ms": 105.4,
+      "p95_frame_time_ms": 139.84,
+      "effective_fps": 9.5,
+      "frame_budget_percent": 632.3,
+      "status": "CRITICAL FREEZE (<10 FPS)"
+    },
+    {
+      "simultaneously_visible_shapes": 7500,
+      "mean_frame_time_ms": 136.19,
+      "p95_frame_time_ms": 239.07,
+      "effective_fps": 7.3,
+      "frame_budget_percent": 817,
+      "status": "CRITICAL FREEZE (<10 FPS)"
+    },
+    {
+      "simultaneously_visible_shapes": 10000,
+      "mean_frame_time_ms": 89.97,
+      "p95_frame_time_ms": 127.4,
+      "effective_fps": 11.1,
+      "frame_budget_percent": 539.7,
+      "status": "SEVERE DROP (<30 FPS)"
+    }
+  ]
+}

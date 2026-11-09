@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="260" viewBox="0 0 600 260">
+    <rect width="100%" height="100%" fill="#ffffff" />
+    <text x="30" y="32" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#1e293b">Figure 11: Canvas Rendering Scalability & Frame Budget Utilization</text>
+    <text x="30" y="50" font-family="Arial, sans-serif" font-size="11" fill="#64748b">Target Frame Budget: 16.67 ms (60 FPS) | Viewport-Culled Rough.js Pipeline</text>
+
+    <!-- 60 FPS Limit Line -->
+    <line x1="80" y1="90" x2="560" y2="90" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4,4" />
+    <text x="560" y="85" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#ef4444" text-anchor="end">60 FPS Budget Limit (16.67 ms)</text>
+
+    <!-- Axes -->
+    <line x1="80" y1="210" x2="560" y2="210" stroke="#cbd5e1" />
+    <line x1="80" y1="90" x2="80" y2="210" stroke="#cbd5e1" />
+
+    <!-- Y labels -->
+    <text x="70" y="213" font-family="Arial, sans-serif" font-size="10" fill="#64748b" text-anchor="end">0 ms</text>
+    <text x="70" y="174" font-family="Arial, sans-serif" font-size="10" fill="#64748b" text-anchor="end">5 ms</text>
+    <text x="70" y="135" font-family="Arial, sans-serif" font-size="10" fill="#64748b" text-anchor="end">10 ms</text>
+    <text x="70" y="93" font-family="Arial, sans-serif" font-size="10" fill="#64748b" text-anchor="end">16.6 ms</text>
+
+    <!-- Bars for densities: 100 (0.39ms), 500 (1.53ms), 1000 (2.15ms), 2500 (1.99ms), 5000 (2.07ms), 10000 (3.16ms) -->
+    <!-- Scale: 16.67ms = 120px height -> 1ms = 7.2px -->
+    <!-- 100 -->
+    <rect x="105" y="207.192" width="45" height="2.8080000000000003" rx="2" fill="#22c55e" />
+    <text x="127" y="228" font-family="Arial, sans-serif" font-size="10" fill="#1e293b" text-anchor="middle">100</text>
+    <text x="127" y="201.192" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">0.4ms</text>
+
+    <!-- 500 -->
+    <rect x="180" y="198.984" width="45" height="11.016" rx="2" fill="#22c55e" />
+    <text x="202" y="228" font-family="Arial, sans-serif" font-size="10" fill="#1e293b" text-anchor="middle">500</text>
+    <text x="202" y="192.984" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">1.5ms</text>
+
+    <!-- 1,000 -->
+    <rect x="255" y="194.52" width="45" height="15.48" rx="2" fill="#2563eb" />
+    <text x="277" y="228" font-family="Arial, sans-serif" font-size="10" fill="#1e293b" text-anchor="middle">1,000</text>
+    <text x="277" y="188.52" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">2.2ms</text>
+
+    <!-- 2,500 -->
+    <rect x="330" y="195.672" width="45" height="14.328" rx="2" fill="#2563eb" />
+    <text x="352" y="228" font-family="Arial, sans-serif" font-size="10" fill="#1e293b" text-anchor="middle">2,500</text>
+    <text x="352" y="189.672" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">2.0ms</text>
+
+    <!-- 5,000 -->
+    <rect x="405" y="195.096" width="45" height="14.904" rx="2" fill="#0d9488" />
+    <text x="427" y="228" font-family="Arial, sans-serif" font-size="10" fill="#1e293b" text-anchor="middle">5,000</text>
+    <text x="427" y="189.096" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">2.1ms</text>
+
+    <!-- 10,000 -->
+    <rect x="480" y="187.248" width="45" height="22.752000000000002" rx="2" fill="#0d9488" />
+    <text x="502" y="228" font-family="Arial, sans-serif" font-size="10" fill="#1e293b" text-anchor="middle">10,000</text>
+    <text x="502" y="181.248" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">3.2ms</text>
+  </svg>

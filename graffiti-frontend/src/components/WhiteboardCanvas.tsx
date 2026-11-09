@@ -21,6 +21,7 @@ import {
   renderCanvasElement,
   renderSelectionBox,
   renderSimulationTokenHalo,
+  resolveMediaUrl,
   strokePaperGrid,
 } from "../lib/canvasRenderer";
 import {
@@ -79,6 +80,7 @@ interface EditingTextState {
   height?: number;
   text: string;
   fontSize: FontSize;
+  customFontSize?: number;
   textAlign: TextAlign;
   strokeColor: string;
   type?: "text" | "sticky";
@@ -133,12 +135,15 @@ interface WhiteboardCanvasProps {
   onStreamDraft?: (draft: CanvasElement | null) => void;
   autoBeautify?: boolean;
   enableCircleQuery?: boolean;
+  onToggleCircleQuery?: (enabled: boolean) => void;
   simulatedActiveNodeId?: string | null;
   onCircleGesture?: (
     bounds: { x: number; y: number; width: number; height: number },
     enclosedElements: CanvasElement[],
     screenPos: { x: number; y: number }
   ) => void;
+  onDropFiles?: (files: File[], position: { x: number; y: number }) => void;
+  onSolveMath?: (targetElement?: CanvasElement | null) => void;
 }
 
 type PointerAction =
@@ -152,7 +157,8 @@ type PointerAction =
       original: CanvasElement;
     }
   | { mode: "boxSelect"; startWorld: Point }
-  | { mode: "erase" };
+  | { mode: "erase" }
+  | { mode: "circle_search"; startWorld: Point };
 
 const DEFAULT_VIEWPORT: Viewport = { scrollX: 100, scrollY: 80, zoom: 1 };
 
@@ -235,15 +241,20 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       onStreamDraft,
       autoBeautify = true,
       enableCircleQuery = false,
+      onToggleCircleQuery,
       simulatedActiveNodeId,
       onCircleGesture,
+      onDropFiles,
+      onSolveMath,
     },
     ref,
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const actionRef = useRef<PointerAction | null>(null);
+    const [circleSearchPoints, setCircleSearchPoints] = useState<Point[]>([]);
     const [hoveredBeautifiedElement, setHoveredBeautifiedElement] = useState<CanvasElement | null>(null);
+    const [activePlayingMedia, setActivePlayingMedia] = useState<CanvasElement | null>(null);
     const isHoveringRevertBtnRef = useRef(false);
 
     const [viewport, setViewport] = useState<Viewport>(() => {
@@ -275,6 +286,53 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       } catch {}
       return DEFAULT_VIEWPORT;
     });
+
+    // Rehydrate viewport when switching pages/whiteboards or auto-fit content so work is never hidden off-screen
+    const prevPageIdRef = useRef(pageId);
+    useEffect(() => {
+      if (prevPageIdRef.current !== pageId) {
+        prevPageIdRef.current = pageId;
+        try {
+          const pageSaved = localStorage.getItem(`graffiti:viewport:${pageId}`);
+          if (pageSaved) {
+            const parsed = JSON.parse(pageSaved);
+            if (
+              typeof parsed.zoom === "number" &&
+              typeof parsed.scrollX === "number" &&
+              typeof parsed.scrollY === "number"
+            ) {
+              setViewport(parsed);
+              return;
+            }
+          }
+        } catch {}
+
+        if (elements.length > 0) {
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (const el of elements) {
+            minX = Math.min(minX, el.x);
+            minY = Math.min(minY, el.y);
+            maxX = Math.max(maxX, el.x + (el.width || 0));
+            maxY = Math.max(maxY, el.y + (el.height || 0));
+          }
+          if (Number.isFinite(minX) && Number.isFinite(maxX)) {
+            const w = (typeof window !== "undefined" ? window.innerWidth : 1200) || 1200;
+            const h = (typeof window !== "undefined" ? window.innerHeight : 800) || 800;
+            const contentW = Math.max(100, maxX - minX + 200);
+            const contentH = Math.max(100, maxY - minY + 200);
+            const z = Math.min(1.2, Math.max(0.2, Math.min(w / contentW, h / contentH)));
+            const cx = (minX + maxX) / 2;
+            const cy = (minY + maxY) / 2;
+            setViewport({
+              zoom: z,
+              scrollX: (w / (2 * z)) - cx,
+              scrollY: (h / (2 * z)) - cy,
+            });
+            return;
+          }
+        }
+      }
+    }, [pageId, elements]);
 
     // Keep parent informed of zoom level & viewport and persist to local cache
     useEffect(() => {
@@ -414,13 +472,14 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
             ? {
                 ...prev,
                 fontSize: elementStyle.fontSize || prev.fontSize,
+                customFontSize: elementStyle.customFontSize ?? prev.customFontSize,
                 textAlign: elementStyle.textAlign || prev.textAlign,
                 strokeColor: elementStyle.strokeColor || prev.strokeColor,
               }
             : null,
         );
       }
-    }, [elementStyle.fontSize, elementStyle.textAlign, elementStyle.strokeColor]);
+    }, [elementStyle.fontSize, elementStyle.customFontSize, elementStyle.textAlign, elementStyle.strokeColor]);
 
     const startEditingElement = useCallback((target: CanvasElement) => {
       setEditingText({
@@ -431,6 +490,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         height: target.height,
         text: target.text === "Sticky note" ? "" : (target.text ?? ""),
         fontSize: target.fontSize || "medium",
+        customFontSize: target.customFontSize,
         textAlign: target.textAlign || (target.type === "sticky" ? "left" : "center"),
         strokeColor: target.type === "sticky" ? "#1e1e1e" : target.strokeColor,
         type: target.type === "sticky" ? "sticky" : "text",
@@ -461,15 +521,28 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         return;
       }
 
-      // Auto-solve math equations when typed text ends with '=' or '=?'
-      if (trimmed.endsWith("=") || trimmed.endsWith("=?")) {
+      // Auto-solve math equations when typed text ends with '=' or '=?' or looks like an equation
+      let shouldTriggerBackendSolve = false;
+      const looksLikeMath =
+        trimmed.endsWith("=") ||
+        trimmed.endsWith("=?") ||
+        trimmed.includes("\\int") ||
+        trimmed.includes("\\frac") ||
+        trimmed.includes("diff(") ||
+        trimmed.includes("int(") ||
+        trimmed.includes("dx") ||
+        /=\s*0?$/.test(trimmed);
+
+      if (looksLikeMath) {
         const solved = evaluateMathExpression(trimmed);
         if (solved.success && solved.formatted !== undefined) {
           trimmed = `${trimmed.replace(/=\s*(\?.*)?$/, "").trim()} = ${solved.formatted}`;
+        } else {
+          shouldTriggerBackendSolve = true;
         }
       }
 
-      const fontSizePx = getFontSizeInPx(editingText.fontSize);
+      const fontSizePx = editingText.customFontSize || getFontSizeInPx(editingText.fontSize);
       const lines = editingText.text.split("\n");
       const lineHeight = fontSizePx * 1.35;
       let maxLineWidth = 50;
@@ -489,16 +562,21 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         const existing = elements.find((el) => el.id === editingText.id);
         if (existing) {
           const isShape = ["rectangle", "ellipse", "diamond", "sticky", "card", "frame"].includes(existing.type);
-          onCommit({
+          const updatedElement: CanvasElement = {
             ...existing,
             text: trimmed,
             width: isShape ? existing.width : width,
             height: isShape ? existing.height : height,
             fontSize: editingText.fontSize,
+            customFontSize: editingText.customFontSize,
             textAlign: isShape && existing.type !== "sticky" ? (existing.textAlign || "center") : editingText.textAlign,
             strokeColor: existing.strokeColor,
-          });
+          };
+          onCommit(updatedElement);
           onSelect(existing.id);
+          if (shouldTriggerBackendSolve) {
+            onSolveMath?.(updatedElement);
+          }
         }
       } else {
         // Check if drawn inside an existing shape: rectangle, ellipse, diamond, sticky
@@ -511,12 +589,16 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
 
         if (containingShape && (!containingShape.text || !containingShape.text.trim())) {
           // Bind text directly into the containing shape so it moves together and auto-wraps
-          onCommit({
+          const updatedShape: CanvasElement = {
             ...containingShape,
             text: trimmed,
             textAlign: containingShape.textAlign || (containingShape.type === "sticky" ? "left" : "center"),
-          });
+          };
+          onCommit(updatedShape);
           onSelect(containingShape.id);
+          if (shouldTriggerBackendSolve) {
+            onSolveMath?.(updatedShape);
+          }
           if (!isToolLocked) {
             onToolChange("select");
           }
@@ -541,6 +623,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           opacity: 100,
           seed: createSeed(),
           fontSize: editingText.fontSize,
+          customFontSize: editingText.customFontSize,
           textAlign: editingText.textAlign,
         };
         onCommit(newElement);
@@ -554,6 +637,9 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         }
 
         onSelect(newElement.id);
+        if (shouldTriggerBackendSolve) {
+          onSolveMath?.(newElement);
+        }
         if (!isToolLocked) {
           onToolChange("select");
         }
@@ -568,6 +654,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       onCommit,
       onDelete,
       onSelect,
+      onSolveMath,
       onToolChange,
       pageId,
     ]);
@@ -602,7 +689,58 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           link.click();
         },
         resetView() {
+          if (elements.length > 0) {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const el of elements) {
+              minX = Math.min(minX, el.x);
+              minY = Math.min(minY, el.y);
+              maxX = Math.max(maxX, el.x + (el.width || 0));
+              maxY = Math.max(maxY, el.y + (el.height || 0));
+            }
+            if (Number.isFinite(minX) && Number.isFinite(maxX)) {
+              const w = canvasSize.width || window.innerWidth || 1200;
+              const h = canvasSize.height || window.innerHeight || 800;
+              const contentW = Math.max(100, maxX - minX + 160);
+              const contentH = Math.max(100, maxY - minY + 160);
+              const z = Math.min(1.2, Math.max(0.2, Math.min(w / contentW, h / contentH)));
+              const cx = (minX + maxX) / 2;
+              const cy = (minY + maxY) / 2;
+              setViewport({
+                zoom: z,
+                scrollX: (w / (2 * z)) - cx,
+                scrollY: (h / (2 * z)) - cy,
+              });
+              return;
+            }
+          }
           setViewport(DEFAULT_VIEWPORT);
+        },
+        zoomToFit() {
+          if (elements.length === 0) {
+            setViewport(DEFAULT_VIEWPORT);
+            return;
+          }
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (const el of elements) {
+            minX = Math.min(minX, el.x);
+            minY = Math.min(minY, el.y);
+            maxX = Math.max(maxX, el.x + (el.width || 0));
+            maxY = Math.max(maxY, el.y + (el.height || 0));
+          }
+          if (Number.isFinite(minX) && Number.isFinite(maxX)) {
+            const w = canvasSize.width || window.innerWidth || 1200;
+            const h = canvasSize.height || window.innerHeight || 800;
+            const contentW = Math.max(100, maxX - minX + 160);
+            const contentH = Math.max(100, maxY - minY + 160);
+            const z = Math.min(1.2, Math.max(0.2, Math.min(w / contentW, h / contentH)));
+            const cx = (minX + maxX) / 2;
+            const cy = (minY + maxY) / 2;
+            setViewport({
+              zoom: z,
+              scrollX: (w / (2 * z)) - cx,
+              scrollY: (h / (2 * z)) - cy,
+            });
+          }
         },
         zoomIn() {
           setViewport((prev) => {
@@ -790,8 +928,12 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       const editingId = editingText?.id;
       const renderedElements = moving ? updateBoundArrows(elements, moving) : elements;
 
+      const ghostDeletedIds = new Set(
+        ghostElements.filter((g) => (g as any).isDeleted).map((g) => g.id)
+      );
+
       renderedElements.forEach((rawEl) => {
-        if (rawEl.id !== movingId && rawEl.id !== editingId) {
+        if (rawEl.id !== movingId && rawEl.id !== editingId && !ghostDeletedIds.has(rawEl.id)) {
           const el = movingMap?.get(rawEl.id) ?? rawEl;
           const normalized = el.type === "pen" ? normalizePenElement(el) : el;
           renderCanvasElement(context, canvas, normalized, theme === "dark");
@@ -828,8 +970,9 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       }
 
       ghostElements.forEach((ghost) => {
+        if ((ghost as any).isDeleted) return;
         context.save();
-        context.globalAlpha = 0.4;
+        context.globalAlpha = 0.75;
         const normalized = ghost.type === "pen" ? normalizePenElement(ghost) : ghost;
         renderCanvasElement(context, canvas, normalized, theme === "dark");
         context.restore();
@@ -940,10 +1083,33 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         );
       }
 
+      // Temporary mobile-style "Circle to Search" gesture stroke
+      if (circleSearchPoints.length > 1) {
+        context.save();
+        context.strokeStyle = "#a855f7";
+        context.lineWidth = 3.5 / viewport.zoom;
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        context.shadowColor = "rgba(168, 85, 247, 0.75)";
+        context.shadowBlur = 12 / viewport.zoom;
+        context.beginPath();
+        context.moveTo(circleSearchPoints[0].x, circleSearchPoints[0].y);
+        for (let i = 1; i < circleSearchPoints.length; i++) {
+          context.lineTo(circleSearchPoints[i].x, circleSearchPoints[i].y);
+        }
+        context.stroke();
+
+        // Subtle glowing fill inside circled region
+        context.fillStyle = "rgba(168, 85, 247, 0.08)";
+        context.fill();
+        context.restore();
+      }
+
       context.restore(); // Restore world transform
     }, [
       activeTool,
       canvasSize,
+      circleSearchPoints,
       draft,
       elements,
       ghostElements,
@@ -962,10 +1128,11 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
     ]);
 
     const getScreenPoint = useCallback((event: ReactPointerEvent<HTMLCanvasElement>): Point => {
-      const rect = event.currentTarget.getBoundingClientRect();
+      const canvas = canvasRef.current;
+      const rect = canvas ? canvas.getBoundingClientRect() : event.currentTarget?.getBoundingClientRect();
       return {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
+        x: rect ? event.clientX - rect.left : event.clientX,
+        y: rect ? event.clientY - rect.top : event.clientY,
         pressure: event.pressure > 0 ? event.pressure : 0.5,
       };
     }, []);
@@ -1040,8 +1207,11 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
     );
 
     const onPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      event.preventDefault();
       event.currentTarget.focus();
-      event.currentTarget.setPointerCapture(event.pointerId);
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {}
 
       const screen = getScreenPoint(event);
       const world = screenToWorld(
@@ -1053,6 +1223,13 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
       onPointerWorldMove?.(world.x, world.y);
       if (!isHoveringRevertBtnRef.current) {
         setHoveredBeautifiedElement(null);
+      }
+
+      // Circle to Search AI mode: draw a temporary search loop (does not commit any strokes to canvas)
+      if (enableCircleQuery) {
+        actionRef.current = { mode: "circle_search", startWorld: world };
+        setCircleSearchPoints([world]);
+        return;
       }
 
       // Middle click or Hand tool initiates canvas pan
@@ -1078,16 +1255,17 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         const selected = elements.find((el) => el.id === currentSelectedId);
 
         // Check if clicked on a drag/transform handle
-        if (selected) {
-          const hitHandle = getHitTransformHandle(world, selected, viewport.zoom);
+        if (selected && selectedIds.length <= 1) {
+          const normSelected = selected.type === "pen" ? normalizePenElement(selected) : selected;
+          const hitHandle = getHitTransformHandle(world, normSelected, viewport.zoom);
           if (hitHandle) {
             actionRef.current = {
               mode: "resize",
               handle: hitHandle,
               startWorld: world,
-              original: selected,
+              original: normSelected,
             };
-            setMoving(selected);
+            setMoving(normSelected);
             return;
           }
         }
@@ -1125,12 +1303,13 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
             const [testPtX, testPtY] = norm.angle
               ? rotatePoint([world.x, world.y], [cx, cy], -norm.angle)
               : [world.x, world.y];
-            const pad = 8 / viewport.zoom;
+            const padX = Math.max(16 / viewport.zoom, (36 / viewport.zoom - norm.width) / 2);
+            const padY = Math.max(16 / viewport.zoom, (36 / viewport.zoom - norm.height) / 2);
             singleBoxHit =
-              testPtX >= norm.x - pad &&
-              testPtX <= norm.x + norm.width + pad &&
-              testPtY >= norm.y - pad &&
-              testPtY <= norm.y + norm.height + pad;
+              testPtX >= norm.x - padX &&
+              testPtX <= norm.x + norm.width + padX &&
+              testPtY >= norm.y - padY &&
+              testPtY <= norm.y + norm.height + padY;
           }
         }
 
@@ -1302,11 +1481,16 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         .find((el) => pointInElement(world, el, 8 / viewport.zoom));
 
       if (hit) {
+        if (hit.type === "video" || hit.type === "audio") {
+          setActivePlayingMedia(hit);
+          return;
+        }
         startEditingElement(hit);
       }
     };
 
     const onPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      event.preventDefault();
       const action = actionRef.current;
       const screen = getScreenPoint(event);
       const world = screenToWorld(
@@ -1315,6 +1499,11 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         viewport.scrollY,
         viewport.zoom,
       );
+
+      if (action?.mode === "circle_search") {
+        setCircleSearchPoints((prev) => [...prev, world]);
+        return;
+      }
 
       if (!action) {
         // Track hover over auto-beautified elements for "Revert to original" option
@@ -1334,8 +1523,9 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         if (activeTool === "select") {
           const currentSelectedId = selectedId || selectedIds[0];
           const selected = elements.find((el) => el.id === currentSelectedId);
-          if (selected) {
-            const handle = getHitTransformHandle(world, selected, viewport.zoom);
+          if (selected && selectedIds.length <= 1) {
+            const normSelected = selected.type === "pen" ? normalizePenElement(selected) : selected;
+            const handle = getHitTransformHandle(world, normSelected, viewport.zoom);
             if (handle) {
               canvas.style.cursor = getHandleCursor(handle);
               return;
@@ -1377,12 +1567,13 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
               const [testPtX, testPtY] = norm.angle
                 ? rotatePoint([world.x, world.y], [cx, cy], -norm.angle)
                 : [world.x, world.y];
-              const pad = 8 / viewport.zoom;
+              const padX = Math.max(10 / viewport.zoom, (24 / viewport.zoom - norm.width) / 2);
+              const padY = Math.max(10 / viewport.zoom, (24 / viewport.zoom - norm.height) / 2);
               if (
-                testPtX >= norm.x - pad &&
-                testPtX <= norm.x + norm.width + pad &&
-                testPtY >= norm.y - pad &&
-                testPtY <= norm.y + norm.height + pad
+                testPtX >= norm.x - padX &&
+                testPtX <= norm.x + norm.width + padX &&
+                testPtY >= norm.y - padY &&
+                testPtY <= norm.y + norm.height + padY
               ) {
                 canvas.style.cursor = "move";
                 return;
@@ -1433,6 +1624,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         if (canvasRef.current) {
           canvasRef.current.style.cursor = "move";
         }
+
         const dx = world.x - action.startWorld.x;
         const dy = world.y - action.startWorld.y;
 
@@ -1546,67 +1738,70 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         let newW = orig.width;
         let newH = orig.height;
 
+        const minW = Math.min(10, Math.max(2, orig.width));
+        const minH = Math.min(10, Math.max(2, orig.height));
+
         if (action.handle === "se") {
-          newW = Math.max(10, orig.width + effDx);
-          newH = Math.max(10, orig.height + effDy);
+          newW = Math.max(minW, orig.width + effDx);
+          newH = Math.max(minH, orig.height + effDy);
         } else if (action.handle === "ne") {
           const h = orig.height - effDy;
-          if (h >= 10) {
+          if (h >= minH) {
             newY = orig.y + effDy;
             newH = h;
           } else {
-            newY = orig.y + orig.height - 10;
-            newH = 10;
+            newY = orig.y + orig.height - minH;
+            newH = minH;
           }
-          newW = Math.max(10, orig.width + effDx);
+          newW = Math.max(minW, orig.width + effDx);
         } else if (action.handle === "sw") {
           const w = orig.width - effDx;
-          if (w >= 10) {
+          if (w >= minW) {
             newX = orig.x + effDx;
             newW = w;
           } else {
-            newX = orig.x + orig.width - 10;
-            newW = 10;
+            newX = orig.x + orig.width - minW;
+            newW = minW;
           }
-          newH = Math.max(10, orig.height + effDy);
+          newH = Math.max(minH, orig.height + effDy);
         } else if (action.handle === "nw") {
           const w = orig.width - effDx;
           const h = orig.height - effDy;
-          if (w >= 10) {
+          if (w >= minW) {
             newX = orig.x + effDx;
             newW = w;
           } else {
-            newX = orig.x + orig.width - 10;
-            newW = 10;
+            newX = orig.x + orig.width - minW;
+            newW = minW;
           }
-          if (h >= 10) {
+          if (h >= minH) {
             newY = orig.y + effDy;
             newH = h;
           } else {
-            newY = orig.y + orig.height - 10;
-            newH = 10;
+            newY = orig.y + orig.height - minH;
+            newH = minH;
           }
         } else if (action.handle === "e") {
-          newW = Math.max(10, orig.width + effDx);
+          newW = Math.max(minW, orig.width + effDx);
         } else if (action.handle === "s") {
-          newH = Math.max(10, orig.height + effDy);
+          newH = Math.max(minH, orig.height + effDy);
         } else if (action.handle === "w") {
           const w = orig.width - effDx;
-          if (w >= 10) {
+          if (w >= minW) {
             newX = orig.x + effDx;
             newW = w;
           } else {
-            newX = orig.x + orig.width - 10;
-            newW = 10;
+            newX = orig.x + orig.width - minW;
+            newW = minW;
           }
         } else if (action.handle === "n") {
           const h = orig.height - effDy;
-          if (h >= 10) {
+          if (h >= minH) {
             newY = orig.y + effDy;
             newH = h;
           } else {
-            newY = orig.y + orig.height - 10;
-            newH = 10;
+            newY = orig.y + orig.height - minH;
+            newH = minH;
           }
         }
 
@@ -1625,13 +1820,30 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           newY = finalCy - newH / 2;
         }
 
-        const nextMoving = {
+        const nextMoving: CanvasElement = {
           ...orig,
           x: newX,
           y: newY,
           width: newW,
           height: newH,
         };
+
+        if (orig.type === "pen" && orig.points && orig.points.length > 0) {
+          const isThinH = (orig.height * viewport.zoom < 64 || orig.height < 60) || (orig.width > 80 && orig.height < 70 && orig.width > orig.height * 2.5);
+          const isThinW = (orig.width * viewport.zoom < 64 || orig.width < 60) || (orig.height > 80 && orig.width < 70 && orig.height > orig.width * 2.5);
+
+          const scaleX = orig.width > 0 ? newW / orig.width : 1;
+          const scaleY = orig.height > 0 ? newH / orig.height : 1;
+          const safeScaleX = Number.isFinite(scaleX) ? scaleX : 1;
+          const safeScaleY = Number.isFinite(scaleY) ? scaleY : 1;
+
+          nextMoving.points = orig.points.map((pt) => ({
+            ...pt,
+            x: isThinW || orig.width <= 4 ? pt.x : pt.x * safeScaleX,
+            y: isThinH || orig.height <= 4 ? pt.y : pt.y * safeScaleY,
+          }));
+        }
+
         setMoving(nextMoving);
         onStreamDraft?.(nextMoving);
         return;
@@ -1746,6 +1958,45 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
         } catch {}
       }
 
+      // Circle to Search: calculate region, invoke AI query popover, and disappear the temporary gesture stroke
+      if (actionRef.current?.mode === "circle_search") {
+        const pts = circleSearchPoints;
+        if (pts.length >= 3) {
+          let minX = Infinity;
+          let minY = Infinity;
+          let maxX = -Infinity;
+          let maxY = -Infinity;
+          pts.forEach((p) => {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+          });
+          const bounds = {
+            x: minX,
+            y: minY,
+            width: Math.max(maxX - minX, 40),
+            height: Math.max(maxY - minY, 40),
+          };
+          const enclosed = elements.filter(
+            (el) =>
+              !(el as any).isDeleted &&
+              (isElementFullyInsideBox(el, bounds) || doesElementIntersectBox(el, bounds))
+          );
+          const screenPos = worldToScreen(
+            { x: bounds.x + bounds.width / 2, y: bounds.y },
+            viewport.scrollX,
+            viewport.scrollY,
+            viewport.zoom
+          );
+          onCircleGesture?.(bounds, enclosed, screenPos);
+        }
+        setCircleSearchPoints([]);
+        actionRef.current = null;
+        onToggleCircleQuery?.(false);
+        return;
+      }
+
       if (movingMap && movingMap.size > 0) {
         const movedList = Array.from(movingMap.values()).map((el) =>
           el.type === "pen" ? normalizePenElement(el) : el,
@@ -1852,28 +2103,6 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
             if (mathAnswer) {
               onCommit(mathAnswer);
             }
-
-            // Closed-loop gesture check ("Circle to Ask/Modify") - strictly opt-in, disabled by default
-            if (enableCircleQuery) {
-              const loop = detectClosedLoopGesture(normalizedForMath);
-              if (loop.isLoop) {
-                const enclosed = elements.filter(
-                  (el) =>
-                    el.id !== normalizedForMath.id &&
-                    !(el as any).isDeleted &&
-                    (isElementFullyInsideBox(el, loop.bounds) || doesElementIntersectBox(el, loop.bounds))
-                );
-                if (enclosed.length >= 1) {
-                  const screenPos = worldToScreen(
-                    { x: loop.bounds.x + loop.bounds.width / 2, y: loop.bounds.y },
-                    viewport.scrollX,
-                    viewport.scrollY,
-                    viewport.zoom
-                  );
-                  onCircleGesture?.(loop.bounds, enclosed, screenPos);
-                }
-              }
-            }
           }
           isHoldSnappedRef.current = false;
           snappedElementRef.current = null;
@@ -1898,6 +2127,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
             height: isBounded ? Math.max(finishedDraft.height, 40) : undefined,
             text: "",
             fontSize: elementStyle.fontSize || "medium",
+            customFontSize: elementStyle.customFontSize,
             textAlign: elementStyle.textAlign || "left",
             strokeColor:
               elementStyle.strokeColor || (theme === "dark" ? "#f5f5f5" : "#1e1e1e"),
@@ -1997,10 +2227,33 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
     const selectedElement = elements.find((el) => el.id === (selectedId || selectedIds[0])) ?? null;
 
     return (
-      <div className="canvas-shell" ref={containerRef} data-tool={activeTool}>
+      <div
+        className="canvas-shell"
+        ref={containerRef}
+        data-tool={activeTool}
+        onDragOver={(e) => {
+          if (e.dataTransfer.types.includes("Files")) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+          }
+        }}
+        onDrop={(e) => {
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            e.preventDefault();
+            const files = Array.from(e.dataTransfer.files);
+            const rect = canvasRef.current?.getBoundingClientRect();
+            const clientX = e.clientX - (rect?.left || 0);
+            const clientY = e.clientY - (rect?.top || 0);
+            const canvasX = clientX / viewport.zoom - viewport.scrollX;
+            const canvasY = clientY / viewport.zoom - viewport.scrollY;
+            onDropFiles?.(files, { x: canvasX, y: canvasY });
+          }
+        }}
+      >
         <canvas
           ref={canvasRef}
           className="whiteboard-canvas"
+          style={{ cursor: enableCircleQuery ? "crosshair" : undefined }}
           tabIndex={0}
           draggable={false}
           onDragStart={(e) => e.preventDefault()}
@@ -2013,6 +2266,83 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
           onContextMenu={(event) => event.preventDefault()}
         />
 
+        {activePlayingMedia && (
+          <div
+            className="interactive-media-overlay"
+            style={{
+              position: "absolute",
+              left: `${(activePlayingMedia.x + viewport.scrollX) * viewport.zoom}px`,
+              top: `${(activePlayingMedia.y + viewport.scrollY) * viewport.zoom}px`,
+              width: `${Math.max(260, activePlayingMedia.width * viewport.zoom)}px`,
+              height: `${Math.max(activePlayingMedia.type === "audio" ? 80 : 160, activePlayingMedia.height * viewport.zoom)}px`,
+              zIndex: 100,
+              background: "#18181b",
+              border: "1px solid #3f3f46",
+              borderRadius: "10px",
+              boxShadow: "0 12px 32px rgba(0,0,0,0.6)",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "6px 10px",
+                background: "rgba(0,0,0,0.7)",
+                borderBottom: "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "#f4f4f5", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {activePlayingMedia.title || (activePlayingMedia.customData?.name as string) || "Media Player"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setActivePlayingMedia(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#a1a1aa",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  padding: "0 4px",
+                  lineHeight: 1,
+                }}
+                title="Close Player"
+              >
+                ✕
+              </button>
+            </div>
+            {activePlayingMedia.type === "video" ? (
+              <video
+                src={resolveMediaUrl(
+                  (activePlayingMedia.customData?.src as string) ||
+                    (activePlayingMedia.customData?.url as string) ||
+                    activePlayingMedia.fileId
+                )}
+                controls
+                autoPlay
+                style={{ width: "100%", height: "calc(100% - 30px)", objectFit: "contain", background: "#000" }}
+              />
+            ) : (
+              <div style={{ padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100% - 30px)" }}>
+                <audio
+                  src={resolveMediaUrl(
+                    (activePlayingMedia.customData?.src as string) ||
+                      (activePlayingMedia.customData?.url as string) ||
+                      activePlayingMedia.fileId
+                  )}
+                  controls
+                  autoPlay
+                  style={{ width: "100%" }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         {editingText ? (
           <textarea
             ref={textareaRef}
@@ -2023,7 +2353,7 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
               top: `${(editingText.y + viewport.scrollY) * viewport.zoom}px`,
               width: editingText.width ? `${editingText.width * viewport.zoom}px` : "auto",
               height: editingText.height ? `${editingText.height * viewport.zoom}px` : "auto",
-              fontSize: `${getFontSizeInPx(editingText.fontSize) * viewport.zoom}px`,
+              fontSize: `${(editingText.customFontSize || getFontSizeInPx(editingText.fontSize)) * viewport.zoom}px`,
               lineHeight: 1.35,
               textAlign: editingText.textAlign,
               color: applyDarkModeFilter(editingText.strokeColor, theme === "dark", false),
@@ -2149,6 +2479,126 @@ export const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCan
                 <RotateCcw size={12} />
                 <span>Revert to original</span>
               </button>
+            </div>
+          );
+        })()}
+
+        {/* Contextual Floating Quick Actions: Select Full Diagram & Math Equation */}
+        {(() => {
+          if (!selectedElement || (selectedIds && selectedIds.length > 1) || editingText) return null;
+
+          const elementGroupId = selectedElement.groupIds?.[0] || selectedElement.customData?.groupId;
+          const groupElements = elementGroupId
+            ? elements.filter((el) => {
+                if ((el as any).isDeleted) return false;
+                const gid = el.groupIds?.[0] || el.customData?.groupId;
+                return gid === elementGroupId;
+              })
+            : [];
+          const hasGroup = groupElements.length > 1;
+
+          const textContent = (selectedElement.text || "").trim();
+          const hasMathChars =
+            textContent.length > 0 &&
+            (textContent.includes("=") ||
+              textContent.includes("\\int") ||
+              textContent.includes("\\frac") ||
+              textContent.includes("diff") ||
+              textContent.includes("int(") ||
+              textContent.includes("dx") ||
+              textContent.includes("sqrt") ||
+              /[0-9a-zA-Z][\+\-\*\/\^][0-9a-zA-Z]/.test(textContent) ||
+              /^[a-zA-Z][0-9]/.test(textContent));
+
+          if (!hasGroup && !hasMathChars) return null;
+
+          const screenX = (selectedElement.x + viewport.scrollX) * viewport.zoom;
+          const screenY = (selectedElement.y + viewport.scrollY) * viewport.zoom;
+          const screenW = (selectedElement.width || 60) * viewport.zoom;
+
+          return (
+            <div
+              className="canvas-floating-quick-actions"
+              style={{
+                position: "absolute",
+                left: `${screenX + screenW / 2}px`,
+                top: `${Math.max(screenY - 38, 12)}px`,
+                transform: "translateX(-50%)",
+                zIndex: 42,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                pointerEvents: "auto",
+              }}
+            >
+              {hasGroup && (
+                <div
+                  className="diagram-group-select-pill"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "rgba(24, 24, 27, 0.94)",
+                    color: "#f4f4f5",
+                    padding: "4px 12px",
+                    borderRadius: "20px",
+                    border: "1px solid rgba(129, 140, 248, 0.5)",
+                    boxShadow: "0 6px 20px rgba(0, 0, 0, 0.45)",
+                    backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    userSelect: "none",
+                    transition: "all 0.15s ease",
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    const allIds = groupElements.map((el) => el.id);
+                    onSelectMultiple?.(allIds);
+                    onSelect?.(allIds[0]);
+                    onToolChange?.("select");
+                  }}
+                  title="Select all connected flowchart elements as a single unit"
+                >
+                  <span style={{ fontSize: "12px", color: "#818cf8" }}>⛶</span>
+                  <span>Select Full Flowchart ({groupElements.length})</span>
+                </div>
+              )}
+
+              {hasMathChars && (
+                <div
+                  className="math-solve-floating-pill"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "rgba(24, 24, 27, 0.94)",
+                    color: "#ffffff",
+                    padding: "4px 12px",
+                    borderRadius: "20px",
+                    border: "1px solid rgba(34, 197, 94, 0.5)",
+                    boxShadow: "0 6px 20px rgba(0, 0, 0, 0.45)",
+                    backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    userSelect: "none",
+                    transition: "all 0.15s ease",
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onSolveMath?.(selectedElement);
+                  }}
+                  title="Solve math equation"
+                >
+                  <span style={{ fontSize: "13px" }}>🧮</span>
+                  <span style={{ color: "#4ade80", letterSpacing: "0.2px" }}>Solve Equation</span>
+                </div>
+              )}
             </div>
           );
         })()}

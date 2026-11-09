@@ -5,7 +5,6 @@ import {
   Circle,
   HelpCircle,
   Lightbulb,
-  Sparkles,
   ChevronDown,
   ChevronUp,
   X,
@@ -81,7 +80,7 @@ export function NotebookBriefingWidget({
         setActionItems(resp.actionItems || []);
         setKeyDecisions(resp.keyDecisions || []);
         setOpenQuestions(resp.openQuestions || []);
-        setAiProvider(resp.aiProvider || "groq-llama-3.1-8b-instant");
+        setAiProvider(resp.aiProvider || "groq-openai/gpt-oss-20b");
         setLatencyMs(resp.latencyMs || null);
       }
     } catch (err) {
@@ -168,7 +167,7 @@ export function NotebookBriefingWidget({
               justifyContent: "center",
             }}
           >
-            <Sparkles size={15} />
+            <FileText size={15} />
           </div>
           <div>
             <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
@@ -300,8 +299,8 @@ export function NotebookBriefingWidget({
                           style={{
                             padding: "1px 5px",
                             borderRadius: 4,
-                            background: item.priority === "high" ? "rgba(239, 68, 68, 0.2)" : "rgba(99, 102, 241, 0.2)",
-                            color: item.priority === "high" ? "#fca5a5" : "#c7d2fe",
+                            background: item.priority === "high" ? "rgba(239, 68, 68, 0.2)" : "rgba(212, 163, 89, 0.2)",
+                            color: item.priority === "high" ? "#fca5a5" : "var(--accent-primary, #d4a359)",
                             textTransform: "uppercase",
                             fontWeight: 600,
                           }}

@@ -1,0 +1,4 @@
+﻿runtime,category,working_set_ram_mb,private_ram_mb,cold_boot_ms,ram_savings_vs_target
+Tauri v2 (Graffiti Native),Native Desktop,42.5,38.2,3076,87.7% vs Electron
+Google Chrome (Single Tab),Web Browser,178.4,146.2,745,48.3% vs Electron
+Electron (Miro / Obsidian Baseline),Electron Wrapper,345,310.0,1250,0.0%

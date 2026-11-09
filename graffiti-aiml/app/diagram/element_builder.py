@@ -1,8 +1,17 @@
 import random
+import re
 import time
 from typing import Any, Dict, List
 from app.diagram.layout_engine import NodeLayout
 from app.diagram.mermaid_parser import ParsedDiagram
+
+
+def _strip_emojis(text: str) -> str:
+    """Removes emoji characters, unicode pictographs, and symbols from string."""
+    if not text:
+        return ""
+    clean = re.sub(r'[\U00010000-\U0010ffff\u2600-\u26ff\u2700-\u27bf\ufe0f\u200d]', '', str(text))
+    return clean.strip()
 
 
 def build_graffiti_elements(
@@ -11,6 +20,7 @@ def build_graffiti_elements(
 ) -> List[Dict[str, Any]]:
     elements: List[Dict[str, Any]] = []
     now = int(time.time() * 1000)
+    diagram_group_id = f"grp_diagram_{random.randint(10000, 99999)}"
 
     # Color palettes for auto-generated diagrams
     node_bg_colors = ["#e7f5ff", "#e6fcf5", "#fff4e6", "#f3f0ff", "#fff0f6"]
@@ -37,7 +47,7 @@ def build_graffiti_elements(
             "width": layout.width,
             "height": layout.height,
             "angle": 0,
-            "text": layout.label,
+            "text": _strip_emojis(layout.label),
             "fontSize": "medium",
             "fontFamily": "clean",
             "textAlign": "center",
@@ -54,7 +64,7 @@ def build_graffiti_elements(
             "versionNonce": random.randint(100000, 999999),
             "index": f"a{idx:02d}",
             "isDeleted": False,
-            "groupIds": [],
+            "groupIds": [diagram_group_id],
             "frameId": None,
             "boundElements": [],
             "updated": now,
@@ -62,6 +72,7 @@ def build_graffiti_elements(
             "locked": False,
             "customData": {
                 "aiGenerated": True,
+                "groupId": diagram_group_id,
                 "nodeId": node_id,
                 "label": layout.label
             }
@@ -113,7 +124,7 @@ def build_graffiti_elements(
                 "y": (src_cy + tgt_cy) / 2.0 - 10.0,
                 "width": max(len(edge.label) * 8.0, 30.0),
                 "height": 20.0,
-                "text": edge.label,
+                "text": _strip_emojis(edge.label),
                 "fontSize": "small",
                 "fontFamily": "clean",
                 "textAlign": "center",
@@ -121,7 +132,8 @@ def build_graffiti_elements(
                 "containerId": arrow_uuid,  # Binds text to arrow container
                 "strokeColor": "#f4f4f5",
                 "backgroundColor": "transparent",
-                "customData": {"aiGenerated": True}
+                "groupIds": [diagram_group_id],
+                "customData": {"aiGenerated": True, "groupId": diagram_group_id}
             }
             elements.append(label_elem)
             arrow_bound_elements.append({"id": label_uuid, "type": "text"})
@@ -147,7 +159,7 @@ def build_graffiti_elements(
             "versionNonce": random.randint(100000, 999999),
             "index": f"b{edge_idx:02d}",
             "isDeleted": False,
-            "groupIds": [],
+            "groupIds": [diagram_group_id],
             "frameId": None,
             "boundElements": arrow_bound_elements,
             "startBinding": {
@@ -165,6 +177,7 @@ def build_graffiti_elements(
             "updated": now,
             "customData": {
                 "aiGenerated": True,
+                "groupId": diagram_group_id,
                 "label": edge.label
             }
         }

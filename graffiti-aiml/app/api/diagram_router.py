@@ -68,19 +68,13 @@ async def synthesize_diagram(req: DiagramSynthesizeRequest):
     if req.mermaid and ("flowchart" in req.mermaid or "graph" in req.mermaid):
         mermaid_code = req.mermaid.strip()
 
-    # 2. Groq Generation (openai/gpt-oss-120b / llama-3.3-70b / qwen3.8-27b)
+    # 2. Groq Generation (openai/gpt-oss-120b / openai/gpt-oss-20b / qwen3.8-27b)
     groq_key = settings.get_groq_key()
     if not mermaid_code and groq_key:
         try:
             from groq import AsyncGroq
             client = AsyncGroq(api_key=groq_key)
-            models_to_try = [
-                settings.groq_model,
-                "openai/gpt-oss-120b",
-                "llama-3.3-70b-versatile",
-                "qwen/qwen3.8-27b",
-                "openai/gpt-oss-20b",
-            ]
+            models_to_try = settings.get_groq_models()
             seen = set()
             completion = None
             for m in models_to_try:
@@ -103,6 +97,7 @@ async def synthesize_diagram(req: DiagramSynthesizeRequest):
                                     "- Input/Output: NodeID[/Input Data/]\n"
                                     "- Databases: NodeID[(Database Name)]\n"
                                     "Connect nodes with labeled transitions where appropriate: NodeA -->|Yes| NodeB or NodeA --> NodeB.\n"
+                                    "CRITICAL: Do NOT put emojis, icons, or pictorial symbols anywhere in node labels or descriptions.\n"
                                     "Return ONLY valid Mermaid.js code. Do not output markdown code blocks, backticks, conversational preamble, or explanations."
                                 )
                             },
@@ -177,7 +172,7 @@ async def stream_ttd_chat(chat_request: TTDChatRequest) -> AsyncGenerator[str, N
     gemini_key = settings.get_gemini_key()
     openai_key = settings.get_openai_key()
 
-    # 1. Primary: Groq Cloud API (llama-3.3-70b-versatile) high-speed streaming
+    # 1. Primary: Groq Cloud API (openai/gpt-oss-120b) high-speed streaming
     if groq_key:
         try:
             from groq import AsyncGroq

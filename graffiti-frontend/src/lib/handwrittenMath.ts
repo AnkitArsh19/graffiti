@@ -3,13 +3,14 @@ import { evaluateMathExpression } from "./mathEvaluator";
 import { createId, createSeed } from "./geometry";
 
 /**
- * Checks if a single pen stroke looks like a horizontal bar.
+ * Checks if a single pen stroke looks like a clean, flat horizontal bar of an '=' sign.
  */
 function isHorizontalBar(el: CanvasElement): boolean {
   if (el.type !== "pen") return false;
   const w = el.width;
   const h = el.height;
-  return w >= 8 && w > h * 1.5;
+  // Must be substantially flat, wider than 14px, and not tall (prevents letter curves from matching)
+  return w >= 14 && w > h * 2.5 && h <= 12;
 }
 
 /**
@@ -68,22 +69,25 @@ export function detectEqualsSign(
   }
 
   // Case 2: A single stroke drawn as an equals sign (2 distinct horizontal passes)
-  // Check if stroke points reverse direction horizontally with a distinct vertical drop
+  // The stroke must be clearly wider than tall (flat, like "=") with exactly 1 reversal
+  // showing two horizontal sweeps connected by a quick vertical drop.
   const pts = currentStroke.points;
-  if (pts.length >= 8 && curW >= 12 && curH >= 6 && curH <= curW * 1.5) {
+  if (pts.length >= 10 && curW >= 20 && curH >= 6 && curH <= curW * 0.7) {
+    // Must be significantly wider than tall — a real "=" is very flat
     let reversals = 0;
     let lastDx = 0;
     for (let i = 1; i < pts.length; i++) {
       const dx = pts[i].x - pts[i - 1].x;
-      if (Math.abs(dx) > 2) {
+      if (Math.abs(dx) > 4) {
         if (lastDx !== 0 && ((dx > 0 && lastDx < 0) || (dx < 0 && lastDx > 0))) {
           reversals++;
         }
         lastDx = dx;
       }
     }
-    // A single continuous '=' typically has 2 horizontal sweeps with a quick diagonal hook
-    if (reversals >= 1 && reversals <= 3) {
+    // Exactly 1 reversal = two horizontal sweeps (left-right then right-left or vice versa)
+    // with a small vertical drop in between. More reversals = regular handwriting, not "=".
+    if (reversals === 1) {
       return {
         isEquals: true,
         bounds: { minX: curMinX, maxX: curMaxX, minY: curMinY, maxY: curMaxY, right: curMaxX, centerY: curMidY },
@@ -129,7 +133,7 @@ export function findExpressionToLeft(
     }
   }
 
-  // 2. Search for pen strokes to the left of the '=' sign (simple digits and operators)
+  // 2. Search for pen strokes to the left of the '=' sign with verified OCR math text
   const leftStrokes = elements
     .filter((el) => {
       if (el.type !== "pen" || !el.points || el.points.length === 0) return false;
@@ -142,13 +146,20 @@ export function findExpressionToLeft(
     .sort((a, b) => a.x - b.x); // Left-to-right order
 
   if (leftStrokes.length > 0) {
-    const parsedExpr = classifyStrokesToExpression(leftStrokes);
-    if (parsedExpr) {
-      return {
-        rawExpression: parsedExpr,
-        strokeColor: leftStrokes[0].strokeColor,
-        fontSize: "medium",
-      };
+    // Only infer expression if strokes carry verified OCR tokens or explicit math text
+    const ocrTokens = leftStrokes
+      .map((s) => s.customData?.ocrText)
+      .filter((t): t is string => typeof t === "string" && t.trim().length > 0);
+
+    if (ocrTokens.length > 0) {
+      const combined = ocrTokens.join(" ");
+      if (/[0-9]/.test(combined) && /[+\-*/^=]/.test(combined)) {
+        return {
+          rawExpression: combined,
+          strokeColor: leftStrokes[0].strokeColor,
+          fontSize: "medium",
+        };
+      }
     }
   }
 
@@ -225,8 +236,11 @@ export function classifyStrokesToExpression(strokes: CanvasElement[]): string | 
   }
 
   const expr = tokens.join(" ").trim();
-  // Valid expression must have at least one operator and one operand
-  if (expr && /[+\-*/^]/.test(expr) && /[0-9]/.test(expr)) {
+  // Valid expression must have at least one operator AND at least two digit operands
+  // (e.g. "1 + 0", "2 * 3") to avoid false positives from single-stroke shapes.
+  const operators = (expr.match(/[+\-*/^]/g) || []).length;
+  const digits = (expr.match(/[0-9]+/g) || []).length;
+  if (expr && operators >= 1 && digits >= 2) {
     return expr;
   }
 
@@ -276,6 +290,18 @@ export function evaluateHandwrittenMathOnStroke(
   // 2. Look for expression to the left of the '=' sign
   const found = findExpressionToLeft(eq.bounds, allElements);
   if (!found || !found.rawExpression) {
+    return null;
+  }
+
+  // 2b. Reject trivially simple or stroke-noise expressions.
+  // Stroke classification often produces bare "0", "1", "-1", "0 - 1" etc.
+  // A real math problem needs at least 3 characters (e.g. "2+3", "1*5").
+  const trimmedExpr = found.rawExpression.replace(/\s/g, "");
+  if (trimmedExpr.length < 3) {
+    return null;
+  }
+  // Reject expressions that are just a single number (possibly negative)
+  if (/^[+-]?\d+(\.\d+)?$/.test(trimmedExpr)) {
     return null;
   }
 

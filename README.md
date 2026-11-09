@@ -28,7 +28,7 @@ Graffiti runs as a **fully self-contained, native desktop application** on Windo
 
 | Platform | Format | Status & Download Link |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (x64)** | `.exe` Setup (Recommended) | [Download Graffiti_0.3.0_x64-setup.exe](https://github.com/AnkitArsh19/graffiti/releases/download/v0.3.0/Graffiti_0.3.0_x64-setup.exe) / [Latest Release](https://github.com/AnkitArsh19/graffiti/releases/latest) |
+| **Windows 10 / 11 (x64)** | `.exe` Setup (Recommended) | [Download Graffiti_0.3.0_x64-setup.exe](https://github.com/AnkitArsh19/graffiti/releases/download/0.3.0/Graffiti_0.3.0_x64-setup.exe) / [Latest Release](https://github.com/AnkitArsh19/graffiti/releases/latest) |
 | **macOS (Apple Silicon M-Series)** | `.dmg` Installer / `.app` | [Download macOS ARM64 Release (v0.3.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
 | **macOS (Intel x64)** | `.dmg` Installer / `.app` | [Download macOS Intel Release (v0.3.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
 | **Linux (x64)** | `.AppImage` / `.deb` | [Download Linux Release (v0.3.0)](https://github.com/AnkitArsh19/graffiti/releases/latest) |
@@ -56,6 +56,10 @@ If you have this repository locally, the compiled desktop application executable
 ---
 
 ## System Architecture
+
+<p align="center">
+  <img src="docs/images/fig1_architecture.png" alt="Graffiti Multi-Tier System Topology" width="100%"/>
+</p>
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────┐
@@ -114,6 +118,10 @@ If you have this repository locally, the compiled desktop application executable
 ## Key Highlights
 
 1. **Deterministic CRDT Engine & Sub-16ms Live Streaming**:
+   <p align="center">
+     <img src="docs/images/fig2_sync_paths.png" alt="Bifurcated State Synchronization Paths" width="100%"/>
+   </p>
+
    - Last-Writer-Wins Element-Set reducer ensuring commutative and idempotent multi-user convergence without central locks.
    - **Real-Time In-Progress Stroke Streaming**: Pen ink flows and shapes expand continuously across collaborator screens as pointers move, streamed ephemerally over Redis Pub/Sub before permanent durable commit.
    - **Resilient Connection Watchdog**: Dual-layer heartbeats (20s STOMP + 4s presence keepalive) and automated reconnection watchdog with offline operation queuing.
@@ -138,6 +146,10 @@ If you have this repository locally, the compiled desktop application executable
    - **"Tidy Up" Auto-Alignment (`Ctrl+Alt+T`)**: Multi-shape geometry engine organizing scattered selections into clean grids, columns, or rows with 24px spacing.
    - **Customizable Shortcuts Engine**: Configure custom keybindings and mouse buttons (including M4/M5) across whiteboard, overlay, document, and general workflows.
 6. **Multimodal AI Whiteboard Assistance**:
+   <p align="center">
+     <img src="docs/images/fig3_ai_workflows.png" alt="Multimodal AI Substrate Workflows" width="100%"/>
+   </p>
+
    - **Diagram-to-Code / Wireframe-to-Code (`MagicFrame`)**: Multimodal AI vision converting hand-drawn wireframes and sketches into live, interactive HTML/CSS code streamed directly into an embedded iframe.
    - **Conversational Text-to-Diagram (TTD) Streaming**: Multi-turn chat streaming generating structured Mermaid flowchart syntax and real-time previews via Server-Sent Events.
    - **Live Handwritten Math & Equation Solver**: Automatically detects math expressions ending in `=`, evaluates via symbolic Python (`sympy`) or local recursive-descent math evaluator, and places formatted result digitally on canvas.
@@ -155,6 +167,34 @@ If you have this repository locally, the compiled desktop application executable
 
 ---
 
+## Empirical Performance & Benchmarks
+
+Graffiti has been stress-tested across memory footprints, stroke beautification latency, dense canvas rendering, and distributed CRDT concurrency:
+
+| Benchmark Dimension | Measured Result | Significance |
+| :--- | :--- | :--- |
+| **Native Desktop RAM** | **42.5 MB Working Set** | **-87.7% reduction** vs. Electron baseline (345 MB) and -76.2% vs. Chrome. |
+| **Edge Stroke Beautifier** | **<0.42 ms p95 (Circle 282µs)** | **1,084× faster** than cloud AI APIs (450 ms) with zero network round trip. |
+| **Canvas 60 FPS Scalability** | **<3.16 ms (<19% budget)** | Zero dropped frames up to **10,000 vector shapes** under spatial AABB culling. |
+| **Canvas Breaking Point** | **60 FPS knee at ~2,000 shapes** | Identifies physical CPU Canvas 2D limits under 100% visible unculled loads. |
+| **LWW-CRDT Concurrency** | **100.00% Convergence** | Zero state divergences across **500 concurrent peers** ($471,000$ operations). |
+
+<p align="center">
+  <img src="docs/images/fig09_desktop_footprint.svg" alt="Desktop Footprint" width="48%"/>
+  <img src="docs/images/fig10_beautifier_latency.svg" alt="Beautifier Latency" width="48%"/>
+</p>
+
+<p align="center">
+  <img src="docs/images/fig11_canvas_fps_scalability.svg" alt="Canvas FPS Scalability" width="48%"/>
+  <img src="docs/images/fig13_canvas_breaking_point.svg" alt="Canvas Breaking Point" width="48%"/>
+</p>
+
+<p align="center">
+  <img src="docs/images/fig12_collab_crdt_convergence.svg" alt="LWW-CRDT Concurrency Scalability" width="98%"/>
+</p>
+
+---
+
 ## Project Structure
 
 ```
@@ -162,6 +202,7 @@ graffiti/
 ├── docker/                         # PostgreSQL 16 & Redis 7 container orchestration
 │   ├── docker-compose.yml
 │   └── .env
+├── docs/images/                    # Publication & architecture vector diagrams
 ├── docs_archive/                   # Reference canvas engine implementation & schemas
 ├── graffiti-backend/               # Java 25 + Spring Boot 4.1.0 backend service
 │   ├── pom.xml
@@ -193,10 +234,15 @@ graffiti/
 │       ├── notebook/notebook_summarizer.py    # LLM action-item & decision extraction
 │       ├── theme/theme_morpher.py             # LLM aesthetic theme morphing (preserves geometry)
 │       └── voice/voice_storyboard.py         # Speech → architecture block generation
+├── test data/                      # Reproducible benchmark suite and datasets
+│   ├── BENCHMARK_SUMMARY.md               # Plain-English benchmark summary & breaking points
+│   ├── data/                              # Raw JSON & CSV measured datasets
+│   └── render_benchmark_figures.cjs       # Publication SVG chart renderer
 ├── pytest.ini                      # Root pytest configuration (testpaths, pythonpath)
 ├── README.md                       # Master project overview & quickstart guide
 ├── ARCHITECTURE_DECISIONS.md       # ADR matrix & distributed systems trade-offs
-└── PROJECT_SPECIFICATION.md        # Authoritative engineering specification & contracts
+├── PROJECT_SPECIFICATION.md        # Authoritative engineering specification & contracts
+└── LICENSE                         # Personal & Non-Commercial License
 ```
 
 ---
@@ -208,8 +254,8 @@ graffiti/
 cd docker
 docker compose up -d
 ```
-- **PostgreSQL 16**: Port `5432` (`graffiti` / `Ankit@1907`)
-- **Redis 7**: Port `6379` (`Ankit@1907`)
+- **PostgreSQL 16**: Port `5432` (`graffiti` / `<POSTGRES_PASSWORD>`)
+- **Redis 7**: Port `6379` (`<REDIS_PASSWORD>`)
 
 ### 2. Run Backend Sync Engine
 ```bash
@@ -246,4 +292,5 @@ AI microservice runs containerized on `http://localhost:8000` with volume-mounte
 
 ## License
 
-This project is open-source software licensed under the MIT License.
+This project is licensed under the **[Graffiti Personal & Non-Commercial License](LICENSE)**.  
+Use is strictly permitted for personal, non-commercial evaluation and educational research. Commercial exploitation, distribution, public SaaS hosting, and resale are strictly prohibited without prior written authorization from the authors.

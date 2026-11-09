@@ -29,4 +29,4 @@ class FlowchartToCodeResponse(BaseModel):
     detectedNodes: List[FlowchartNode] = Field(default_factory=list)
     detectedEdges: List[FlowchartEdge] = Field(default_factory=list)
     summary: str = ""
-    aiProvider: str = "groq-llama-3.3-70b-versatile"
+    aiProvider: str = "groq-openai/gpt-oss-120b"

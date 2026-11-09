@@ -16,6 +16,8 @@ export type ToolId =
   | "table"
   | "deviceFrame"
   | "image"
+  | "video"
+  | "audio"
   | "eraser";
 
 export type ElementType = Exclude<ToolId, "select" | "hand" | "eraser">;
@@ -74,6 +76,8 @@ export interface CanvasElement {
   endBinding?: PointBinding;
   containerId?: string;
   boundElements?: Array<{ id: string; type?: string }>;
+  groupIds?: string[];
+  frameId?: string | null;
   childrenIds?: string[];
   iconFamily?: string;
   svgPath?: string;

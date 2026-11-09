@@ -2,7 +2,7 @@
 
 The asynchronous AI/ML assistance service for Graffiti, built with **Python 3.12** and **FastAPI**. It processes heavy vision, OCR, vector geometry, symbolic math evaluation, and multimodal LLM inference workloads decoupled from the core real-time sync engine.
 
-**AI Provider Chain:** Groq (llama-3.3-70b-versatile) → Google Gemini 3.8 Flash → deterministic heuristic fallback. All features work offline via the heuristic fallback; no API key is required to run the service.
+**AI Provider Chain:** Groq (`openai/gpt-oss-120b` / `openai/gpt-oss-20b` / `qwen3.8-27b`) → Google Gemini 3.8 Flash → deterministic heuristic fallback. All features work offline via the heuristic fallback; no API key is required to run the service.
 
 ---
 

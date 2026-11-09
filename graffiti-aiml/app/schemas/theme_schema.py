@@ -55,4 +55,4 @@ class ThemeMorphResponse(BaseModel):
     palette: Optional[ThemePalette] = None
     elementsMorphed: int = 0
     updatedElements: List[Dict[str, Any]] = Field(..., description="Elements with updated aesthetic attributes, exact coordinates preserved")
-    aiProvider: str = "groq-llama-3.3-70b-versatile"
+    aiProvider: str = "groq-openai/gpt-oss-120b"

@@ -1,5 +1,7 @@
+import ast
 import json
 import re
+import textwrap
 from typing import Dict, Any, Optional, List, Tuple
 import httpx
 
@@ -12,6 +14,242 @@ from app.schemas.flowchart_schema import (
 )
 
 
+def clean_code_string(code: str) -> str:
+    """Strips markdown fences and unescapes double-escaped newlines."""
+    if not code:
+        return ""
+    text = code.strip()
+
+    # Strip markdown code blocks ```python ... ``` or ```javascript ... ```
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-zA-Z0-9_\-]*\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
+        text = text.strip()
+
+    # If string contains literal \n characters (double-escaped from JSON)
+    if "\\n" in text and "\n" not in text:
+        text = text.replace("\\n", "\n").replace("\\t", "    ")
+
+    # Normalize line endings
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return text
+
+
+def format_python_code(code: str) -> str:
+    """Produces cleanly indented, PEP 8 compliant Python code with strict 4 spaces."""
+    raw = clean_code_string(code)
+    if not raw:
+        return ""
+
+    # Normalize tabs to 4 spaces
+    lines = [line.replace("\t", "    ").rstrip() for line in raw.split("\n")]
+    dedented = textwrap.dedent("\n".join(lines)).strip()
+
+    # Try AST unparse for perfect 4-space indentation and formatting
+    try:
+        tree = ast.parse(dedented)
+        formatted = ast.unparse(tree)
+        # Add clean spacing around if __name__ == '__main__':
+        formatted = re.sub(r"\n(if __name__ == ['\"]__main__['\"]:\s*)", r"\n\n\1", formatted)
+        # Add double newline after top-level function / class definitions if missing
+        formatted = re.sub(r"(\n    return [^\n]+)\n(def )", r"\1\n\n\2", formatted)
+        return formatted.strip() + "\n"
+    except Exception:
+        # Fallback: line-by-line block indentation normalizer
+        pass
+
+    out_lines = []
+    indent_level = 0
+    indent_str = "    "
+
+    block_starters = re.compile(
+        r"^(def\s+|class\s+|if\s+|elif\s+|else\s*:|for\s+|while\s+|try\s*:|except(\s+.*)?:|finally\s*:|with\s+)"
+    )
+    dedent_starters = re.compile(r"^(elif\s+|else\s*:|except(\s+.*)?:|finally\s*:)")
+
+    for line in dedented.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            out_lines.append("")
+            continue
+
+        if dedent_starters.match(stripped):
+            current_indent = max(0, indent_level - 1)
+        else:
+            current_indent = indent_level
+
+        out_lines.append(f"{indent_str * current_indent}{stripped}")
+
+        if stripped.endswith(":") and block_starters.match(stripped):
+            indent_level += 1
+
+    return "\n".join(out_lines).strip() + "\n"
+
+
+def format_nodejs_code(code: str) -> str:
+    """Produces cleanly indented, 2-space formatted JavaScript / Node.js code."""
+    raw = clean_code_string(code)
+    if not raw:
+        return ""
+
+    lines = [line.replace("\t", "  ").rstrip() for line in raw.split("\n")]
+    dedented = textwrap.dedent("\n".join(lines)).strip()
+
+    out_lines = []
+    indent_level = 0
+    indent_str = "  "
+
+    for line in dedented.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            out_lines.append("")
+            continue
+
+        close_count = stripped.count("}") + stripped.count("]")
+        open_count = stripped.count("{") + stripped.count("[")
+
+        leading_closes = 0
+        for ch in stripped:
+            if ch in "}]":
+                leading_closes += 1
+            elif ch not in " \t":
+                break
+
+        actual_indent = max(0, indent_level - leading_closes)
+        out_lines.append(f"{indent_str * actual_indent}{stripped}")
+
+        indent_level = max(0, indent_level + (open_count - close_count))
+
+    return "\n".join(out_lines).strip() + "\n"
+
+
+def clean_label_to_code(label: str, lang: str = "python") -> str:
+    """Translates a node label into a clean, direct code statement."""
+    lbl = (label or "").strip()
+    if not lbl:
+        return 'print("Step completed")' if lang == "python" else 'console.log("Step completed");'
+
+    # Check for print statement: print "hello world" or print("hello world")
+    print_match = re.match(r'^(?:print|log|echo|output|display)\s*[\("]?([^"\)]+)["\)]?$', lbl, re.IGNORECASE)
+    if print_match:
+        msg = print_match.group(1).strip()
+        return f'print("{msg}")' if lang == "python" else f'console.log("{msg}");'
+
+    # Check if direct quoted string "hello world"
+    if (lbl.startswith('"') and lbl.endswith('"')) or (lbl.startswith("'") and lbl.endswith("'")):
+        msg = lbl[1:-1]
+        return f'print("{msg}")' if lang == "python" else f'console.log("{msg}");'
+
+    # Check for assignment: x = 10
+    assign_match = re.match(r'^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$', lbl)
+    if assign_match:
+        var = assign_match.group(1)
+        val = assign_match.group(2)
+        return f"{var} = {val}" if lang == "python" else f"const {var} = {val};"
+
+    # Descriptive statement
+    safe_func = re.sub(r'[^a-zA-Z0-9_]', '_', lbl.lower()).strip('_')
+    safe_func = re.sub(r'_+', '_', safe_func) or "process_step"
+    if lang == "python":
+        return f"# {lbl}\n{safe_func}()"
+    else:
+        return f"// {lbl}\n{safe_func}();"
+
+
+def generate_smart_fallback(
+    nodes: List[FlowchartNode],
+    edges: List[FlowchartEdge],
+) -> Tuple[str, str, str, str]:
+    """Generates clean, direct starter code strictly tailored to flowchart complexity."""
+    action_nodes = [n for n in nodes if n.type not in ("start", "end")]
+    decisions = [n for n in nodes if n.type == "decision"]
+
+    # 1. Simple Sequential Flow (no decisions)
+    if not decisions:
+        if not action_nodes:
+            py_body = '    print("Workflow executed successfully.")'
+            js_body = '  console.log("Workflow executed successfully.");'
+        else:
+            py_lines = []
+            js_lines = []
+            for n in action_nodes:
+                stmt_py = clean_label_to_code(n.label, "python")
+                for s in stmt_py.split("\n"):
+                    py_lines.append(f"    {s}")
+                stmt_js = clean_label_to_code(n.label, "nodejs")
+                for s in stmt_js.split("\n"):
+                    js_lines.append(f"  {s}")
+            py_body = "\n".join(py_lines)
+            js_body = "\n".join(js_lines)
+
+        py_code = f"""def main():\n{py_body}\n\nif __name__ == "__main__":\n    main()\n"""
+        js_code = f"""function main() {{\n{js_body}\n}}\n\nmain();\n"""
+        summary = "Sequential flow without decision branches."
+    else:
+        # Branching flow
+        dec = decisions[0]
+        out_edges = [e for e in edges if e.source == dec.id]
+        node_map = {n.id: n for n in nodes}
+
+        cond_label = dec.label.rstrip("?")
+        cond_slug_py = re.sub(r'[^a-zA-Z0-9_]', '_', cond_label.lower()).strip('_') or "condition"
+        cond_slug_js = re.sub(r'[^a-zA-Z0-9_]', '', cond_label.title()) or "Condition"
+
+        py_branches = []
+        js_branches = []
+
+        if not out_edges:
+            py_branches.append(f"    if is_{cond_slug_py}:\n        print('Branch passed')\n    else:\n        print('Branch failed')")
+            js_branches.append(f"  if (is{cond_slug_js}) {{\n    console.log('Branch passed');\n  }} else {{\n    console.log('Branch failed');\n  }}")
+        else:
+            for idx, edge in enumerate(out_edges):
+                target_node = node_map.get(edge.target)
+                tgt_label = target_node.label if target_node else "Next Step"
+                cond = edge.condition or ("Yes" if idx == 0 else "No")
+
+                py_action = clean_label_to_code(tgt_label, "python")
+                js_action = clean_label_to_code(tgt_label, "nodejs")
+
+                if idx == 0:
+                    py_branches.append(f"    if is_{cond_slug_py}:\n        {py_action}")
+                    js_branches.append(f"  if (is{cond_slug_js}) {{\n    {js_action}\n  }}")
+                else:
+                    py_branches.append(f"    else:\n        {py_action}")
+                    js_branches.append(f"  else {{\n    {js_action}\n  }}")
+
+        py_body = "\n".join(py_branches)
+        js_body = "\n".join(js_branches)
+
+        py_code = f"""def run_flow(is_{cond_slug_py}: bool = True):\n{py_body}\n\nif __name__ == "__main__":\n    run_flow()\n"""
+        js_code = f"""function runFlow(is{cond_slug_js} = true) {{\n{js_body}\n}}\n\nrunFlow();\n"""
+        summary = f"Branching decision workflow based on '{dec.label}'."
+
+    # Build Mermaid
+    mermaid_lines = ["flowchart TD"]
+    node_id_clean = {}
+    for idx, n in enumerate(nodes):
+        nid = f"N{idx + 1}"
+        node_id_clean[n.id] = nid
+        lbl = n.label.replace('"', "'")
+        if n.type in ("start", "end"):
+            mermaid_lines.append(f"    {nid}([{lbl}])")
+        elif n.type == "decision":
+            mermaid_lines.append(f"    {nid}{{{lbl}}}")
+        else:
+            mermaid_lines.append(f"    {nid}[{lbl}]")
+
+    for e in edges:
+        src = node_id_clean.get(e.source, e.source)
+        tgt = node_id_clean.get(e.target, e.target)
+        if e.condition:
+            mermaid_lines.append(f"    {src} -->|{e.condition}| {tgt}")
+        else:
+            mermaid_lines.append(f"    {src} --> {tgt}")
+
+    mermaid_code = "\n".join(mermaid_lines)
+    return format_python_code(py_code), format_nodejs_code(js_code), mermaid_code, summary
+
+
 def extract_flowchart_graph_from_elements(
     elements: Optional[List[Dict[str, Any]]]
 ) -> Tuple[List[FlowchartNode], List[FlowchartEdge], str]:
@@ -19,7 +257,6 @@ def extract_flowchart_graph_from_elements(
     if not elements:
         return [], [], ""
 
-    # Map containerId -> text content for bound text elements
     bound_texts: Dict[str, str] = {}
     for el in elements:
         if el.get("isDeleted"):
@@ -27,7 +264,6 @@ def extract_flowchart_graph_from_elements(
         if el.get("type") == "text" and el.get("containerId"):
             bound_texts[el["containerId"]] = el.get("text", "").strip()
 
-    # Find node shapes
     node_map: Dict[str, FlowchartNode] = {}
     shape_types = {"rectangle", "diamond", "ellipse", "frame"}
 
@@ -35,7 +271,6 @@ def extract_flowchart_graph_from_elements(
         el for el in elements
         if not el.get("isDeleted") and el.get("type") in shape_types
     ]
-    # Sort in reading order (top to bottom, left to right)
     shape_elements.sort(key=lambda s: (s.get("y", 0), s.get("x", 0)))
 
     for idx, el in enumerate(shape_elements):
@@ -49,7 +284,6 @@ def extract_flowchart_graph_from_elements(
         cleaned_label = str(raw_text).strip()
         stype = el.get("type")
 
-        # Determine semantic flowchart node type
         lower_lbl = cleaned_label.lower()
         if stype == "diamond" or "?" in cleaned_label or any(w in lower_lbl for w in ["check", "valid", "if", "condition", "is "]):
             node_type = "decision"
@@ -66,7 +300,6 @@ def extract_flowchart_graph_from_elements(
             type=node_type,
         )
 
-    # Find edges / arrows
     edges: List[FlowchartEdge] = []
     arrow_elements = [
         el for el in elements
@@ -94,14 +327,12 @@ def extract_flowchart_graph_from_elements(
                 )
             )
 
-    # If no arrows were explicitly bound, but multiple shapes exist, connect sequentially in spatial order
     if not edges and len(shape_elements) > 1:
         for i in range(len(shape_elements) - 1):
             src = shape_elements[i]["id"]
             tgt = shape_elements[i + 1]["id"]
             edges.append(FlowchartEdge(source=src, target=tgt))
 
-    # Build clear textual description of graph
     lines = ["Flowchart Whiteboard Topology:"]
     lines.append("Nodes:")
     for node in node_map.values():
@@ -117,115 +348,12 @@ def extract_flowchart_graph_from_elements(
     return list(node_map.values()), edges, topology_text
 
 
-DEFAULT_FALLBACK_PYTHON = '''"""
-Generated Python Starter Code from Whiteboard Flowchart
-"""
-
-class FlowchartWorkflow:
-    def __init__(self):
-        self.state = {"status": "INITIALIZED"}
-
-    def start_process(self, input_data: dict) -> dict:
-        print(f"[Start] Received data: {input_data}")
-        self.state["data"] = input_data
-        return self.step_process_data()
-
-    def step_process_data(self) -> dict:
-        # Process input payload
-        print("[Process] Validating and transforming payload...")
-        is_valid = self.state.get("data", {}).get("is_valid", True)
-        
-        # Decision branch
-        if is_valid:
-            return self.step_handle_success()
-        else:
-            return self.step_handle_failure()
-
-    def step_handle_success(self) -> dict:
-        print("[Success] Flow execution completed successfully.")
-        self.state["status"] = "COMPLETED"
-        return {"success": True, "result": self.state}
-
-    def step_handle_failure(self) -> dict:
-        print("[Error] Flow stopped at validation error.")
-        self.state["status"] = "FAILED"
-        return {"success": False, "error": "Validation failed"}
-
-
-if __name__ == "__main__":
-    workflow = FlowchartWorkflow()
-    result = workflow.start_process({"is_valid": True, "user_id": "usr_123"})
-    print("Execution Result:", result)
-'''
-
-DEFAULT_FALLBACK_NODEJS = '''/**
- * Generated Node.js Starter Code from Whiteboard Flowchart
- */
-
-class FlowchartWorkflow {
-  constructor() {
-    this.state = { status: "INITIALIZED" };
-  }
-
-  async startProcess(inputData = {}) {
-    console.log("[Start] Received input:", inputData);
-    this.state.data = inputData;
-    return this.stepProcessData();
-  }
-
-  async stepProcessData() {
-    console.log("[Process] Validating and transforming payload...");
-    const isValid = this.state.data?.isValid ?? true;
-
-    // Decision branch
-    if (isValid) {
-      return this.stepHandleSuccess();
-    } else {
-      return this.stepHandleFailure();
-    }
-  }
-
-  async stepHandleSuccess() {
-    console.log("[Success] Flow execution completed successfully.");
-    this.state.status = "COMPLETED";
-    return { success: true, result: this.state };
-  }
-
-  async stepHandleFailure() {
-    console.warn("[Error] Flow stopped at validation error.");
-    this.state.status = "FAILED";
-    return { success: false, error: "Validation failed" };
-  }
-}
-
-// Example Execution
-(async () => {
-  const workflow = new FlowchartWorkflow();
-  const res = await workflow.startProcess({ isValid: true, userId: "usr_123" });
-  console.log("Execution Result:", res);
-})();
-
-module.exports = { FlowchartWorkflow };
-'''
-
-DEFAULT_FALLBACK_MERMAID = """flowchart TD
-    Start([Start]) --> Input[/Receive Input/]
-    Input --> Process[Process & Transform Data]
-    Process --> Decision{Is Valid?}
-    Decision -->|Yes| Success[Complete Transaction]
-    Decision -->|No| Fail[Log Error & Alert]
-    Success --> End([Finished])
-    Fail --> End"""
-
-
 async def convert_flowchart_to_code(req: FlowchartToCodeRequest) -> FlowchartToCodeResponse:
     """Uses Groq Llama 3.3 70B (or Gemini Vision if configured) to parse flowchart elements/images and generate production code."""
-    # 1. Extract semantic graph topology from structured canvas elements
     extracted_nodes, extracted_edges, topology_text = extract_flowchart_graph_from_elements(req.elements)
 
     gemini_key = settings.get_gemini_key()
 
-    # Clean Base64 image if present
     img_data = req.image
     mime_type = "image/png"
     if img_data and "," in img_data:
@@ -239,17 +367,29 @@ async def convert_flowchart_to_code(req: FlowchartToCodeRequest) -> FlowchartToC
     if gemini_key and img_data:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent?key={gemini_key}"
-            
+
             vision_prompt = (
                 "You are an expert multi-modal software architect and compiler engineer.\n"
-                "You are provided with an image of a hand-drawn or digital whiteboard flowchart.\n"
-                "Analyze the flowchart carefully:\n"
-                "1. Identify all shapes: Start/End terminal pills, process rectangles, decision diamonds with conditions, input/output parallelograms.\n"
-                "2. Identify directional arrows and condition labels (e.g., 'Yes'/'No', 'Success'/'Error', 'Default').\n"
-                "3. Generate clean, idiomatic, runnable Python starter code representing the entire flow as a workflow class/functions.\n"
-                "4. Generate clean, idiomatic, runnable Node.js/TypeScript starter code representing the same workflow.\n"
-                "5. Generate a Mermaid.js diagram starting with 'flowchart TD' representing the exact structure.\n"
-                "6. Provide a concise technical summary.\n\n"
+                "You are provided with an image of a hand-drawn or digital whiteboard flowchart.\n\n"
+                "CRITICAL ARCHITECTURAL RULES:\n"
+                "1. CODE COMPLEXITY MUST MATCH FLOWCHART COMPLEXITY:\n"
+                "   - For simple sequential flows (e.g. Start -> Print 'Hello World' -> End, or 1-4 linear steps):\n"
+                "     * Output minimal, direct, idiomatic code (e.g. a simple def main() in Python, function main() in Node.js).\n"
+                "     * DO NOT create unnecessary classes, state machines, or complex workflows.\n"
+                "     * DO NOT add artificial logging statements like '[Start]...', '[Process]...', '[Success]...'.\n"
+                "     * Implement the actual action specified in each node directly.\n"
+                "   - For decision flows (branching with 'if/else', conditions):\n"
+                "     * Implement clean if/else branching.\n"
+                "     * Only create helper functions if needed for readability.\n"
+                "     * Do NOT add verbose mock logging.\n"
+                "   - For complex multi-step pipelines (>6 nodes with complex loops or state):\n"
+                "     * Organize into clean, modular functions or a concise class only if state management is genuinely needed.\n\n"
+                "2. INDENTATION AND SYNTAX:\n"
+                "   - Python code MUST use strict 4-space indentation for every nested block.\n"
+                "   - Node.js code MUST use strict 2-space indentation.\n"
+                "   - Never mix tabs and spaces. Return clean code strings without markdown backticks.\n\n"
+                "3. MERMAID DIAGRAM:\n"
+                "   - Output a clean 'flowchart TD' string representing the exact nodes and directional transitions.\n\n"
                 "Return strictly valid JSON with this schema:\n"
                 "{\n"
                 '  "pythonCode": "<Python code string with escaped newlines>",\n'
@@ -293,47 +433,69 @@ async def convert_flowchart_to_code(req: FlowchartToCodeRequest) -> FlowchartToC
                     if candidates:
                         text_part = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "{}")
                         parsed = json.loads(text_part)
-                        
+
                         nodes = [FlowchartNode(**n) for n in parsed.get("detectedNodes", [])] or extracted_nodes
                         edges = [FlowchartEdge(**e) for e in parsed.get("detectedEdges", [])] or extracted_edges
 
+                        raw_py = parsed.get("pythonCode", "")
+                        raw_js = parsed.get("nodeJsCode", "")
+
+                        if not raw_py or not raw_js:
+                            fb_py, fb_js, fb_mm, fb_sm = generate_smart_fallback(nodes, edges)
+                            raw_py = raw_py or fb_py
+                            raw_js = raw_js or fb_js
+
                         return FlowchartToCodeResponse(
                             success=True,
-                            pythonCode=parsed.get("pythonCode", DEFAULT_FALLBACK_PYTHON),
-                            nodeJsCode=parsed.get("nodeJsCode", DEFAULT_FALLBACK_NODEJS),
-                            mermaid=parsed.get("mermaid", DEFAULT_FALLBACK_MERMAID),
+                            pythonCode=format_python_code(raw_py),
+                            nodeJsCode=format_nodejs_code(raw_js),
+                            mermaid=parsed.get("mermaid", generate_smart_fallback(nodes, edges)[2]),
                             detectedNodes=nodes,
                             detectedEdges=edges,
-                            summary=parsed.get("summary", "Successfully parsed flowchart into code."),
+                            summary=parsed.get("summary", "Successfully parsed flowchart into clean code."),
                             aiProvider=f"gemini-{settings.gemini_model}"
                         )
         except Exception as e:
-            print(f"[FlowchartToCode] Groq call error: {e}", flush=True)
+            print(f"[FlowchartToCode] Gemini Vision error: {e}", flush=True)
 
-    # Primary: Groq Cloud API (llama-3.3-70b-versatile) with extracted diagram topology
+    # Primary: Groq Cloud API with extracted diagram topology
     groq_key = settings.get_groq_key()
     if groq_key:
         try:
             from groq import AsyncGroq
             client = AsyncGroq(api_key=groq_key)
 
-            context_str = topology_text if topology_text else "Whiteboard Flowchart with standard validation and processing pipeline."
+            context_str = topology_text if topology_text else "Whiteboard Flowchart"
             code_prompt = (
-                "You are an expert software architect and workflow compiler engineer.\n"
-                "A user has designed the following flowchart on a digital whiteboard canvas:\n\n"
+                "You are an expert software compiler and software engineer.\n"
+                "A user has designed the following flowchart on a whiteboard canvas:\n\n"
                 f"{context_str}\n\n"
-                f"User Instructions: '{req.prompt or 'Generate complete, production-grade workflow code covering all nodes, decision branches, and transitions.'}'\n\n"
-                "Requirements:\n"
-                "1. Generate clean, idiomatic, runnable Python starter code representing the entire flow as a workflow class with state tracking, error handling, and an executable __main__ block.\n"
-                "2. Generate clean, idiomatic, runnable Node.js/TypeScript starter code representing the same workflow with async/await and execution example.\n"
-                "3. Generate a Mermaid.js diagram starting with 'flowchart TD' representing the exact structure.\n"
-                "4. Provide a concise technical summary explaining the flow logic.\n\n"
+                f"User Instructions: '{req.prompt or 'Translate this flowchart faithfully into clean, working code.'}'\n\n"
+                "CRITICAL ARCHITECTURAL RULES:\n"
+                "1. CODE COMPLEXITY MUST MATCH FLOWCHART COMPLEXITY:\n"
+                "   - For simple sequential flows (e.g. Start -> Print 'Hello World' -> End, or 1-4 linear steps):\n"
+                "     * Output minimal, direct, idiomatic code (e.g. a simple def main() in Python, function main() in Node.js).\n"
+                "     * DO NOT create unnecessary classes, state machines, or complex workflows.\n"
+                "     * DO NOT add artificial logging statements like '[Start]...', '[Process]...', '[Success]...'.\n"
+                "     * Implement the actual action specified in each node directly.\n"
+                "   - For decision flows (branching with 'if/else', conditions):\n"
+                "     * Implement clean if/else branching.\n"
+                "     * Only create helper functions if needed for readability.\n"
+                "     * Do NOT add verbose mock logging.\n"
+                "   - For complex multi-step pipelines (>6 nodes with complex loops or state):\n"
+                "     * Organize into clean, modular functions or a concise class only if state management is genuinely needed.\n\n"
+                "2. INDENTATION AND SYNTAX:\n"
+                "   - Python code MUST use strict 4-space indentation for every nested block.\n"
+                "   - Node.js code MUST use strict 2-space indentation.\n"
+                "   - Never mix tabs and spaces. Return clean code strings without markdown backticks.\n\n"
+                "3. MERMAID DIAGRAM:\n"
+                "   - Output a clean 'flowchart TD' string representing the exact nodes and directional transitions.\n\n"
                 "Return strictly valid JSON with this schema:\n"
                 "{\n"
-                '  "pythonCode": "<Python code string with escaped newlines>",\n'
-                '  "nodeJsCode": "<Node.js code string with escaped newlines>",\n'
+                '  "pythonCode": "<Clean, perfectly indented Python code string with escaped newlines>",\n'
+                '  "nodeJsCode": "<Clean, perfectly indented Node.js code string with escaped newlines>",\n'
                 '  "mermaid": "<Mermaid flowchart TD string>",\n'
-                '  "summary": "<Concise overview of what this diagram does>",\n'
+                '  "summary": "<Concise 1-sentence overview of what this diagram does>",\n'
                 '  "detectedNodes": [\n'
                 '     {"id": "n1", "label": "Start", "type": "start"}\n'
                 '  ],\n'
@@ -342,13 +504,7 @@ async def convert_flowchart_to_code(req: FlowchartToCodeRequest) -> FlowchartToC
                 '  ]\n'
                 "}"
             )
-            models_to_try = [
-                settings.groq_model,
-                "openai/gpt-oss-120b",
-                "llama-3.3-70b-versatile",
-                "qwen/qwen3.8-27b",
-                "openai/gpt-oss-20b",
-            ]
+            models_to_try = settings.get_groq_models()
             seen = set()
             completion = None
             used_model = settings.groq_model
@@ -383,43 +539,47 @@ async def convert_flowchart_to_code(req: FlowchartToCodeRequest) -> FlowchartToC
             if not edges and extracted_edges:
                 edges = extracted_edges
 
+            raw_py = parsed.get("pythonCode", "")
+            raw_js = parsed.get("nodeJsCode", "")
+
+            if not raw_py or not raw_js:
+                fb_py, fb_js, fb_mm, fb_sm = generate_smart_fallback(nodes, edges)
+                raw_py = raw_py or fb_py
+                raw_js = raw_js or fb_js
+
             return FlowchartToCodeResponse(
                 success=True,
-                pythonCode=parsed.get("pythonCode", DEFAULT_FALLBACK_PYTHON),
-                nodeJsCode=parsed.get("nodeJsCode", DEFAULT_FALLBACK_NODEJS),
-                mermaid=parsed.get("mermaid", DEFAULT_FALLBACK_MERMAID),
+                pythonCode=format_python_code(raw_py),
+                nodeJsCode=format_nodejs_code(raw_js),
+                mermaid=parsed.get("mermaid", generate_smart_fallback(nodes, edges)[2]),
                 detectedNodes=nodes,
                 detectedEdges=edges,
-                summary=parsed.get("summary", f"Synthesized workflow code and Mermaid diagram using Groq ({used_model})."),
+                summary=parsed.get("summary", f"Synthesized clean code and Mermaid diagram using Groq ({used_model})."),
                 aiProvider=f"groq-{used_model}"
             )
         except Exception as e:
             print(f"[FlowchartToCode] Groq call error: {e}", flush=True)
 
-    # Fallback when key is not provided or network fails
+    # Fallback directly tailored to extracted nodes and edges
     fallback_nodes = extracted_nodes if extracted_nodes else [
         FlowchartNode(id="n1", label="Start", type="start"),
-        FlowchartNode(id="n2", label="Receive Input", type="input_output"),
-        FlowchartNode(id="n3", label="Process & Transform Data", type="process"),
-        FlowchartNode(id="n4", label="Is Valid?", type="decision"),
-        FlowchartNode(id="n5", label="Complete Transaction", type="process"),
-        FlowchartNode(id="n6", label="Finished", type="end"),
+        FlowchartNode(id="n2", label="print 'hello world'", type="process"),
+        FlowchartNode(id="n3", label="End", type="end"),
     ]
     fallback_edges = extracted_edges if extracted_edges else [
         FlowchartEdge(source="n1", target="n2"),
         FlowchartEdge(source="n2", target="n3"),
-        FlowchartEdge(source="n3", target="n4"),
-        FlowchartEdge(source="n4", target="n5", condition="Yes"),
-        FlowchartEdge(source="n5", target="n6"),
     ]
+
+    fb_py, fb_js, fb_mm, fb_sm = generate_smart_fallback(fallback_nodes, fallback_edges)
 
     return FlowchartToCodeResponse(
         success=True,
-        pythonCode=DEFAULT_FALLBACK_PYTHON,
-        nodeJsCode=DEFAULT_FALLBACK_NODEJS,
-        mermaid=DEFAULT_FALLBACK_MERMAID,
+        pythonCode=fb_py,
+        nodeJsCode=fb_js,
+        mermaid=fb_mm,
         detectedNodes=fallback_nodes,
         detectedEdges=fallback_edges,
-        summary="Synthesized starter workflow code and Mermaid diagram from flowchart diagram.",
+        summary=fb_sm,
         aiProvider=f"groq-{settings.groq_model}-offline"
     )

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="280" viewBox="0 0 600 280">
+    <rect width="100%" height="100%" fill="#ffffff" />
+    <text x="30" y="32" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#1e293b">Figure 10: Edge-First Computational Geometry Beautifier Latency (µs)</text>
+    <text x="30" y="50" font-family="Arial, sans-serif" font-size="11" fill="#64748b">Evaluated on 5,005 synthetic strokes | Overall Accuracy: 78.94% | 1,084x faster than Cloud AI</text>
+
+    <!-- Cloud AI comparison callout banner -->
+    <rect x="30" y="65" width="540" height="34" rx="4" fill="#eff6ff" stroke="#bfdbfe" />
+    <text x="45" y="86" font-family="Arial, sans-serif" font-size="11" fill="#1e40af" font-weight="bold">Edge Execution p95: 414.9 µs (0.41 ms) vs. Cloud AI API: 450.0 ms (Zero Network Overhead)</text>
+
+    <!-- Axes -->
+    <line x1="80" y1="230" x2="560" y2="230" stroke="#cbd5e1" />
+    <line x1="80" y1="120" x2="80" y2="230" stroke="#cbd5e1" />
+
+    <!-- Y Labels -->
+    <text x="70" y="233" font-family="Arial, sans-serif" font-size="10" fill="#64748b" text-anchor="end">0 µs</text>
+    <text x="70" y="195" font-family="Arial, sans-serif" font-size="10" fill="#64748b" text-anchor="end">250 µs</text>
+    <text x="70" y="157" font-family="Arial, sans-serif" font-size="10" fill="#64748b" text-anchor="end">500 µs</text>
+    <text x="70" y="120" font-family="Arial, sans-serif" font-size="10" fill="#64748b" text-anchor="end">750 µs</text>
+
+    <!-- Bars for classes: Circle (282us), Ellipse (238us), Rect (172us), Diamond (186us), Triangle (142us), Line (23us) -->
+    <!-- Circle -->
+    <rect x="105" y="188.546" width="42" height="41.454" rx="2" fill="#0d9488" />
+    <text x="126" y="246" font-family="Arial, sans-serif" font-size="10" fill="#1e293b" text-anchor="middle">Circle</text>
+    <text x="126" y="182.546" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">282 µs</text>
+
+    <!-- Ellipse -->
+    <rect x="175" y="195.014" width="42" height="34.986" rx="2" fill="#0d9488" />
+    <text x="196" y="246" font-family="Arial, sans-serif" font-size="10" fill="#1e293b" text-anchor="middle">Ellipse</text>
+    <text x="196" y="189.014" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">238 µs</text>
+
+    <!-- Rectangle -->
+    <rect x="245" y="204.716" width="42" height="25.284" rx="2" fill="#2563eb" />
+    <text x="266" y="246" font-family="Arial, sans-serif" font-size="10" fill="#1e293b" text-anchor="middle">Rectangle</text>
+    <text x="266" y="198.716" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">172 µs</text>
+
+    <!-- Diamond -->
+    <rect x="315" y="202.65800000000002" width="42" height="27.342" rx="2" fill="#2563eb" />
+    <text x="336" y="246" font-family="Arial, sans-serif" font-size="10" fill="#1e293b" text-anchor="middle">Diamond</text>
+    <text x="336" y="196.65800000000002" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">186 µs</text>
+
+    <!-- Triangle -->
+    <rect x="385" y="209.126" width="42" height="20.874" rx="2" fill="#8b5cf6" />
+    <text x="406" y="246" font-family="Arial, sans-serif" font-size="10" fill="#1e293b" text-anchor="middle">Triangle</text>
+    <text x="406" y="203.126" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">142 µs</text>
+
+    <!-- Line -->
+    <rect x="455" y="226.619" width="42" height="3.381" rx="2" fill="#8b5cf6" />
+    <text x="476" y="246" font-family="Arial, sans-serif" font-size="10" fill="#1e293b" text-anchor="middle">Line</text>
+    <text x="476" y="220.619" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">23 µs</text>
+  </svg>

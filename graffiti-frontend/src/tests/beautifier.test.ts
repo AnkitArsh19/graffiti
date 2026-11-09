@@ -128,7 +128,7 @@ describe("beautifier", () => {
       { x: 200 + 50 * Math.cos(angle4 + Math.PI), y: 200 + 50 * Math.sin(angle4 + Math.PI) },
       { x: 200 + 35 * Math.cos(angle4 + (3 * Math.PI) / 2), y: 200 + 35 * Math.sin(angle4 + (3 * Math.PI) / 2) },
     ];
-    const diamondPts = generatePolygonPoints(dVerts, 1.5);
+    const diamondPts = generatePolygonPoints(dVerts, 0.8);
     const res = beautifyStroke(diamondPts);
     expect(res.shape).toBe("diamond");
     expect(res.element.type).toBe("diamond");

@@ -1,11 +1,27 @@
 import rough from "roughjs";
 import type { Options } from "roughjs/bin/core";
 import { getStroke } from "perfect-freehand";
+import tinycolor from "tinycolor2";
 import { applyDarkModeFilter } from "./colors";
 import { getElementTransformHandles, type TransformHandleType } from "./collision";
 import type { CanvasElement, PaperTemplate, TextAlign } from "../types";
+import { getApiBaseUrl } from "./api";
 
 const generator = rough.generator();
+
+const imageCache = new Map<string, HTMLImageElement>();
+const pendingImages = new Set<string>();
+
+export function resolveMediaUrl(src?: string): string {
+  if (!src) return "";
+  if (src.startsWith("data:") || src.startsWith("blob:") || src.startsWith("http://") || src.startsWith("https://")) {
+    return src;
+  }
+  if (src.startsWith("/")) {
+    return `${getApiBaseUrl()}${src}`;
+  }
+  return src;
+}
 
 // -----------------------------------------------------------------------------
 // Freedraw Constants
@@ -167,30 +183,51 @@ function getRoughOptions(
   continuousPath = false,
 ): Options {
   const strokeColor = applyDarkModeFilter(element.strokeColor, isDarkMode, false);
-  const fillColor =
+  let fillColor =
     element.backgroundColor && element.backgroundColor !== "transparent"
       ? applyDarkModeFilter(element.backgroundColor, isDarkMode, true)
       : undefined;
 
+  // For semi fillStyle: make the fill layer 45% translucent while keeping the border stroke 100% crisp & solid
+  if (fillColor && element.fillStyle === "semi") {
+    const tc = tinycolor(fillColor);
+    if (tc.isValid()) {
+      const rgb = tc.toRgb();
+      fillColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.45)`;
+    }
+  }
+
   const strokeLineDash = getDashArray(element.strokeStyle, element.strokeWidth);
   const roughness = element.roughness ?? 0;
+  const sw = element.strokeWidth ?? 2;
+
+  const isHatched =
+    element.fillStyle === "hachure" ||
+    element.fillStyle === "cross-hatch" ||
+    element.fillStyle === "zigzag" ||
+    element.fillStyle === "dots";
+
+  // In light mode, ensure hachure/cross-hatch strokes have strong visible contrast against white paper
+  if (fillColor && !isDarkMode && isHatched) {
+    const tc = tinycolor(fillColor);
+    if (tc.isValid() && tc.getLuminance() > 0.72) {
+      fillColor = tc.darken(22).toHexString();
+    }
+  }
 
   const options: Options = {
     seed: element.seed || 1,
     stroke: strokeColor,
-    strokeWidth: element.strokeStyle !== "solid" ? (element.strokeWidth ?? 2) + 0.5 : (element.strokeWidth ?? 2),
+    strokeWidth: element.strokeStyle !== "solid" ? sw + 0.5 : sw,
     strokeLineDash,
     disableMultiStroke: element.strokeStyle !== "solid" || roughness === 0,
     roughness,
     bowing: roughness === 0 ? 0 : roughness * 0.75,
     preserveVertices: continuousPath || roughness < 2,
     fill: fillColor,
-    fillStyle:
-      element.fillStyle === "hachure" || element.fillStyle === "cross-hatch" || element.fillStyle === "zigzag" || element.fillStyle === "dots"
-        ? element.fillStyle
-        : "solid",
-    fillWeight: Math.max(1, element.strokeWidth / 2),
-    hachureGap: Math.max(6, element.strokeWidth * 3.5),
+    fillStyle: isHatched ? element.fillStyle : "solid",
+    fillWeight: Math.max(2.0, sw * 0.85),
+    hachureGap: Math.max(5.0, sw * 2.2),
   };
 
   return options;
@@ -360,10 +397,6 @@ export function drawShapeOnCanvas(
   context.lineJoin = "round";
   context.lineCap = "round";
 
-  if (isSemi && element.backgroundColor && element.backgroundColor !== "transparent") {
-    context.globalAlpha = Math.max(0.05, ((element.opacity ?? 100) / 100) * 0.45);
-  }
-
   const options = getRoughOptions(element, isDarkMode);
 
   switch (element.type) {
@@ -528,8 +561,220 @@ export function drawShapeOnCanvas(
       break;
     }
     case "image": {
-      context.strokeStyle = strokeColor; context.setLineDash([6, 4]); context.strokeRect(0, 0, element.width, element.height); context.setLineDash([]);
-      context.fillStyle = strokeColor; context.font = "12px Inter, sans-serif"; context.fillText("Image", 8, 8);
+      const rawSrc = (element.customData?.src as string) || (element.customData?.url as string) || element.fileId || "";
+      const fullUrl = resolveMediaUrl(rawSrc);
+      const cached = fullUrl ? imageCache.get(fullUrl) : undefined;
+
+      if (cached && cached.complete && cached.naturalWidth > 0) {
+        context.save();
+        context.beginPath();
+        if (typeof (context as any).roundRect === "function") {
+          (context as any).roundRect(0, 0, element.width, element.height, 8);
+        } else {
+          context.rect(0, 0, element.width, element.height);
+        }
+        context.clip();
+        context.drawImage(cached, 0, 0, element.width, element.height);
+        context.restore();
+
+        // Subtle frame outline
+        context.strokeStyle = strokeColor || "rgba(255, 255, 255, 0.15)";
+        context.lineWidth = Math.max(1, element.strokeWidth || 1);
+        if (typeof (context as any).roundRect === "function") {
+          context.beginPath();
+          (context as any).roundRect(0, 0, element.width, element.height, 8);
+          context.stroke();
+        } else {
+          context.strokeRect(0, 0, element.width, element.height);
+        }
+      } else {
+        if (fullUrl && !pendingImages.has(fullUrl)) {
+          pendingImages.add(fullUrl);
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => {
+            imageCache.set(fullUrl, img);
+            pendingImages.delete(fullUrl);
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("graffiti:canvas:rerender"));
+            }
+          };
+          img.onerror = () => {
+            pendingImages.delete(fullUrl);
+          };
+          img.src = fullUrl;
+        }
+
+        // Placeholder box while image is loading or if no src
+        context.fillStyle = "rgba(39, 39, 42, 0.85)";
+        if (typeof (context as any).roundRect === "function") {
+          context.beginPath();
+          (context as any).roundRect(0, 0, element.width, element.height, 8);
+          context.fill();
+        } else {
+          context.fillRect(0, 0, element.width, element.height);
+        }
+        context.strokeStyle = strokeColor || "#71717a";
+        context.setLineDash([6, 4]);
+        if (typeof (context as any).roundRect === "function") {
+          context.beginPath();
+          (context as any).roundRect(0, 0, element.width, element.height, 8);
+          context.stroke();
+        } else {
+          context.strokeRect(0, 0, element.width, element.height);
+        }
+        context.setLineDash([]);
+
+        context.fillStyle = strokeColor || "#a1a1aa";
+        context.font = "600 13px Inter, sans-serif";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        const label = (element.customData?.name as string) || element.title || "Image";
+        context.fillText(label, element.width / 2, element.height / 2);
+      }
+      break;
+    }
+    case "video": {
+      // Video Media Card
+      context.fillStyle = "#18181b";
+      if (typeof (context as any).roundRect === "function") {
+        context.beginPath();
+        (context as any).roundRect(0, 0, element.width, element.height, 10);
+        context.fill();
+      } else {
+        context.fillRect(0, 0, element.width, element.height);
+      }
+
+      // Border
+      context.strokeStyle = strokeColor || "#3f3f46";
+      context.lineWidth = Math.max(1, element.strokeWidth || 1);
+      if (typeof (context as any).roundRect === "function") {
+        context.beginPath();
+        (context as any).roundRect(0, 0, element.width, element.height, 10);
+        context.stroke();
+      } else {
+        context.strokeRect(0, 0, element.width, element.height);
+      }
+
+      // Large Glassmorphic Play Button in Center
+      const cx = element.width / 2;
+      const cy = element.height / 2;
+      const playRadius = Math.min(26, Math.min(element.width, element.height) / 4);
+
+      context.beginPath();
+      context.arc(cx, cy, playRadius, 0, Math.PI * 2);
+      context.fillStyle = "rgba(139, 92, 246, 0.9)";
+      context.fill();
+
+      // Play Triangle
+      context.beginPath();
+      const triSize = playRadius * 0.55;
+      context.moveTo(cx - triSize * 0.5 + 2, cy - triSize);
+      context.lineTo(cx + triSize + 2, cy);
+      context.lineTo(cx - triSize * 0.5 + 2, cy + triSize);
+      context.closePath();
+      context.fillStyle = "#ffffff";
+      context.fill();
+
+      // Bottom Bar with Title & Type badge
+      context.fillStyle = "rgba(0, 0, 0, 0.65)";
+      if (typeof (context as any).roundRect === "function") {
+        context.beginPath();
+        (context as any).roundRect(0, Math.max(0, element.height - 34), element.width, 34, [0, 0, 10, 10]);
+        context.fill();
+      } else {
+        context.fillRect(0, Math.max(0, element.height - 34), element.width, 34);
+      }
+
+      context.fillStyle = "#f4f4f5";
+      context.font = "600 12px Inter, sans-serif";
+      context.textAlign = "left";
+      context.textBaseline = "middle";
+      const title = (element.customData?.name as string) || element.title || "Video Clip";
+      const truncated = title.length > 25 ? title.slice(0, 22) + "..." : title;
+      context.fillText(truncated, 12, element.height - 17);
+
+      // "VIDEO" Badge
+      context.fillStyle = "#a855f7";
+      context.font = "bold 10px monospace";
+      context.textAlign = "right";
+      context.fillText("VIDEO", element.width - 12, element.height - 17);
+      break;
+    }
+    case "audio": {
+      // Audio Waveform Card
+      context.fillStyle = "#18181b";
+      if (typeof (context as any).roundRect === "function") {
+        context.beginPath();
+        (context as any).roundRect(0, 0, element.width, element.height, 12);
+        context.fill();
+      } else {
+        context.fillRect(0, 0, element.width, element.height);
+      }
+
+      // Border
+      context.strokeStyle = strokeColor || "#3f3f46";
+      context.lineWidth = Math.max(1, element.strokeWidth || 1);
+      if (typeof (context as any).roundRect === "function") {
+        context.beginPath();
+        (context as any).roundRect(0, 0, element.width, element.height, 12);
+        context.stroke();
+      } else {
+        context.strokeRect(0, 0, element.width, element.height);
+      }
+
+      // Circular Play Button on Left
+      const playX = 28;
+      const playY = element.height / 2;
+      const playR = Math.min(18, element.height / 3);
+
+      context.beginPath();
+      context.arc(playX, playY, playR, 0, Math.PI * 2);
+      context.fillStyle = "#10b981";
+      context.fill();
+
+      // Play icon
+      context.beginPath();
+      const pSize = playR * 0.5;
+      context.moveTo(playX - pSize * 0.5 + 1.5, playY - pSize);
+      context.lineTo(playX + pSize + 1.5, playY);
+      context.lineTo(playX - pSize * 0.5 + 1.5, playY + pSize);
+      context.closePath();
+      context.fillStyle = "#ffffff";
+      context.fill();
+
+      // Audio Waveform Bars
+      const waveStartX = 58;
+      const waveEndX = element.width - 60;
+      const waveWidth = Math.max(10, waveEndX - waveStartX);
+      const barCount = Math.max(8, Math.min(32, Math.floor(waveWidth / 7)));
+      const barGap = waveWidth / barCount;
+      const maxBarH = Math.min(36, element.height * 0.5);
+
+      context.fillStyle = strokeColor || "#34d399";
+      for (let i = 0; i < barCount; i++) {
+        const factor = Math.sin((i / barCount) * Math.PI) * 0.8 + 0.2 + (Math.sin(i * 1.5) * 0.2);
+        const bh = Math.max(4, maxBarH * factor);
+        const bx = waveStartX + i * barGap;
+        const by = playY - bh / 2;
+        context.fillRect(bx, by, 3, bh);
+      }
+
+      // Audio Tag on Right
+      context.fillStyle = "#10b981";
+      context.font = "bold 10px monospace";
+      context.textAlign = "right";
+      context.textBaseline = "middle";
+      context.fillText("AUDIO", element.width - 12, playY);
+
+      // Title on Top
+      if (element.height > 50) {
+        context.fillStyle = "#a1a1aa";
+        context.font = "500 11px Inter, sans-serif";
+        context.textAlign = "left";
+        const audioTitle = (element.customData?.name as string) || element.title || "Audio Track";
+        context.fillText(audioTitle, 58, 14);
+      }
       break;
     }
     case "ellipse": {
@@ -836,13 +1081,18 @@ export function renderCanvasElement(
 ) {
   if (!element) return;
   context.save();
-  context.globalAlpha = Math.max(0.05, ((element.opacity ?? 100) / 100));
+  const rawOpacity = element.opacity ?? 100;
+  const normalizedOpacity =
+    rawOpacity > 0 && rawOpacity <= 1
+      ? rawOpacity
+      : Math.max(0.05, Math.min(1, rawOpacity / 100));
+  context.globalAlpha = normalizedOpacity;
 
-  if (element.type === "line" || element.type === "arrow" || element.type === "pen") {
+  if (element.type === "line" || element.type === "arrow") {
     context.translate(element.x ?? 0, element.y ?? 0);
     drawShapeOnCanvas(context, canvas, element, isDarkMode);
   } else {
-    // 2D shapes: rotate around center!
+    // 2D shapes & pen strokes: rotate around center!
     const width = element.width ?? 1;
     const height = element.height ?? 1;
     const cx = (element.x ?? 0) + width / 2;
@@ -927,22 +1177,47 @@ export function renderSelectionBox(
   context.lineTo(w / 2, -rotDistance);
   context.stroke();
 
-  // 8 handles (4 corners + 4 sides)
+  // Handles rendering
   context.setLineDash([]);
   context.fillStyle = handleFill;
   context.strokeStyle = selectionColor;
   context.lineWidth = 1.5 / zoom;
 
-  const localHandles = [
-    [0, 0], // nw
-    [w, 0], // ne
-    [w, h], // se
-    [0, h], // sw
-    [w / 2, 0], // n
-    [w / 2, h], // s
-    [0, h / 2], // w
-    [w, h / 2], // e
-  ];
+  const isThinH = (h * zoom < 64 || h < 60) || (w > 80 && h < 70 && w > h * 2.5);
+  const isThinW = (w * zoom < 64 || w < 60) || (h > 80 && w < 70 && h > w * 2.5);
+
+  let localHandles: [number, number][];
+
+  if (isThinH && !isThinW) {
+    // Thin horizontal line / stroke: clean Left (w) and Right (e) handles (no stacked double-square buttons!)
+    localHandles = [
+      [0, h / 2], // w
+      [w, h / 2], // e
+    ];
+  } else if (isThinW && !isThinH) {
+    // Thin vertical line / stroke: clean Top (n) and Bottom (s) handles
+    localHandles = [
+      [w / 2, 0], // n
+      [w / 2, h], // s
+    ];
+  } else if (isThinW && isThinH) {
+    localHandles = [
+      [0, 0],
+      [w, h],
+    ];
+  } else {
+    // 8 handles (4 corners + 4 sides)
+    localHandles = [
+      [0, 0], // nw
+      [w, 0], // ne
+      [w, h], // se
+      [0, h], // sw
+      [w / 2, 0], // n
+      [w / 2, h], // s
+      [0, h / 2], // w
+      [w, h / 2], // e
+    ];
+  }
 
   localHandles.forEach(([hx, hy]) => {
     context.beginPath();

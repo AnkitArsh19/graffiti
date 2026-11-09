@@ -80,6 +80,11 @@ export async function apiGetProfile() {
   const res = await fetch(`${API_BASE}/auth/me`, {
     headers: getAuthHeaders(),
   });
+  if (res.status === 401 || res.status === 302 || res.type === "opaqueredirect") {
+    localStorage.removeItem("graffiti:auth:token");
+    window.dispatchEvent(new CustomEvent("graffiti:auth:expired"));
+    throw new Error("401: Session expired or invalid");
+  }
   return handleResponse<{
     userId: string;
     email: string;
@@ -249,7 +254,10 @@ export async function apiSaveRoomContent(
     snapshotState?: any;
   }
 ) {
-  const res = await fetch(`${API_BASE}/rooms/${slug}/content`, {
+  if (!slug || !slug.trim()) {
+    return { status: "skipped", slug: "" };
+  }
+  const res = await fetch(`${API_BASE}/rooms/${encodeURIComponent(slug.trim())}/content`, {
     method: "PUT",
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -374,10 +382,19 @@ export async function apiCreateRoomPage(slug: string, data: Partial<Pick<RemoteP
 export async function apiUpdateRoomPage(slug: string, pageId: string, data: Partial<Pick<RemotePage, "title" | "template" | "pageOrder">>) { return handleResponse<RemotePage>(await fetch(`${API_BASE}/rooms/${slug}/pages/${pageId}`, { method: "PATCH", headers: getAuthHeaders(), body: JSON.stringify(data) })); }
 export async function apiDeleteRoomPage(slug: string, pageId: string) { return handleResponse<void>(await fetch(`${API_BASE}/rooms/${slug}/pages/${pageId}`, { method: "DELETE", headers: getAuthHeaders() })); }
 
-export async function apiUploadImage(file: File) {
-  const token = localStorage.getItem("graffiti:auth:token"); const form = new FormData(); form.append("file", file);
-  return handleResponse<{ fileId: string; url: string }>(await fetch(`${API_BASE}/upload/image`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form }));
+export async function apiUploadMedia(file: File) {
+  const token = localStorage.getItem("graffiti:auth:token");
+  const form = new FormData();
+  form.append("file", file);
+  return handleResponse<{ fileId: string; url: string; name?: string; contentType?: string; size?: number }>(
+    await fetch(`${API_BASE}/upload/media`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    })
+  );
 }
+export const apiUploadImage = apiUploadMedia;
 
 export interface ConnectedDriveAccount {
   id: string;
@@ -665,7 +682,7 @@ export async function apiSolveMath(payload: {
   equation: string;
   variables?: Record<string, any>;
   anchorPosition?: { x: number; y: number };
-}): Promise<{ equation: string; result: string; proposedElement: any }> {
+}): Promise<{ equation: string; cleanedEquation?: string; result: string; proposedElement: any }> {
   const res = await fetch(`${getAimlBaseUrl()}/v1/ai/math/solve`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

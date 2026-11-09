@@ -107,6 +107,54 @@ def test_flowchart_to_code():
     assert len(data["detectedNodes"]) > 0
 
 
+def test_flowchart_to_code_simple_flow_indentation():
+    import ast
+
+    # Test simple flow: Start -> print 'hello world' -> End
+    elements = [
+        {"id": "n1", "type": "ellipse", "text": "Start", "x": 100, "y": 100, "width": 80, "height": 40},
+        {"id": "n2", "type": "rectangle", "text": "print 'hello world'", "x": 100, "y": 200, "width": 140, "height": 50},
+        {"id": "n3", "type": "ellipse", "text": "End", "x": 100, "y": 300, "width": 80, "height": 40},
+        {
+            "id": "e1",
+            "type": "arrow",
+            "startBinding": {"elementId": "n1"},
+            "endBinding": {"elementId": "n2"},
+        },
+        {
+            "id": "e2",
+            "type": "arrow",
+            "startBinding": {"elementId": "n2"},
+            "endBinding": {"elementId": "n3"},
+        },
+    ]
+
+    res = client.post(
+        "/v1/ai/flowchart/to-code",
+        json={"elements": elements, "targetLanguage": "both"}
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+
+    py_code = data["pythonCode"]
+    js_code = data["nodeJsCode"]
+
+    # 1. Indentation & syntax verification: ast.parse must succeed without IndentationError
+    parsed_ast = ast.parse(py_code)
+    assert parsed_ast is not None
+
+    # 2. Simplicity & proportionality check: no mock enterprise logging junk
+    assert "[Start]" not in py_code
+    assert "[Process]" not in py_code
+    assert "[Success]" not in py_code
+
+    # 3. Code translates node action directly
+    assert "hello world" in py_code.lower()
+    assert "hello world" in js_code.lower()
+    assert "console.log" in js_code
+
+
 def test_notebook_summarize():
     sample_text = """
     # Sprint Architecture Review

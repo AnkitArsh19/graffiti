@@ -113,17 +113,29 @@ const BLACK_HEX_SET = new Set([
   "#343a40",
 ]);
 
+// Signature Gold and warm accent hex values preserved with high contrast
+const GOLD_HEX_SET = new Set([
+  "#d4a359",
+  "#b47b18",
+  "#c2841f",
+  "#eab308",
+  "#f59e0b",
+]);
+
 /**
  * Studio dark mode color filter.
- * Resolves the white-ink glitch:
+ * Resolves the white-ink glitch and provides high-contrast shape fills & ink:
  * - When in Dark Mode (enable = true):
  *   - Dark inks (#1e1e1e, #000000) invert to pure crisp white ink (#ffffff).
  *   - Pure white and all white family shades (#ffffff, #f8f9fa, #dee2e6, etc.)
  *     strictly remain crisp bright white (#ffffff) for ink, NEVER inverting to dark grey or black!
- *   - Shape background fills with white invert to dark surface (#1e1e1e).
+ *   - Shape background fills with white invert to visible elevated surface (#27272a).
+ *   - Colored background fills retain their hue with high-contrast elevated dark surface luminance.
+ *   - Signature gold inks (#d4a359) stay radiant gold rather than turning to brown mud.
  * - When in Light Mode (enable = false):
  *   - For stroke ink: white or off-white ink normalizes to dark ink (#1e1e1e) so it is
  *     clearly visible against the white canvas and never vanishes or turns to a pale grey artifact.
+ *   - Gold stroke ink maps to rich deep gold (#b47b18) for crisp contrast on white paper.
  *   - For background: white shapes remain pure white (#ffffff).
  */
 export function applyDarkModeFilter(
@@ -144,19 +156,29 @@ export function applyDarkModeFilter(
     if (!isBackground && WHITE_HEX_SET.has(lower)) {
       return "#1e1e1e";
     }
+    // High-contrast gold stroke on light canvas
+    if (!isBackground && lower === "#d4a359") {
+      return "#b47b18";
+    }
     return color;
   }
 
   // In dark mode:
   // 1. Black/dark inks become crisp bright white ink
   if (BLACK_HEX_SET.has(lower)) {
-    return isBackground ? "#1e1e1e" : "#ffffff";
+    return isBackground ? "#27272a" : "#ffffff";
   }
 
   // 2. White and near-white tones:
   // For stroke (ink): MUST stay crisp pure white (#ffffff), NEVER become black or dark grey!
   if (WHITE_HEX_SET.has(lower)) {
-    return isBackground ? "#1e1e1e" : "#ffffff";
+    return isBackground ? "#27272a" : "#ffffff";
+  }
+
+  // 3. Signature gold ink preservation in dark mode:
+  // Stays bright warm gold (#d4a359), never inverted to dark brown mud!
+  if (!isBackground && GOLD_HEX_SET.has(lower)) {
+    return "#d4a359";
   }
 
   const cacheKey = `${color}:${isBackground ? "bg" : "stroke"}`;
@@ -171,11 +193,40 @@ export function applyDarkModeFilter(
   }
 
   const alpha = tc.getAlpha();
-  const rgb = tc.toRgb();
+  const hsl = tc.toHsl();
 
-  // Filter pipeline: invert(93%) hue-rotate(180deg)
+  // 4. Background surfaces in dark mode:
+  // Preserve hue and saturation, map lightness to visible, elevated surfaces (22-36%)
+  // rather than muddy near-black inversion!
+  if (isBackground) {
+    if (hsl.s < 0.1) {
+      const res = alpha < 1 ? `rgba(39, 39, 42, ${alpha})` : "#27272a";
+      DARK_MODE_COLORS_CACHE.set(cacheKey, res);
+      return res;
+    }
+    const targetL = clamp(0.24 + (hsl.l > 0.5 ? (hsl.l - 0.5) * 0.16 : 0), 0.22, 0.36);
+    const targetS = clamp(hsl.s * 0.9, 0.45, 0.95);
+    const converted = tinycolor({ h: hsl.h, s: targetS, l: targetL, a: alpha });
+    const result = alpha < 1 ? converted.toRgbString() : converted.toHexString();
+    DARK_MODE_COLORS_CACHE.set(cacheKey, result);
+    return result;
+  }
+
+  // 5. Strokes in dark mode:
+  // Invert and hue-rotate, ensuring ink strokes always have high legibility (L >= 60%)
+  const rgb = tc.toRgb();
   const inverted = cssInvert(rgb.r, rgb.g, rgb.b, 93);
   const rotated = cssHueRotate(inverted.r, inverted.g, inverted.b, 180);
+  const conv = tinycolor({ r: rotated.r, g: rotated.g, b: rotated.b, a: alpha });
+  const convHsl = conv.toHsl();
+  if (convHsl.l < 0.55) {
+    convHsl.l = 0.60;
+    const brightened = tinycolor(convHsl);
+    const brightRgb = brightened.toRgb();
+    const res = rgbToHex(brightRgb.r, brightRgb.g, brightRgb.b, alpha);
+    DARK_MODE_COLORS_CACHE.set(cacheKey, res);
+    return res;
+  }
 
   const result = rgbToHex(rotated.r, rotated.g, rotated.b, alpha);
   DARK_MODE_COLORS_CACHE.set(cacheKey, result);

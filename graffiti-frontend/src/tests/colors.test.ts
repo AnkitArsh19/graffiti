@@ -35,12 +35,21 @@ describe("applyDarkModeFilter", () => {
     expect(applyDarkModeFilter("#dee2e6", false, false)).toBe("#1e1e1e");
   });
 
-  it("preserves white background fill in light mode and inverts it in dark mode", () => {
+  it("preserves white background fill in light mode and maps to visible elevated dark surface in dark mode", () => {
     // White background in light mode stays white
     expect(applyDarkModeFilter("#ffffff", false, true)).toBe("#ffffff");
 
-    // White background in dark mode inverts to pitch dark panel surface
-    expect(applyDarkModeFilter("#ffffff", true, true)).toBe("#1e1e1e");
+    // White background in dark mode maps to elevated visible zinc-800 surface (#27272a)
+    expect(applyDarkModeFilter("#ffffff", true, true)).toBe("#27272a");
+  });
+
+  it("strictly preserves signature gold (#d4a359) as radiant warm gold in dark mode and high-contrast deep gold in light mode", () => {
+    // Signature gold stroke must stay bright #d4a359 in dark mode (never #825818 dark mud)
+    expect(applyDarkModeFilter("#d4a359", true, false)).toBe("#d4a359");
+    expect(applyDarkModeFilter("#b47b18", true, false)).toBe("#d4a359");
+
+    // Signature gold stroke maps to deep antique gold #b47b18 in light mode for crisp contrast on white paper
+    expect(applyDarkModeFilter("#d4a359", false, false)).toBe("#b47b18");
   });
 
   it("adjusts vibrant colors according to theme for high contrast", () => {

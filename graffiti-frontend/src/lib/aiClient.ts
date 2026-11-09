@@ -103,6 +103,11 @@ export function generateLocalDiagram(text: string, pageId = "page-1"): CanvasEle
   return elements;
 }
 
+function stripEmojis(text: string): string {
+  if (!text) return "";
+  return text.replace(/[\p{Extended_Pictographic}\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "").trim();
+}
+
 /**
  * Universal AI inference dispatcher with resilient client-side fallbacks.
  * First tries backend /ai/request; if unreachable or offline, falls back
@@ -144,9 +149,25 @@ export async function executeAiRequest(
             ...data,
             proposedElements: proposed.map((el: any) => ({
               ...el,
+              text: el.text ? stripEmojis(el.text) : el.text,
               pageId: el.pageId || pageId,
             })),
             ghostPreview: true,
+          },
+        };
+      }
+
+      // Handle explanation-only response (e.g. circle-to-search ask/explain)
+      if (data.explanationText || (data.action === "explain" && data.detail)) {
+        const text = data.explanationText || data.detail;
+        return {
+          type: "AI_GHOST_OP",
+          requestId,
+          payload: {
+            ...data,
+            explanationText: text,
+            proposedElements: [],
+            ghostPreview: false,
           },
         };
       }

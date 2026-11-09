@@ -1270,7 +1270,7 @@ Phase 7: Advanced Canvas Intelligence Microservices (Implemented)
 | Variable                                                | Used By           | Description                                              | Example / Default                           |
 | :--------------------------------------------------------| :------------------| :---------------------------------------------------------| :--------------------------------------------|
 | `POSTGRES_URL`                                          | Backend           | JDBC connection string                                   | `jdbc:postgresql://localhost:5432/graffiti` |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD`                   | Backend, Docker   | DB credentials                                           | `graffiti` / `Ankit@1907`                   |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD`                   | Backend, Docker   | DB credentials                                           | `graffiti` / `<POSTGRES_PASSWORD>`                   |
 | `REDIS_HOST` / `REDIS_PORT`                             | Backend           | Redis connection for Pub/Sub + locks                     | `localhost` / `6379`                        |
 | `JWT_SECRET`                                            | Backend           | HMAC-SHA256 signing key (§9.1)                           | 256-bit secret key string                   |
 | `JWT_EXPIRATION_MS`                                     | Backend           | Access token TTL                                         | `86400000` (24h)                            |

@@ -1,6 +1,9 @@
 package com.graffiti.folder;
 
+import com.graffiti.workspace.Workspace;
+import com.graffiti.workspace.WorkspaceRepository;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -11,19 +14,32 @@ import java.util.UUID;
 public class FolderController {
 
     private final FolderRepository folderRepository;
+    private final WorkspaceRepository workspaceRepository;
 
-    public FolderController(FolderRepository folderRepository) {
+    public FolderController(FolderRepository folderRepository, WorkspaceRepository workspaceRepository) {
         this.folderRepository = folderRepository;
+        this.workspaceRepository = workspaceRepository;
     }
 
     @GetMapping("/workspaces/{workspaceId}/folders")
-    public ResponseEntity<List<Folder>> listFolders(@PathVariable("workspaceId") UUID workspaceId) {
+    public ResponseEntity<List<Folder>> listFolders(@PathVariable("workspaceId") UUID workspaceId,
+                                                    @AuthenticationPrincipal UUID principal) {
+        if (!workspaceRepository.existsById(workspaceId)) {
+            if (principal != null) {
+                List<Workspace> userWorkspaces = workspaceRepository.findByOwnerId(principal);
+                if (!userWorkspaces.isEmpty()) {
+                    return ResponseEntity.ok(folderRepository.findByWorkspaceId(userWorkspaces.get(0).getId()));
+                }
+            }
+            return ResponseEntity.ok(List.of());
+        }
         List<Folder> folders = folderRepository.findByWorkspaceId(workspaceId);
         return ResponseEntity.ok(folders);
     }
 
     @PostMapping("/workspaces/{workspaceId}/folders")
     public ResponseEntity<Folder> createFolder(@PathVariable("workspaceId") UUID workspaceId,
+                                               @AuthenticationPrincipal UUID principal,
                                                @RequestBody Map<String, String> body) {
         String name = body.getOrDefault("name", "New Folder");
         String color = body.getOrDefault("color", "#4dabf7");
@@ -32,7 +48,30 @@ public class FolderController {
                 ? UUID.fromString(parentFolderIdStr)
                 : null;
 
-        Folder folder = new Folder(workspaceId, parentFolderId, name, color);
+        UUID targetWorkspaceId = workspaceId;
+        if (!workspaceRepository.existsById(targetWorkspaceId)) {
+            // If the workspace does not exist on the server (e.g. offline-created local workspace),
+            // resolve or auto-create a workspace for the user so the foreign key constraint is satisfied!
+            if (principal != null) {
+                List<Workspace> userWorkspaces = workspaceRepository.findByOwnerId(principal);
+                if (!userWorkspaces.isEmpty()) {
+                    targetWorkspaceId = userWorkspaces.get(0).getId();
+                } else {
+                    Workspace ws = new Workspace("Personal Workspace", principal, "Default workspace", "#4dabf7");
+                    targetWorkspaceId = workspaceRepository.save(ws).getId();
+                }
+            } else {
+                List<Workspace> publicWorkspaces = workspaceRepository.findByOwnerIdIsNull();
+                if (!publicWorkspaces.isEmpty()) {
+                    targetWorkspaceId = publicWorkspaces.get(0).getId();
+                } else {
+                    Workspace ws = new Workspace("Public Workspace", null, "Default workspace", "#4dabf7");
+                    targetWorkspaceId = workspaceRepository.save(ws).getId();
+                }
+            }
+        }
+
+        Folder folder = new Folder(targetWorkspaceId, parentFolderId, name, color);
         Folder saved = folderRepository.save(folder);
         return ResponseEntity.ok(saved);
     }

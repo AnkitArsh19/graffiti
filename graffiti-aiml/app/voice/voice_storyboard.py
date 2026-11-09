@@ -12,12 +12,12 @@ from app.schemas.voice_schema import (
 
 ENTITY_PALETTE = {
     "gateway": {"stroke": "#3b82f6", "bg": "rgba(59, 130, 246, 0.15)", "type": "card"},
-    "service": {"stroke": "#6366f1", "bg": "rgba(99, 102, 241, 0.15)", "type": "card"},
+    "service": {"stroke": "#d4a359", "bg": "rgba(212, 163, 89, 0.15)", "type": "card"},
     "database": {"stroke": "#10b981", "bg": "rgba(16, 185, 129, 0.15)", "type": "rectangle"},
     "cache": {"stroke": "#f59e0b", "bg": "rgba(245, 158, 11, 0.15)", "type": "rectangle"},
     "queue": {"stroke": "#ec4899", "bg": "rgba(236, 72, 153, 0.15)", "type": "rectangle"},
     "client": {"stroke": "#06b6d4", "bg": "rgba(6, 182, 212, 0.15)", "type": "card"},
-    "default": {"stroke": "#8b5cf6", "bg": "rgba(139, 92, 246, 0.15)", "type": "rectangle"},
+    "default": {"stroke": "#d4a359", "bg": "rgba(212, 163, 89, 0.15)", "type": "rectangle"},
 }
 
 
@@ -217,13 +217,7 @@ async def generate_voice_storyboard(req: VoiceStoryboardRequest) -> VoiceStorybo
         try:
             from groq import AsyncGroq
             client = AsyncGroq(api_key=groq_key)
-            models_to_try = [
-                settings.groq_model,
-                "openai/gpt-oss-120b",
-                "llama-3.3-70b-versatile",
-                "qwen/qwen3.8-27b",
-                "openai/gpt-oss-20b",
-            ]
+            models_to_try = settings.get_groq_models()
             for m in models_to_try:
                 try:
                     completion = await client.chat.completions.create(

@@ -47,6 +47,12 @@ env/
 htmlcov/
 .cache
 
+# Media Uploads
+graffiti-backend/uploads/*
+!graffiti-backend/uploads/.gitkeep
+uploads/*
+!uploads/.gitkeep
+
 # Node & Frontend Build (for future scaffold)
 node_modules/
 dist/

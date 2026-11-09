@@ -1,0 +1,80 @@
+[
+  {
+    "shape_count": 100,
+    "visible_shapes": 50,
+    "culled_shapes": 50,
+    "mean_frame_time_ms": 1.35,
+    "p50_frame_time_ms": 0.88,
+    "p95_frame_time_ms": 4.19,
+    "p99_frame_time_ms": 7.73,
+    "effective_fps": 120,
+    "one_percent_low_fps": 120,
+    "frame_budget_used_pct": 8.1,
+    "jank_frames_count": 0
+  },
+  {
+    "shape_count": 500,
+    "visible_shapes": 250,
+    "culled_shapes": 250,
+    "mean_frame_time_ms": 4.85,
+    "p50_frame_time_ms": 4.4,
+    "p95_frame_time_ms": 8.27,
+    "p99_frame_time_ms": 10.54,
+    "effective_fps": 120,
+    "one_percent_low_fps": 94.9,
+    "frame_budget_used_pct": 29.1,
+    "jank_frames_count": 0
+  },
+  {
+    "shape_count": 1000,
+    "visible_shapes": 475,
+    "culled_shapes": 525,
+    "mean_frame_time_ms": 9.04,
+    "p50_frame_time_ms": 8.33,
+    "p95_frame_time_ms": 15.35,
+    "p99_frame_time_ms": 18.21,
+    "effective_fps": 110.6,
+    "one_percent_low_fps": 54.9,
+    "frame_budget_used_pct": 54.3,
+    "jank_frames_count": 2
+  },
+  {
+    "shape_count": 2500,
+    "visible_shapes": 475,
+    "culled_shapes": 2025,
+    "mean_frame_time_ms": 11.86,
+    "p50_frame_time_ms": 10.85,
+    "p95_frame_time_ms": 19.5,
+    "p99_frame_time_ms": 41.48,
+    "effective_fps": 84.3,
+    "one_percent_low_fps": 24.1,
+    "frame_budget_used_pct": 71.1,
+    "jank_frames_count": 13
+  },
+  {
+    "shape_count": 5000,
+    "visible_shapes": 475,
+    "culled_shapes": 4525,
+    "mean_frame_time_ms": 13.44,
+    "p50_frame_time_ms": 11.45,
+    "p95_frame_time_ms": 29.73,
+    "p99_frame_time_ms": 47.84,
+    "effective_fps": 74.4,
+    "one_percent_low_fps": 20.9,
+    "frame_budget_used_pct": 80.6,
+    "jank_frames_count": 18
+  },
+  {
+    "shape_count": 10000,
+    "visible_shapes": 475,
+    "culled_shapes": 9525,
+    "mean_frame_time_ms": 12.88,
+    "p50_frame_time_ms": 11.84,
+    "p95_frame_time_ms": 20.67,
+    "p99_frame_time_ms": 40.89,
+    "effective_fps": 77.6,
+    "one_percent_low_fps": 24.5,
+    "frame_budget_used_pct": 77.3,
+    "jank_frames_count": 13
+  }
+]

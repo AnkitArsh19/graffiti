@@ -7,6 +7,7 @@ import {
   GripVertical,
   GripHorizontal,
   Hand,
+  Image,
   Layers,
   LayoutGrid,
   Lock,
@@ -39,6 +40,7 @@ interface ToolbarProps {
   onToggleLock?: () => void;
   onToolChange: (tool: ToolId) => void;
   onDockChange: (dock: DockPosition) => void;
+  onInsertMedia?: () => void;
 }
 
 import { useShortcuts } from "../contexts/ShortcutsContext";
@@ -81,6 +83,7 @@ const primaryTools: Array<{ id: ToolId; label: string; shortcut: string; icon: L
   { id: "arrow", label: "Arrow", shortcut: "A", icon: ArrowRight },
   { id: "text", label: "Text", shortcut: "T", icon: Type },
   { id: "sticky", label: "Sticky Note", shortcut: "N", icon: StickyNote },
+  { id: "image", label: "Insert Image / Video", shortcut: "M", icon: Image },
   { id: "eraser", label: "Eraser", shortcut: "E", icon: Eraser },
 ];
 
@@ -92,6 +95,7 @@ const componentTools: Array<{
   shortcut: string;
   icon: LucideIcon;
 }> = [
+  { id: "image", label: "Media (Image / Video / Audio)", description: "Insert image, video, audio, or files", shortcut: "M", icon: Image },
   { id: "table", label: "ERD Schema Table", description: "Database schema table with columns", shortcut: "Shift+T", icon: Table2 },
   { id: "code", label: "Code Block", description: "Syntax-highlighted code container", shortcut: "Shift+C", icon: Code2 },
   { id: "deviceFrame", label: "Device Mockup Frame", description: "Browser or mobile device frame", shortcut: "Shift+D", icon: Laptop },
@@ -131,6 +135,7 @@ export function Toolbar({
   onToggleLock,
   onToolChange,
   onDockChange,
+  onInsertMedia,
 }: ToolbarProps) {
   const { getShortcut } = useShortcuts();
   const [isDockMenuOpen, setIsDockMenuOpen] = useState(false);
@@ -405,7 +410,11 @@ export function Toolbar({
               aria-label={`${label} tool (${currentShortcut})`}
               aria-pressed={isActive}
               onClick={() => {
-                onToolChange(id);
+                if (id === "image" && onInsertMedia) {
+                  onInsertMedia();
+                } else {
+                  onToolChange(id);
+                }
                 setIsComponentMenuOpen(false);
               }}
             >
@@ -478,7 +487,11 @@ export function Toolbar({
                         data-active={isSelected}
                         role="menuitem"
                         onClick={() => {
-                          onToolChange(comp.id);
+                          if (comp.id === "image" && onInsertMedia) {
+                            onInsertMedia();
+                          } else {
+                            onToolChange(comp.id);
+                          }
                           setIsComponentMenuOpen(false);
                         }}
                       >
@@ -514,7 +527,11 @@ export function Toolbar({
               aria-label={`${label} tool (${currentShortcut})`}
               aria-pressed={isActive}
               onClick={() => {
-                onToolChange(id);
+                if (id === "image" && onInsertMedia) {
+                  onInsertMedia();
+                } else {
+                  onToolChange(id);
+                }
                 setIsComponentMenuOpen(false);
               }}
             >

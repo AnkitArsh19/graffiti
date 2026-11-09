@@ -19,7 +19,8 @@ import {
   Plus,
   Trash2,
   Wand2,
-  Sparkles,
+  ScanEye,
+  Layers,
 } from "lucide-react";
 import { ColorPickerPopover } from "./ColorPickerPopover";
 import type {
@@ -58,6 +59,8 @@ interface InspectorProps {
   onAlign?: (alignment: "left" | "center" | "right" | "top" | "middle" | "bottom") => void;
   onDistribute?: (direction: "horizontal" | "vertical") => void;
   onTidyUp?: () => void;
+  onSelectGroup?: (groupId: string) => void;
+  groupCount?: number;
 }
 
 const defaultStrokePicks = [
@@ -126,6 +129,8 @@ export function Inspector({
   onAlign,
   onDistribute,
   onTidyUp,
+  onSelectGroup,
+  groupCount = 0,
 }: InspectorProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [strokePickerOpen, setStrokePickerOpen] = useState(false);
@@ -265,6 +270,12 @@ export function Inspector({
     <aside
       ref={inspectorRef}
       className={`inspector ${isCollapsed ? "collapsed" : ""}`}
+      onMouseDown={(e) => {
+        const target = e.target as HTMLElement;
+        if (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") {
+          e.preventDefault();
+        }
+      }}
       style={
         panelPos
           ? {
@@ -302,6 +313,40 @@ export function Inspector({
       </div>
 
       <div className="inspector-body">
+        {/* Group / Full Flowchart Selection Action */}
+        {groupCount > 1 && selectedCount <= 1 && (
+          <section className="inspector-section" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "10px", marginBottom: "8px" }}>
+            <button
+              type="button"
+              className="action-pill-btn"
+              onClick={() => {
+                const gid = (selected?.groupIds && selected.groupIds[0]) || (selected?.customData?.groupId as string);
+                if (gid) onSelectGroup?.(gid);
+              }}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                padding: "7px 10px",
+                borderRadius: "8px",
+                background: "rgba(59, 130, 246, 0.16)",
+                border: "1px solid rgba(59, 130, 246, 0.4)",
+                color: "#93c5fd",
+                fontWeight: 600,
+                fontSize: "12px",
+                cursor: "pointer",
+                transition: "all 120ms ease",
+              }}
+              title="Select all elements in this flowchart / diagram"
+            >
+              <Layers size={14} />
+              <span>Select Full Flowchart ({groupCount} items)</span>
+            </button>
+          </section>
+        )}
+
         {/* Multi-Selection: Align, Distribute & Tidy Up */}
         {selectedCount >= 2 && (
           <section className="inspector-section alignment-section" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "12px", marginBottom: "8px" }}>
@@ -732,8 +777,8 @@ export function Inspector({
                 padding: "6px 10px",
                 borderRadius: "6px",
                 border: "1px solid var(--border-subtle, rgba(255, 255, 255, 0.12))",
-                background: enableCircleQuery ? "rgba(139, 92, 246, 0.15)" : "rgba(255, 255, 255, 0.04)",
-                color: enableCircleQuery ? "#a855f7" : "var(--text-muted, #71717a)",
+                background: enableCircleQuery ? "rgba(212, 163, 89, 0.18)" : "rgba(255, 255, 255, 0.04)",
+                color: enableCircleQuery ? "var(--accent-primary, #d4a359)" : "var(--text-muted, #71717a)",
                 cursor: "pointer",
                 fontWeight: 500,
                 fontSize: "12px",
@@ -742,7 +787,7 @@ export function Inspector({
               title="Circle elements on canvas with the pen to query, restyle, or transform them with AI (Default: OFF)"
             >
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Sparkles size={13} />
+                <ScanEye size={13} />
                 <span>Circle to Ask AI</span>
               </div>
               <span
@@ -751,8 +796,8 @@ export function Inspector({
                   fontWeight: 700,
                   padding: "1px 6px",
                   borderRadius: "8px",
-                  backgroundColor: enableCircleQuery ? "#8b5cf6" : "rgba(113, 113, 122, 0.25)",
-                  color: enableCircleQuery ? "#ffffff" : "var(--text-muted, #71717a)",
+                  backgroundColor: enableCircleQuery ? "var(--accent-primary, #d4a359)" : "rgba(113, 113, 122, 0.25)",
+                  color: enableCircleQuery ? "#09090b" : "var(--text-muted, #71717a)",
                 }}
               >
                 {enableCircleQuery ? "ON" : "OFF"}
@@ -1152,6 +1197,7 @@ export function Inspector({
                   type="button"
                   className="segmented-btn stepper-btn"
                   title="Decrease font size"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     const cur =
                       currentStyle.customFontSize ||
@@ -1187,6 +1233,7 @@ export function Inspector({
                   type="button"
                   className="segmented-btn stepper-btn"
                   title="Increase font size"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     const cur =
                       currentStyle.customFontSize ||
@@ -1215,6 +1262,7 @@ export function Inspector({
                     key={label}
                     type="button"
                     className="segmented-btn"
+                    onMouseDown={(e) => e.preventDefault()}
                     data-active={
                       (!currentStyle.customFontSize && currentStyle.fontSize === value) ||
                       currentStyle.customFontSize === px

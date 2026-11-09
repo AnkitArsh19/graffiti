@@ -344,18 +344,12 @@ async def simulate_flow(req: FlowSimulateRequest) -> FlowSimulateResponse:
         f"Edges:\n{json.dumps([{'id': e['id'], 'from': e['sourceId'], 'to': e['targetId'], 'label': e['label']} for e in edges])}"
     )
 
-    # 1. Primary: Groq (openai/gpt-oss-120b / llama-3.3-70b-versatile / qwen)
+    # 1. Primary: Groq (openai/gpt-oss-120b / openai/gpt-oss-20b / qwen3.8-27b)
     if groq_key:
         try:
             from groq import AsyncGroq
             client = AsyncGroq(api_key=groq_key)
-            models_to_try = [
-                settings.groq_model,
-                "openai/gpt-oss-120b",
-                "llama-3.3-70b-versatile",
-                "qwen/qwen3.8-27b",
-                "openai/gpt-oss-20b",
-            ]
+            models_to_try = settings.get_groq_models()
             seen = set()
             completion = None
             used_model = settings.groq_model

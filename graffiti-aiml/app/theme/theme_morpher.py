@@ -200,13 +200,7 @@ async def morph_theme(req: ThemeMorphRequest) -> ThemeMorphResponse:
         try:
             from groq import AsyncGroq
             client = AsyncGroq(api_key=groq_key)
-            models_to_try = [
-                settings.groq_model,
-                "openai/gpt-oss-120b",
-                "llama-3.3-70b-versatile",
-                "qwen/qwen3.8-27b",
-                "openai/gpt-oss-20b",
-            ]
+            models_to_try = settings.get_groq_models()
             for m in models_to_try:
                 try:
                     completion = await client.chat.completions.create(

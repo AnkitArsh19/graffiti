@@ -1,0 +1,19 @@
+﻿{
+    "electronBaseline":  {
+                             "workingSetRamMb":  345,
+                             "coldBootMs":  1250
+                         },
+    "chromeBrowser":  {
+                          "privateRamMb":  146.2,
+                          "workingSetRamMb":  178.4,
+                          "coldBootMs":  745
+                      },
+    "benchmark":  "Native Desktop Shell (Tauri v2) vs Web/Electron Footprint",
+    "ramSavingsVsChromePercent":  76.2,
+    "tauriV2":  {
+                    "privateRamMb":  38.2,
+                    "workingSetRamMb":  42.5,
+                    "coldBootMs":  3076
+                },
+    "ramSavingsVsElectronPercent":  87.7
+}

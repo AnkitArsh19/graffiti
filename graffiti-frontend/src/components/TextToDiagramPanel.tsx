@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Sparkles, X, ArrowDown, ArrowRight, Code, Eye, Layers, Check, RefreshCw } from "lucide-react";
+import { Workflow, X, ArrowDown, ArrowRight, Code, Eye, Layers, Check, RefreshCw } from "lucide-react";
 import type { CanvasElement } from "../types";
 import { createId, createSeed } from "../lib/geometry";
 import { apiSynthesizeDiagram } from "../lib/api";
@@ -56,6 +56,7 @@ export function TextToDiagramPanel({
 
     const steps = rawSteps.length > 0 ? rawSteps : ["Start", "Process Request", "Verify Condition?", "Complete"];
     const elements: CanvasElement[] = [];
+    const flowGroupId = createId("grp_flowchart");
 
     const isHorizontal = dir === "LR";
     const startX = 220;
@@ -107,8 +108,10 @@ export function TextToDiagramPanel({
         textAlign: "center",
         seed: createSeed(),
         boundElements: [],
+        groupIds: [flowGroupId],
         customData: {
           aiGenerated: true,
+          groupId: flowGroupId,
           label: step,
         },
       });
@@ -149,7 +152,8 @@ export function TextToDiagramPanel({
           startBinding: { elementId: prevNodeId, pointId: startPointId },
           endBinding: { elementId: nodeId, pointId: endPointId },
           seed: createSeed(),
-          customData: { aiGenerated: true },
+          groupIds: [flowGroupId],
+          customData: { aiGenerated: true, groupId: flowGroupId },
         });
 
         // Register boundElements on both ends
@@ -185,10 +189,20 @@ export function TextToDiagramPanel({
       });
 
       if (res && res.proposedElements && res.proposedElements.length > 0) {
-        const mapped = res.proposedElements.map((el) => ({
-          ...el,
-          pageId,
-        })) as CanvasElement[];
+        const flowGroupId = createId("grp_flowchart");
+        const mapped = res.proposedElements.map((el) => {
+          const existingGid = el.groupIds && el.groupIds.length > 0 ? el.groupIds[0] : flowGroupId;
+          return {
+            ...el,
+            pageId,
+            groupIds: [existingGid],
+            customData: {
+              ...(el.customData || {}),
+              groupId: (el.customData?.groupId as string) || existingGid,
+              aiGenerated: true,
+            },
+          };
+        }) as CanvasElement[];
 
         setGeneratedElements(mapped);
         setMermaidCode(res.mermaid || "");
@@ -269,14 +283,14 @@ export function TextToDiagramPanel({
               width: 30,
               height: 30,
               borderRadius: 8,
-              background: "rgba(59, 130, 246, 0.15)",
-              color: "#60a5fa",
+              background: "rgba(212, 163, 89, 0.15)",
+              color: "var(--accent-primary, #d4a359)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Sparkles size={16} />
+            <Workflow size={16} />
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>Text to Flowchart</h3>
@@ -483,7 +497,7 @@ export function TextToDiagramPanel({
             boxShadow: "0 4px 12px rgba(37, 99, 235, 0.25)",
           }}
         >
-          {isGenerating ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
+          {isGenerating ? <RefreshCw size={14} className="animate-spin" /> : <Workflow size={14} />}
           <span>{isGenerating ? "Synthesizing Flowchart..." : "Synthesize Flowchart"}</span>
         </button>
 

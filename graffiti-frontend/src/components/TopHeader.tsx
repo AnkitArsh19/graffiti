@@ -4,7 +4,7 @@ import {
   ChevronRight,
   HardDrive,
   Cloud,
-  Sparkles,
+  Bot,
   Edit3,
   Check,
   X,
@@ -256,13 +256,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         {/* AI Assist */}
         <div className="ai-status-container">
           <button type="button" className="header-status-pill ai-assist" onClick={() => setShowAiPopover((prev) => !prev)} title="AI Features">
-            <Sparkles size={13} />
+            <Bot size={13} />
             <span>AI Assist</span>
           </button>
           {showAiPopover && (
             <div className="ai-info-popover">
               <div className="ai-info-header">
-                <Sparkles size={15} />
+                <Bot size={15} />
                 <span>AI & Offline Features</span>
                 <button type="button" className="ai-info-close" onClick={() => setShowAiPopover(false)}><X size={14} /></button>
               </div>

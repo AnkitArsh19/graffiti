@@ -1,0 +1,85 @@
+{
+  "benchmark": "Edge-First Computational Geometry Beautifier",
+  "totalTrials": 5005,
+  "overallAccuracyPercent": 78.82,
+  "latencyMicros": {
+    "min": 13.7,
+    "mean": 531.8,
+    "p50": 305.4,
+    "p90": 884.1,
+    "p95": 1489,
+    "p99": 5258.3,
+    "max": 51902
+  },
+  "latencyMillis": {
+    "mean": 0.532,
+    "p50": 0.305,
+    "p95": 1.489,
+    "p99": 5.258
+  },
+  "classMetrics": {
+    "circle": {
+      "precision": 100,
+      "recall": 100,
+      "f1": 100,
+      "count": 715,
+      "meanUs": 747.6,
+      "p95Us": 1233.2
+    },
+    "ellipse": {
+      "precision": 100,
+      "recall": 64.48,
+      "f1": 78.4,
+      "count": 715,
+      "meanUs": 573.6,
+      "p95Us": 1243.1
+    },
+    "rectangle": {
+      "precision": 87.95,
+      "recall": 100,
+      "f1": 93.59,
+      "count": 715,
+      "meanUs": 707.8,
+      "p95Us": 2313.4
+    },
+    "diamond": {
+      "precision": 80.16,
+      "recall": 100,
+      "f1": 88.99,
+      "count": 715,
+      "meanUs": 590.6,
+      "p95Us": 1597.6
+    },
+    "triangle": {
+      "precision": 99.72,
+      "recall": 99.86,
+      "f1": 99.79,
+      "count": 715,
+      "meanUs": 750.5,
+      "p95Us": 3087.7
+    },
+    "line": {
+      "precision": 100,
+      "recall": 87.41,
+      "f1": 93.28,
+      "count": 715,
+      "meanUs": 161.8,
+      "p95Us": 223.2
+    },
+    "arrow": {
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "count": 715,
+      "meanUs": 190.4,
+      "p95Us": 426.3
+    }
+  },
+  "cloudAiComparison": {
+    "edgeLatencyP95Ms": 1.489,
+    "cloudAiTypicalP95Ms": 450,
+    "speedupFactor": 302.2,
+    "edgeNetworkBytes": 0,
+    "cloudNetworkBytesAvg": 28400
+  }
+}

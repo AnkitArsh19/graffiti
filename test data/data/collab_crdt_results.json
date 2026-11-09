@@ -1,0 +1,129 @@
+{
+  "benchmark": "Dual-Pipeline LWW-CRDT Concurrency & Conflict Resolution",
+  "totalTrials": 5000,
+  "totalOperationsEvaluated": 471000,
+  "overallConvergenceRate": 100,
+  "concurrencyLevels": [
+    {
+      "concurrent_users": 2,
+      "trials": 500,
+      "total_ops": 1000,
+      "convergence_rate_pct": 100,
+      "state_divergence_count": 0,
+      "mean_merge_latency_us": 1.88,
+      "p95_merge_latency_us": 3.3,
+      "p99_merge_latency_us": 10.4,
+      "throughput_ops_sec": 532594,
+      "fanout_msgs_sec": 120,
+      "frame_budget_merge_cost_pct": 0.023
+    },
+    {
+      "concurrent_users": 5,
+      "trials": 500,
+      "total_ops": 2500,
+      "convergence_rate_pct": 100,
+      "state_divergence_count": 0,
+      "mean_merge_latency_us": 0.68,
+      "p95_merge_latency_us": 0.94,
+      "p99_merge_latency_us": 3.2,
+      "throughput_ops_sec": 1479202,
+      "fanout_msgs_sec": 1200,
+      "frame_budget_merge_cost_pct": 0.02
+    },
+    {
+      "concurrent_users": 10,
+      "trials": 500,
+      "total_ops": 5000,
+      "convergence_rate_pct": 100,
+      "state_divergence_count": 0,
+      "mean_merge_latency_us": 0.23,
+      "p95_merge_latency_us": 0.34,
+      "p99_merge_latency_us": 1.12,
+      "throughput_ops_sec": 4354262,
+      "fanout_msgs_sec": 5400,
+      "frame_budget_merge_cost_pct": 0.014
+    },
+    {
+      "concurrent_users": 25,
+      "trials": 500,
+      "total_ops": 12500,
+      "convergence_rate_pct": 100,
+      "state_divergence_count": 0,
+      "mean_merge_latency_us": 0.14,
+      "p95_merge_latency_us": 0.23,
+      "p99_merge_latency_us": 0.53,
+      "throughput_ops_sec": 7022866,
+      "fanout_msgs_sec": 36000,
+      "frame_budget_merge_cost_pct": 0.021
+    },
+    {
+      "concurrent_users": 50,
+      "trials": 500,
+      "total_ops": 25000,
+      "convergence_rate_pct": 100,
+      "state_divergence_count": 0,
+      "mean_merge_latency_us": 0.16,
+      "p95_merge_latency_us": 0.31,
+      "p99_merge_latency_us": 0.94,
+      "throughput_ops_sec": 6312334,
+      "fanout_msgs_sec": 147000,
+      "frame_budget_merge_cost_pct": 0.048
+    },
+    {
+      "concurrent_users": 100,
+      "trials": 500,
+      "total_ops": 50000,
+      "convergence_rate_pct": 100,
+      "state_divergence_count": 0,
+      "mean_merge_latency_us": 0.1,
+      "p95_merge_latency_us": 0.17,
+      "p99_merge_latency_us": 0.41,
+      "throughput_ops_sec": 10000000,
+      "fanout_msgs_sec": 594000,
+      "frame_budget_merge_cost_pct": 0.057
+    },
+    {
+      "concurrent_users": 250,
+      "trials": 500,
+      "total_ops": 125000,
+      "convergence_rate_pct": 100,
+      "state_divergence_count": 0,
+      "mean_merge_latency_us": 0.1,
+      "p95_merge_latency_us": 0.18,
+      "p99_merge_latency_us": 0.4,
+      "throughput_ops_sec": 10000000,
+      "fanout_msgs_sec": 3735000,
+      "frame_budget_merge_cost_pct": 0.147
+    },
+    {
+      "concurrent_users": 500,
+      "trials": 500,
+      "total_ops": 250000,
+      "convergence_rate_pct": 100,
+      "state_divergence_count": 0,
+      "mean_merge_latency_us": 0.24,
+      "p95_merge_latency_us": 0.18,
+      "p99_merge_latency_us": 0.97,
+      "throughput_ops_sec": 4193814,
+      "fanout_msgs_sec": 14970000,
+      "frame_budget_merge_cost_pct": 0.715
+    }
+  ],
+  "networkPropagationLatency": {
+    "localNetwork": {
+      "minMs": 0.8,
+      "p50Ms": 1.4,
+      "p90Ms": 2.1,
+      "p95Ms": 3.2,
+      "p99Ms": 4.8
+    },
+    "cloudWANDomain": "graffiti.ankitarsh.me",
+    "cloudWAN": {
+      "minMs": 14.2,
+      "p50Ms": 22.8,
+      "p90Ms": 34.5,
+      "p95Ms": 41.2,
+      "p99Ms": 58.7
+    }
+  }
+}

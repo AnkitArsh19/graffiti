@@ -15,8 +15,10 @@ async def solve_math(req: MathSolveRequest):
         pos.y,
         variables=req.variables
     )
+    cleaned = proposed_elem.get("customData", {}).get("cleanedEquation")
     return MathSolveResponse(
         equation=req.equation,
+        cleanedEquation=cleaned,
         result=result_str,
         proposedElement=proposed_elem
     )

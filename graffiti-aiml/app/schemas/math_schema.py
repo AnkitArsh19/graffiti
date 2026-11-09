@@ -17,5 +17,6 @@ class MathSolveRequest(BaseModel):
 
 class MathSolveResponse(BaseModel):
     equation: str
+    cleanedEquation: Optional[str] = None
     result: str
     proposedElement: Dict[str, Any]

@@ -156,6 +156,49 @@ def test_math_solver_enhanced():
     assert res_pow.json()["result"] != "Error"
 
 
+def test_math_solver_calculus_and_unicode_and_latex():
+    # 1. Indefinite calculus with LaTeX delimiters and spacing
+    res_calc = client.post(
+        "/math/solve",
+        json={"equation": r"\(\int (3x^2 + 2x + 1) \, dx\)="}
+    )
+    assert res_calc.status_code == 200
+    assert "x^3 + x^2 + x + C" in res_calc.json()["result"]
+
+    # 2. Raw string wrapper
+    res_raw = client.post(
+        "/math/solve",
+        json={"equation": r'r"\int (3x^2 + 2x + 1) \, dx"='}
+    )
+    assert res_raw.status_code == 200
+    assert "x^3 + x^2 + x + C" in res_raw.json()["result"]
+
+    # 3. Unicode italic variable with invisible times and minus sign
+    res_u = client.post(
+        "/math/solve",
+        json={"equation": "𝑢2 −5⁢𝑢 −14 =0"}
+    )
+    assert res_u.status_code == 200
+    assert res_u.json()["result"] == "u = -2, 7"
+
+    # 4. Web-copied KaTeX / MathJax duplicated quadratic
+    res_quad = client.post(
+        "/math/solve",
+        json={"equation": r"\(6x^2 \)6𝑥2\(\hphantom{}+ 11x \)+11𝑥\(\hphantom{}- 35 \)−35\(\hphantom{}= 0\)=0⁠"}
+    )
+    assert res_quad.status_code == 200
+    assert "x = -7/2, 5/3" in res_quad.json()["result"]
+
+    # 5. Fraction arithmetic
+    res_frac = client.post(
+        "/math/solve",
+        json={"equation": r"\frac{1}{2} + \frac{3}{4} ="}
+    )
+    assert res_frac.status_code == 200
+    assert res_frac.json()["result"] == "5/4"
+
+
+
 def test_mermaid_parser_hyphens_and_database_shapes():
     from app.diagram.mermaid_parser import parse_mermaid
     mermaid_code = """flowchart TD
@@ -189,10 +232,10 @@ source-node[Source Node] -->|Transfer Data| target-node[Target Node]
     layouts = layout_diagram(parsed, start_x=100.0, start_y=100.0)
     elements = build_graffiti_elements(parsed, layouts)
 
-    # 1. Check all text elements have width and height
-    text_elements = [el for el in elements if el["type"] == "text"]
-    assert len(text_elements) >= 3  # 2 node labels + 1 arrow label
-    for text_el in text_elements:
+    # 1. Check all elements with text (nodes and arrow labels) have width and height
+    elements_with_text = [el for el in elements if el.get("text")]
+    assert len(elements_with_text) >= 3  # 2 node labels + 1 arrow label
+    for text_el in elements_with_text:
         assert "width" in text_el and text_el["width"] > 0
         assert "height" in text_el and text_el["height"] > 0
 
@@ -207,7 +250,7 @@ source-node[Source Node] -->|Transfer Data| target-node[Target Node]
     expected_src_cx = src_layout.x + src_layout.width
     expected_tgt_cx = tgt_layout.x
     assert arrow["x"] == expected_src_cx
-    assert arrow["points"][1][0] == expected_tgt_cx - expected_src_cx
+    assert arrow["points"][1]["x"] == expected_tgt_cx - expected_src_cx
 
     # Check arrow label text element
     assert len(arrow["boundElements"]) == 1

@@ -119,7 +119,7 @@ def _heuristic_hierarchy(nodes: List[MindMapNodeInput]) -> Dict[str, Any]:
 
 
 async def _llm_hierarchy(nodes: List[MindMapNodeInput], preferred_model: str = "auto") -> Dict[str, Any]:
-    """Uses Groq (llama-3.1-70b-versatile) or Gemini 1.5 Flash to evaluate semantic relationships."""
+    """Uses Groq (openai/gpt-oss-120b) to evaluate semantic relationships."""
     node_summaries = [
         {"id": n.id, "text": n.text or "Untitled Note", "type": n.type}
         for n in nodes
@@ -154,13 +154,7 @@ async def _llm_hierarchy(nodes: List[MindMapNodeInput], preferred_model: str = "
         try:
             from groq import AsyncGroq
             client = AsyncGroq(api_key=groq_key)
-            models_to_try = [
-                settings.groq_model,
-                "openai/gpt-oss-120b",
-                "llama-3.3-70b-versatile",
-                "qwen/qwen3.8-27b",
-                "openai/gpt-oss-20b",
-            ]
+            models_to_try = settings.get_groq_models()
             for m in models_to_try:
                 try:
                     completion = await client.chat.completions.create(
@@ -362,12 +356,12 @@ def compute_mindmap_layout(
                 "startBinding": {"elementId": root_id, "pointId": start_pt_id},
                 "endBinding": {"elementId": c_id, "pointId": end_pt_id},
                 "arrowType": "curved",
-                "strokeColor": "#6366f1" if side == "right" else "#8b5cf6",
-                "strokeWidth": 2.0,
+                "strokeColor": "#d4a359",
+                "strokeWidth": 2.5,
                 "strokeStyle": "solid",
                 "endArrowhead": "arrow",
                 "roughness": 0.6,
-                "opacity": 0.9,
+                "opacity": 100,
                 "seed": random.randint(1000, 99999)
             }
             connectors.append(connector)
@@ -425,12 +419,12 @@ def compute_mindmap_layout(
                         "startBinding": {"elementId": c_id, "pointId": sub_start_pt},
                         "endBinding": {"elementId": sub_id, "pointId": sub_end_pt},
                         "arrowType": "curved",
-                        "strokeColor": "#a855f7",
-                        "strokeWidth": 1.5,
+                        "strokeColor": "#d4a359",
+                        "strokeWidth": 2.0,
                         "strokeStyle": "solid",
                         "endArrowhead": "arrow",
                         "roughness": 0.6,
-                        "opacity": 0.85,
+                        "opacity": 100,
                         "seed": random.randint(1000, 99999)
                     }
                     connectors.append(sub_connector)
@@ -552,13 +546,7 @@ async def _generate_hierarchy_llm(prompt_text: str, preferred_model: str = "auto
         try:
             from groq import AsyncGroq
             client = AsyncGroq(api_key=groq_key)
-            models_to_try = [
-                settings.groq_model,
-                "openai/gpt-oss-120b",
-                "llama-3.3-70b-versatile",
-                "qwen/qwen3.8-27b",
-                "openai/gpt-oss-20b",
-            ]
+            models_to_try = settings.get_groq_models()
             for m in models_to_try:
                 try:
                     completion = await client.chat.completions.create(
@@ -631,8 +619,8 @@ async def generate_mindmap(request: MindMapGenerateRequest) -> MindMapAutoLayout
         y=anchor_y - 40.0,
         width=180.0,
         height=80.0,
-        strokeColor="#6366f1",
-        backgroundColor="rgba(99, 102, 241, 0.15)"
+        strokeColor="#d4a359",
+        backgroundColor="rgba(212, 163, 89, 0.18)"
     )
 
     all_node_inputs: List[MindMapNodeInput] = [root_node_input]
@@ -650,8 +638,8 @@ async def generate_mindmap(request: MindMapGenerateRequest) -> MindMapAutoLayout
             y=anchor_y,
             width=160.0,
             height=65.0,
-            strokeColor="#8b5cf6",
-            backgroundColor="rgba(139, 92, 246, 0.12)"
+            strokeColor="#d4a359",
+            backgroundColor="rgba(212, 163, 89, 0.12)"
         )
         all_node_inputs.append(b_node)
         hierarchy.append({"id": b_id, "parentId": root_id, "depth": 1, "order": b_idx})
@@ -667,8 +655,8 @@ async def generate_mindmap(request: MindMapGenerateRequest) -> MindMapAutoLayout
                 y=anchor_y,
                 width=140.0,
                 height=55.0,
-                strokeColor="#a855f7",
-                backgroundColor="rgba(168, 85, 247, 0.08)"
+                strokeColor="#b47b18",
+                backgroundColor="rgba(212, 163, 89, 0.08)"
             )
             all_node_inputs.append(s_node)
             hierarchy.append({"id": s_id, "parentId": b_id, "depth": 2, "order": s_idx})

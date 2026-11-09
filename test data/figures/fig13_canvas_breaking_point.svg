@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="320" viewBox="0 0 600 320">
+    <rect width="100%" height="100%" fill="#ffffff" />
+    <text x="30" y="32" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#1e293b">Figure 13: Unculled Panoramic Stress Curve &amp; Canvas Breaking Point</text>
+    <text x="30" y="50" font-family="Arial, sans-serif" font-size="11" fill="#64748b">Simultaneously visible unculled vector shapes vs. Frame Time (ms) &amp; Effective FPS</text>
+
+    <!-- Threshold Guide Lines -->
+    <!-- Plot Area: x: 80 to 550, y: 80 to 260 (height: 180) -->
+    <!-- Max ms on Y = 100ms. 1ms = 1.8px -->
+    <!-- 16.67ms (60 FPS limit) => y = 260 - 16.67 * 1.8 = 230 -->
+    <!-- 33.33ms (30 FPS limit) => y = 260 - 33.33 * 1.8 = 200 -->
+
+    <rect x="80" y="230" width="470" height="30" fill="#f0fdf4" opacity="0.6" />
+    <rect x="80" y="200" width="470" height="30" fill="#fefce8" opacity="0.6" />
+    <rect x="80" y="80" width="470" height="120" fill="#fef2f2" opacity="0.6" />
+
+    <!-- 60 FPS Target Line -->
+    <line x1="80" y1="230" x2="550" y2="230" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="4,4" />
+    <text x="545" y="226" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#16a34a" text-anchor="end">60 FPS Budget (16.67 ms)</text>
+
+    <!-- 30 FPS Usability Floor Line -->
+    <line x1="80" y1="200" x2="550" y2="200" stroke="#ca8a04" stroke-width="1.5" stroke-dasharray="4,4" />
+    <text x="545" y="196" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#ca8a04" text-anchor="end">30 FPS Usability Floor (33.33 ms)</text>
+
+    <!-- Axes -->
+    <line x1="80" y1="260" x2="550" y2="260" stroke="#cbd5e1" />
+    <line x1="80" y1="80" x2="80" y2="260" stroke="#cbd5e1" />
+
+    <!-- Y labels (Frame Time in ms) -->
+    <text x="70" y="263" font-family="Arial, sans-serif" font-size="9.5" fill="#64748b" text-anchor="end">0 ms (∞ FPS)</text>
+    <text x="70" y="233" font-family="Arial, sans-serif" font-size="9.5" fill="#16a34a" font-weight="bold" text-anchor="end">16.7 ms (60 FPS)</text>
+    <text x="70" y="203" font-family="Arial, sans-serif" font-size="9.5" fill="#ca8a04" font-weight="bold" text-anchor="end">33.3 ms (30 FPS)</text>
+    <text x="70" y="152" font-family="Arial, sans-serif" font-size="9.5" fill="#64748b" text-anchor="end">60.0 ms (16 FPS)</text>
+    <text x="70" y="85" font-family="Arial, sans-serif" font-size="9.5" fill="#dc2626" font-weight="bold" text-anchor="end">100 ms (10 FPS)</text>
+
+    <!-- X Mapping: 0 to 10,000 shapes => 80 to 550 (470px width => 1 shape = 0.047px) -->
+    <!-- 100: x=85, y=260 - 1.13*1.8 = 258 -->
+    <!-- 500: x=103, y=260 - 4.98*1.8 = 251 -->
+    <!-- 1000: x=127, y=260 - 13.03*1.8 = 236.5 -->
+    <!-- 1500: x=150, y=260 - 14.09*1.8 = 234.6 -->
+    <!-- 2000 (Knee 1): x=174, y=260 - 16.90*1.8 = 229.6 -->
+    <!-- 3000: x=221, y=260 - 26.69*1.8 = 212.0 -->
+    <!-- 4000 (Knee 2): x=268, y=260 - 37.21*1.8 = 193.0 -->
+    <!-- 5000: x=315, y=260 - 46.11*1.8 = 177.0 -->
+    <!-- 7500: x=432, y=260 - 57.69*1.8 = 156.2 -->
+    <!-- 10000: x=550, y=260 - 98.02*1.8 = 83.6 -->
+
+    <!-- Shaded area under curve -->
+    <path d="M 85 258 L 103 251 L 127 236.5 L 150 234.6 L 174 229.6 L 221 212 L 268 193 L 315 177 L 432 156.2 L 550 83.6 L 550 260 L 85 260 Z" fill="#2563eb" opacity="0.1" />
+
+    <!-- Curve Line -->
+    <path d="M 85 258 L 103 251 L 127 236.5 L 150 234.6 L 174 229.6 L 221 212 L 268 193 L 315 177 L 432 156.2 L 550 83.6" fill="none" stroke="#2563eb" stroke-width="2.5" />
+
+    <!-- Data Points -->
+    <circle cx="85" cy="258" r="3.5" fill="#2563eb" />
+    <circle cx="103" cy="251" r="3.5" fill="#2563eb" />
+    <circle cx="127" cy="236.5" r="3.5" fill="#2563eb" />
+    <circle cx="150" cy="234.6" r="3.5" fill="#2563eb" />
+
+    <!-- Knee 1 Point: 2000 shapes -->
+    <circle cx="174" cy="229.6" r="5" fill="#ca8a04" stroke="#ffffff" stroke-width="1.5" />
+    <line x1="174" y1="229.6" x2="174" y2="185" stroke="#ca8a04" stroke-width="1" stroke-dasharray="2,2" />
+    <rect x="140" y="155" width="115" height="28" rx="3" fill="#fefce8" stroke="#ca8a04" />
+    <text x="197" y="167" font-family="Arial, sans-serif" font-size="8.5" font-weight="bold" fill="#854d0e" text-anchor="middle">Breaking Point 1 (60 FPS)</text>
+    <text x="197" y="178" font-family="Arial, sans-serif" font-size="8" fill="#854d0e" text-anchor="middle">2,000 shapes (16.9 ms / 59.2 FPS)</text>
+
+    <!-- Point 3000 -->
+    <circle cx="221" cy="212" r="3.5" fill="#2563eb" />
+
+    <!-- Knee 2 Point: 4000 shapes -->
+    <circle cx="268" cy="193" r="5" fill="#dc2626" stroke="#ffffff" stroke-width="1.5" />
+    <line x1="268" y1="193" x2="268" y2="140" stroke="#dc2626" stroke-width="1" stroke-dasharray="2,2" />
+    <rect x="235" y="110" width="115" height="28" rx="3" fill="#fef2f2" stroke="#dc2626" />
+    <text x="292" y="122" font-family="Arial, sans-serif" font-size="8.5" font-weight="bold" fill="#991b1b" text-anchor="middle">Breaking Point 2 (30 FPS)</text>
+    <text x="292" y="133" font-family="Arial, sans-serif" font-size="8" fill="#991b1b" text-anchor="middle">4,000 shapes (37.2 ms / 26.9 FPS)</text>
+
+    <!-- Remaining points -->
+    <circle cx="315" cy="177" r="3.5" fill="#2563eb" />
+    <circle cx="432" cy="156.2" r="3.5" fill="#2563eb" />
+
+    <!-- Endpoint: 10,000 shapes -->
+    <circle cx="550" cy="83.6" r="5" fill="#991b1b" stroke="#ffffff" stroke-width="1.5" />
+    <rect x="430" y="80" width="110" height="26" rx="3" fill="#fef2f2" stroke="#991b1b" />
+    <text x="485" y="92" font-family="Arial, sans-serif" font-size="8.5" font-weight="bold" fill="#991b1b" text-anchor="middle">Critical Freeze</text>
+    <text x="485" y="102" font-family="Arial, sans-serif" font-size="8" fill="#991b1b" text-anchor="middle">10,000 shapes (98.0 ms / 10 FPS)</text>
+
+    <!-- X Axis Labels -->
+    <text x="85" y="276" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">100</text>
+    <text x="127" y="276" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">1,000</text>
+    <text x="174" y="276" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#ca8a04" text-anchor="middle">2,000</text>
+    <text x="268" y="276" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#dc2626" text-anchor="middle">4,000</text>
+    <text x="362" y="276" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">6,000</text>
+    <text x="456" y="276" font-family="Arial, sans-serif" font-size="9" fill="#1e293b" text-anchor="middle">8,000</text>
+    <text x="550" y="276" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#991b1b" text-anchor="middle">10,000</text>
+    <text x="315" y="295" font-family="Arial, sans-serif" font-size="10.5" font-weight="bold" fill="#1e293b" text-anchor="middle">Simultaneously Visible Vector Shapes (Unculled Viewport)</text>
+    <text x="315" y="310" font-family="Arial, sans-serif" font-size="9" fill="#64748b" text-anchor="middle">*Note: Under normal operation with Graffiti's spatial AABB culling active, frame times remain &lt;3.2 ms even at 10,000 shapes (Fig. 11).</text>
+  </svg>

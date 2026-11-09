@@ -105,7 +105,12 @@ public class RoomController {
                 }
             }
         }
-        roomService.saveRoomContent(slug, principal, req.name(), parseUUID(req.workspaceId()), parseUUID(req.folderId()), node);
+        try {
+            roomService.saveRoomContent(slug, principal, req.name(), parseUUID(req.workspaceId()), parseUUID(req.folderId()), node);
+        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+            // Concurrent race safeguard: If another thread just committed this room slug, retry as an update
+            roomService.saveRoomContent(slug, principal, req.name(), parseUUID(req.workspaceId()), parseUUID(req.folderId()), node);
+        }
         return ResponseEntity.ok(Map.of("status", "saved", "slug", slug));
     }
 
